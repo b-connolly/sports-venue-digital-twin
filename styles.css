@@ -1,0 +1,1063 @@
+/* Mile High — reality mapping explorer
+   Dark, cinematic, deliberately sparse: the scene is the content, the UI
+   stays out of its way until you reach for it. */
+
+:root {
+  --ink:        #07090d;
+  --ink-2:      #0d1117;
+  --paper:      #f4f1ea;
+  --paper-dim:  rgba(244, 241, 234, 0.62);
+  --paper-faint:rgba(244, 241, 234, 0.34);
+  --accent:     #fb4f14;         /* Broncos orange */
+  --accent-2:   #ffb38a;
+  --line:       rgba(244, 241, 234, 0.14);
+  --glass:      rgba(10, 13, 18, 0.62);
+  --shadow:     0 18px 50px rgba(0, 0, 0, 0.55);
+  --ease:       cubic-bezier(0.22, 1, 0.36, 1);
+  --pad:        clamp(14px, 2.4vw, 30px);
+  --sw-w:       24px;            /* toggle width, reserved in every row */
+  --col-gap:    0.6rem;
+  --tool-h:     222px;           /* max height of the analysis / time panel body */
+
+  /* The unit pickers in the analysis widget are real <select> elements inside
+     Calcite's shadow DOM, and their drop-down list is painted by the browser,
+     not by CSS - no selector reaches it. What does reach it is color-scheme,
+     which is inherited and so crosses the shadow boundary: without this the
+     list renders on the light UA scheme, putting our pale text on white. It
+     also darkens scrollbars and other UA chrome, which suits the rest. */
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#viewDiv { position: fixed; inset: 0; }
+
+/* Corner darkening so overlay text always has something to sit on. */
+.vignette {
+  position: fixed; inset: 0; pointer-events: none; z-index: 2;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,0.55) 100%),
+    linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 22%, transparent 68%, rgba(0,0,0,0.6) 100%);
+}
+
+/* ---------------------------------------------------------------- intro */
+.intro {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  padding: var(--pad);
+  background:
+    radial-gradient(90% 70% at 50% 40%, #131a24 0%, #07090d 70%);
+  transition: opacity 1.1s var(--ease), visibility 1.1s;
+}
+.intro.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.intro__inner { max-width: 44rem; text-align: center; }
+
+.eyebrow {
+  margin: 0 0 1.1rem;
+  font-size: 0.72rem; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+
+.display {
+  margin: 0;
+  font-family: Fraunces, "Iowan Old Style", Georgia, serif;
+  font-weight: 300;
+  /* Set on two lines, at a size that still reads as a hero rather than a
+     headline. The venue name moved to .subtitle below. */
+  font-size: clamp(2.1rem, 7vw, 5.1rem);
+  /* The gradient is painted through the text, so it only covers the line box.
+     A tight line-height clips descenders (the "g"), so leave room below the
+     baseline and pull the extra space back off with a negative margin. */
+  line-height: 1.02;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.12em;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #fffaf4 0%, #d9cfc2 92%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+
+/* The venue, under the thing it is. Sized to sit clearly below the hero
+   without competing with it, and set in the same serif so it reads as part of
+   the same title block rather than as the start of the body copy. */
+.subtitle {
+  margin: 0.85rem 0 0;
+  font-family: Fraunces, "Iowan Old Style", Georgia, serif;
+  font-size: clamp(1.05rem, 2.4vw, 1.6rem);
+  font-weight: 300; line-height: 1.25;
+  letter-spacing: 0.01em;
+  color: var(--paper-dim);
+}
+
+.lede {
+  margin: 1.15rem auto 2.4rem;
+  /* Sized to hold the sentence on two lines. The column is quoted in rem and
+     so was the type, which meant shrinking the type changed nothing - both
+     scaled together and the wrap stayed put. Widening the measure as well as
+     easing the size is what actually buys characters per line. */
+  max-width: 37rem;
+  font-size: clamp(0.88rem, 1.4vw, 1rem);
+  font-weight: 300; line-height: 1.62;
+  color: var(--paper-dim);
+  /* And a backstop: never stranded a single word on a line of its own, however
+     the sentence or the available width changes. */
+  text-wrap: pretty;
+}
+
+.loadbar {
+  width: min(320px, 70vw); height: 2px; margin: 0 auto;
+  background: rgba(244,241,234,0.13); overflow: hidden; border-radius: 2px;
+}
+.loadbar__fill {
+  display: block; width: 0%; height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.5s var(--ease);
+}
+.loadmsg {
+  margin: 0.9rem 0 0; min-height: 1.2em;
+  font-size: 0.74rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+
+.enter {
+  margin-top: 2.2rem; padding: 0.85rem 2.6rem;
+  font: inherit; font-size: 0.78rem; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--paper); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px;
+  cursor: pointer; opacity: 0; transform: translateY(8px);
+  transition: opacity .6s var(--ease), transform .6s var(--ease),
+              background .25s, border-color .25s, color .25s;
+}
+.enter.ready { opacity: 1; transform: none; }
+.enter:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; }
+.enter:disabled { cursor: default; }
+
+.intro__foot {
+  position: absolute; bottom: var(--pad); left: 0; right: 0;
+  margin: 0; text-align: center;
+  font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase;
+  color: rgba(244,241,234,0.22);
+}
+
+/* ------------------------------------------------------------- overlays */
+.hidden { opacity: 0 !important; pointer-events: none !important; }
+.tools, .credit, .weather {
+  position: fixed; z-index: 10;
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+body.hud-off .rail,
+body.hud-off .tour,
+body.hud-off .weather,
+body.hud-off .dock,
+body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6px); }
+
+/* The whole top-left column is one flow, so nothing needs a magic offset and
+   the stack stays correct however many views or captures the scene has. */
+.rail {
+  position: fixed; z-index: 10;
+  top: var(--pad); left: var(--pad);
+  width: min(286px, 56vw);
+  /* The title sits apart; the two panels below it belong together. */
+  display: flex; flex-direction: column; gap: 0.6rem;
+  max-height: calc(100vh - 2 * var(--pad) - 96px);
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+.masthead, .tour, .captures {
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+.masthead { margin-bottom: 0.35rem; }
+.masthead__title {
+  display: block;
+  font-family: Fraunces, Georgia, serif; font-weight: 400;
+  /* One line. Measured: at Fraunces 400 with this tracking the title is 270px
+     wide at 24px, against a 286px rail - so 1.5rem is the largest size that
+     still fits, and nowrap makes a bad break impossible rather than unlikely.
+     The narrow-screen rail is smaller again; see the media query. */
+  font-size: 1.5rem; line-height: 1.1; letter-spacing: -0.015em;
+  white-space: nowrap;
+  color: var(--paper);
+  /* Nothing sits behind the rail, so the title has to hold against whatever
+     the sky is doing. A soft dark halo costs nothing and works against both a
+     bright morning and a black night, where a panel behind it would not. */
+  text-shadow: 0 1px 2px rgba(4, 6, 10, 0.55), 0 2px 14px rgba(4, 6, 10, 0.45);
+}
+.masthead__sub {
+  display: block; margin-top: 0.3rem;
+  /* Tracked less tightly than the other small caps in the app: at 0.26em this
+     line runs past the width of the rail and wraps mid-phrase. */
+  font-size: 0.55rem; font-weight: 500;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--paper-dim);
+  text-shadow: 0 1px 6px rgba(4, 6, 10, 0.6);
+}
+
+/* shared small-caps heading for the rail sections */
+/* Three tiers, deliberately: section heading > group header > layer row. */
+.rail__h {
+  margin: 0 0 0.55rem;
+  font-size: 0.74rem; font-weight: 600; letter-spacing: 0.26em; text-transform: uppercase;
+  color: var(--paper-dim);
+}
+
+/* views - the counter and arrows share a row, and the slide title gets the
+   full width of the card underneath. Slide names come from the web scene and
+   can be long ("ArcGIS Reality (Drone Capture)"); squeezing them beside the
+   arrows left barely 180px and clipped most of them. Two lines here fits every
+   name in this scene without the card growing. */
+.tour {
+  display: flex; flex-direction: column; gap: 0.34rem;
+  padding: 0.55rem 0.8rem 0.65rem;
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 12px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--shadow);
+}
+.tour__bar { display: flex; align-items: center; gap: 0.7rem; }
+.tour__nav { display: flex; gap: 4px; margin-left: auto; }
+.tour__arrow {
+  width: 26px; height: 26px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 7px;
+  background: rgba(244, 241, 234, 0.05);
+  color: var(--paper); font: inherit; font-size: 1.05rem; line-height: 1;
+  cursor: pointer; transition: background .2s, color .2s, border-color .2s;
+}
+.tour__arrow:hover { background: var(--accent); border-color: transparent; color: #fff; }
+.tour__arrow:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+/* The play control sits with the arrows but is a state rather than a step, so
+   it stays lit for as long as it is running. */
+.tour__arrow--play { margin-right: 3px; }
+.tour__arrow--play svg { width: 13px; height: 13px; fill: currentColor; display: block; }
+.tour__arrow--play.on { background: var(--accent); border-color: transparent; color: #fff; }
+.tour__idx {
+  font-size: 0.56rem; font-weight: 600; letter-spacing: 0.2em;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+/* Clamped rather than truncated: a third line would push the captures panel
+   down on every navigation, and no slide in the scene needs one. The full
+   text is on the element's title attribute either way. */
+.tour__title {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  font-size: 0.85rem; font-weight: 500; line-height: 1.32;
+  color: var(--paper);
+  overflow: hidden; overflow-wrap: break-word; text-wrap: pretty;
+}
+
+/* captures — same column, keeps its glass card */
+.captures {
+  padding: 0.9rem 0.95rem 0.7rem;
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--shadow);
+}
+
+/* Group header — one for the splat, one for the meshes. The splat is a single
+   layer and the meshes are three, but they are peer products of the same
+   survey, so they get identical weight: same type, same switch, same rule. */
+.grp {
+  display: flex; align-items: center; gap: var(--col-gap);
+  width: 100%; margin: 0; padding: 0.55rem 0;
+  border: 0; border-top: 1px solid var(--line);
+  background: none; color: var(--paper); font: inherit;
+  text-align: left; cursor: pointer;
+}
+.grp__label {
+  flex: 1 1 auto;
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--paper-faint); transition: color .2s;
+  white-space: nowrap;
+}
+.grp:hover .grp__label,
+.grp.on .grp__label { color: var(--paper-dim); }
+.grp__n {
+  flex: 0 0 auto; text-align: right; white-space: nowrap;
+  font-size: 0.55rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+.grp__sw {
+  position: relative; flex: 0 0 auto;
+  width: var(--sw-w); height: 14px; border-radius: 999px;
+  background: rgba(244,241,234,0.14); border: 1px solid var(--line);
+  transition: background .3s, border-color .3s;
+}
+.grp__sw::after {
+  content: ""; position: absolute; top: 1px; left: 1px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--paper-faint);
+  transition: transform .3s var(--ease), background .3s;
+}
+.grp:hover .grp__sw { border-color: rgba(251,79,20,0.55); }
+.grp.on .grp__sw { background: rgba(251,79,20,0.85); border-color: transparent; }
+.grp.on .grp__sw::after { transform: translateX(10px); background: #fff; }
+/* Some on, some off — knob parks in the middle. */
+.grp.mixed .grp__sw { background: rgba(251,79,20,0.34); border-color: rgba(251,79,20,0.45); }
+.grp.mixed .grp__sw::after { transform: translateX(5px); background: var(--accent-2); }
+
+.captures__list { margin-top: 0.2rem; }
+.cap {
+  display: flex; align-items: center; gap: var(--col-gap);
+  width: 100%; border: 0; background: none;
+  /* Reserve the switch column so every "kind" label lines up with the headers'. */
+  padding: 0.4rem calc(var(--sw-w) + var(--col-gap)) 0.4rem 0;
+  color: var(--paper); font: inherit; font-size: 0.76rem; text-align: left;
+  cursor: pointer; opacity: 0.55; transition: opacity .2s;
+}
+.cap:hover { opacity: 0.85; }
+.cap.on { opacity: 1; }
+.cap__dot {
+  flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--paper-faint);
+  transition: background .25s, border-color .25s, box-shadow .25s;
+}
+.cap.on .cap__dot {
+  background: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(251, 79, 20, 0.65);
+}
+.cap__name {
+  flex: 1 1 auto; min-width: 0; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cap__kind {
+  flex: 0 0 auto; text-align: right; white-space: nowrap;
+  font-size: 0.52rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+
+/* tools ---------------------------------------------------------------- */
+.tools {
+  top: var(--pad); right: var(--pad);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.tool {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  background: var(--glass); border: 1px solid var(--line); border-radius: 10px;
+  color: var(--paper); font-size: 1rem; cursor: pointer;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  transition: background .2s, border-color .2s;
+}
+.tool:hover { background: rgba(251,79,20,0.85); border-color: transparent; }
+/* Drawn icons render at a consistent weight; glyphs vary by font. */
+.tool svg {
+  width: 18px; height: 18px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
+.tool.active { background: rgba(251,79,20,0.85); border-color: transparent; color: #fff; }
+
+/* docked panels — measure and time both sit centred on the bottom edge ---- */
+.dock {
+  position: fixed; z-index: 10;
+  left: 50%; transform: translateX(-50%);
+  bottom: var(--pad);
+  width: min(740px, calc(100vw - 2 * var(--pad)));
+  background: var(--glass); border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--shadow); overflow: hidden;
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+.dock[hidden] { display: none; }
+body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(6px); }
+.dock__bar {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.42rem 0.5rem 0.42rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+.dock__h {
+  flex: 1 1 auto;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+.dock__now {
+  font-family: Fraunces, Georgia, serif; font-size: 0.95rem; color: var(--paper);
+  white-space: nowrap; margin-right: 0.15rem;
+}
+.dock__btn {
+  padding: 0.25rem 0.55rem; border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--paper-dim);
+  font: inherit; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: background .2s, color .2s, border-color .2s;
+}
+.dock__btn:hover { background: rgba(251,79,20,0.85); border-color: transparent; color: #fff; }
+/* Camera picker in the replay's title bar. Three named viewpoints rather than
+   one on/off switch: only Player Highlight actually holds the camera, the other
+   two are a single move you can repeat. */
+.camseg { display: flex; gap: 3px; flex: 0 0 auto; }
+.camseg__b {
+  padding: 0.25rem 0.5rem; border: 1px solid var(--line);
+  background: transparent; color: var(--paper-faint);
+  font: inherit; font-size: 0.58rem; letter-spacing: 0.09em; text-transform: uppercase;
+  white-space: nowrap; cursor: pointer;
+  transition: background .18s, color .18s, border-color .18s;
+}
+.camseg__b:first-child { border-radius: 7px 0 0 7px; }
+.camseg__b:last-child { border-radius: 0 7px 7px 0; }
+.camseg__b + .camseg__b { margin-left: -1px; }
+.camseg__b:hover { color: var(--paper); background: rgba(244, 241, 234, 0.08); }
+.camseg__b.on {
+  background: var(--accent); border-color: transparent; color: #fff;
+}
+.camseg__b:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; z-index: 1; }
+
+.dock__opts {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.1rem 0.85rem 0.7rem;
+}
+/* segmented tool picker */
+.mseg { display: flex; gap: 4px; padding: 0.45rem 0.6rem 0; }
+.mseg button {
+  flex: 1 1 0; padding: 0.32rem 0; border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--paper-dim);
+  font: inherit; font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase;
+  cursor: pointer; transition: background .2s, color .2s, border-color .2s;
+  white-space: nowrap;
+}
+.mseg button:hover { color: var(--paper); }
+.mseg button.on { background: rgba(251,79,20,0.85); border-color: transparent; color: #fff; }
+.dock__hint {
+  margin: 0.4rem 0.8rem 0.5rem;
+  font-size: 0.58rem; line-height: 1.4; color: var(--paper-faint);
+}
+.dock__hint[hidden] { display: none; }
+#measureHost, #timeHost {
+  padding: 0 0.3rem 0.3rem;
+  /* Hard ceiling. Whatever the widget reserves internally, the dock cannot
+     sprawl past this — the tunable is --tool-h. */
+  max-height: var(--tool-h);
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244,241,234,0.22) transparent;
+  /* Calcite */
+  --calcite-font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --calcite-sans-family: var(--calcite-font-family);
+  --calcite-color-brand: var(--accent);
+  --calcite-color-brand-hover: #ff6a33;
+  --calcite-color-brand-press: #e04510;
+  --calcite-color-focus: var(--accent-2);
+  --calcite-color-text-1: var(--paper);
+  --calcite-color-text-2: var(--paper-dim);
+  --calcite-color-text-3: var(--paper-faint);
+  --calcite-color-background: transparent;
+  --calcite-color-foreground-1: rgba(244, 241, 234, 0.06);
+  --calcite-color-foreground-2: rgba(244, 241, 234, 0.10);
+  --calcite-color-foreground-3: rgba(244, 241, 234, 0.14);
+  --calcite-color-border-1: var(--line);
+  --calcite-color-border-2: var(--line);
+  --calcite-color-border-3: var(--line);
+  --calcite-color-border-input: var(--line);
+
+  /* Esri widget frame */
+  --esri-widget-padding-x: 0.85rem;
+  --esri-widget-padding-y: 0.7rem;
+}
+.panelhost .esri-widget,
+.panelhost .esri-widget--panel {
+  background: transparent !important;
+  color: var(--paper) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+  font-size: 0.82rem;
+}
+.panelhost .esri-widget__heading { display: none; }
+
+/* tighten the stacked label/value rows */
+.panelhost .esri-measurement-widget-content { gap: 0.85rem; }
+.panelhost .esri-measurement-widget-content__measurement,
+.panelhost .esri-measurement-widget-content__measurement-item { gap: 0.15rem; }
+.panelhost .esri-measurement-widget-content__measurement-item {
+  font-size: 0.58rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+.panelhost .esri-measurement-widget-content__measurement-item__value {
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.15rem; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--paper);
+}
+.panelhost .esri-measurement-widget-content__hint {
+  font-size: 0.62rem; line-height: 1.5; color: var(--paper-faint);
+}
+/* Keep the widget's own "New measurement" button. It is not a duplicate of the
+   panel's Clear — it is the affordance that arms the tool, and the widget does
+   not begin a measurement on its own. It picks up --calcite-color-brand above. */
+.panelhost .esri-measurement-widget-content__actions { margin-top: 0.15rem; }
+
+/* ------------------------------------------------------- the unit pickers
+   The analysis widget's unit lists are native <select> elements. The closed
+   control takes styling; the open list does not - it is drawn by the browser,
+   and on Windows it comes up on the light system scheme however dark the page
+   declares itself, leaving our pale ink on white. selectmenu.js therefore
+   leaves the select in place, working, and draws this over the top of it.
+
+   The select itself keeps this styling: it stays on screen as the closed
+   control, and only its menu is taken over. */
+.dock select, .dock option, .esri-widget select, .esri-widget option {
+  background-color: #12161d;
+  color: var(--paper);
+}
+
+.upick__list {
+  /* Fixed and parented to the body: see selectmenu.js. Position comes from
+     script, because the control it belongs to sits inside a scrolling panel. */
+  position: fixed; z-index: 60;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 4px;
+  background: rgba(12, 15, 21, 0.96);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244,241,234,0.22) transparent;
+}
+.upick__list[hidden] { display: none; }
+.upick__opt {
+  display: block; width: 100%; padding: 0.32rem 0.55rem;
+  border: 0; border-radius: 6px; background: none;
+  color: var(--paper-dim); font: inherit; font-size: 0.78rem; text-align: left;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.upick__opt:hover { background: rgba(244, 241, 234, 0.10); color: var(--paper); }
+.upick__opt.on { background: var(--accent); color: #fff; }
+
+/* time-of-day panel — a wide scrubber along the bottom, not a right-hand card */
+/* shadows switch in the time dock */
+.optsw {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.3rem 0; border: 0; background: none;
+  color: var(--paper); font: inherit; cursor: pointer;
+}
+.optsw__label {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--paper-faint); transition: color .2s;
+}
+.optsw:hover .optsw__label, .optsw.on .optsw__label { color: var(--paper-dim); }
+.optsw__sw {
+  position: relative; flex: 0 0 auto;
+  width: var(--sw-w); height: 14px; border-radius: 999px;
+  background: rgba(244,241,234,0.14); border: 1px solid var(--line);
+  transition: background .3s, border-color .3s;
+}
+.optsw__sw::after {
+  content: ""; position: absolute; top: 1px; left: 1px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--paper-faint);
+  transition: transform .3s var(--ease), background .3s;
+}
+.optsw.on .optsw__sw { background: rgba(251,79,20,0.85); border-color: transparent; }
+.optsw.on .optsw__sw::after { transform: translateX(10px); background: #fff; }
+
+/* The profile widget is built for a tall side panel and reserves space for a
+   prompt block, a statistics block and a roomy footer. In a bottom dock those
+   reservations show up as dead bands, so collapse anything empty and pin the
+   chart to a fixed height. */
+#measureHost .esri-elevation-profile,
+#measureHost .esri-elevation-profile__main-container {
+  max-width: none; min-height: 0; height: auto;
+}
+#measureHost .esri-elevation-profile__chart-container {
+  min-height: 0; height: 148px; overflow: hidden;
+}
+#measureHost .esri-elevation-profile__chart-container > * { height: 100%; }
+/* blocks the widget keeps in the tree but leaves empty */
+#measureHost .esri-elevation-profile__prompt-container:empty,
+#measureHost .esri-elevation-profile-statistics:empty,
+#measureHost .esri-elevation-profile__header:empty { display: none; }
+#measureHost .esri-elevation-profile__header { padding: 0 0.35rem; }
+#measureHost .esri-elevation-profile-statistics { font-size: 0.58rem; padding: 0 0.35rem; }
+/* The legend and the footer button are separate rows in the widget's own
+   layout, which costs a whole line in a bottom dock. Pin the footer into the
+   legend's row and reserve space for it on the right — one line, no scroll. */
+#measureHost .esri-elevation-profile { position: relative; }
+#measureHost .esri-elevation-profile__footer {
+  position: absolute; right: 0.25rem; bottom: 0.2rem;
+  padding: 0; margin: 0; min-height: 0;
+  background: none; border: 0;
+}
+/* legend: one tight inline strip, with the right-hand gap left for the button */
+#measureHost .esri-elevation-profile-legend {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.2rem 0.45rem; padding-right: 130px;
+  background: none; min-height: 26px;
+}
+#measureHost .esri-elevation-profile-legend-item {
+  padding: 0 !important; margin: 0 !important; background: none !important;
+  border: 0 !important; min-height: 0 !important;
+  font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+#measureHost .esri-elevation-profile__action-button,
+#measureHost .esri-elevation-profile__sketch-button,
+#measureHost .esri-elevation-profile__sketch-done-button,
+#measureHost .esri-elevation-profile__sketch-cancel-button {
+  --calcite-button-height: 24px;
+  font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+}
+
+/* shadows switch in the time dock */
+.optsw {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.3rem 0; border: 0; background: none;
+  color: var(--paper); font: inherit; cursor: pointer;
+}
+.optsw__label {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--paper-faint); transition: color .2s;
+}
+.optsw:hover .optsw__label, .optsw.on .optsw__label { color: var(--paper-dim); }
+.optsw__sw {
+  position: relative; flex: 0 0 auto;
+  width: var(--sw-w); height: 14px; border-radius: 999px;
+  background: rgba(244,241,234,0.14); border: 1px solid var(--line);
+  transition: background .3s, border-color .3s;
+}
+.optsw__sw::after {
+  content: ""; position: absolute; top: 1px; left: 1px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--paper-faint);
+  transition: transform .3s var(--ease), background .3s;
+}
+.optsw.on .optsw__sw { background: rgba(251,79,20,0.85); border-color: transparent; }
+.optsw.on .optsw__sw::after { transform: translateX(10px); background: #fff; }
+
+/* The profile widget is built for a full side panel; in a bottom dock it has to
+   earn its height. Chart kept readable, everything around it compressed. */
+#measureHost .esri-elevation-profile { max-width: none; }
+#measureHost .esri-elevation-profile__chart-container { min-height: 104px; height: 104px; }
+#measureHost .esri-elevation-profile__header,
+#measureHost .esri-elevation-profile__footer { padding: 0.2rem 0.35rem; }
+#measureHost .esri-elevation-profile-statistics { font-size: 0.58rem; padding: 0 0.35rem; }
+/* legend: two entries, so make it one tight inline strip rather than stacked bars */
+#measureHost .esri-elevation-profile-legend {
+  display: flex; gap: 0.9rem; padding: 0.15rem 0.4rem; background: none;
+}
+#measureHost .esri-elevation-profile-legend-item {
+  padding: 0 !important; background: none !important; font-size: 0.56rem;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--paper-faint);
+}
+/* the widget's own action button, scaled down to match the panel's chrome */
+#measureHost .esri-elevation-profile__action-button,
+#measureHost .esri-elevation-profile__sketch-button,
+#measureHost .esri-elevation-profile__sketch-done-button,
+#measureHost .esri-elevation-profile__sketch-cancel-button {
+  --calcite-button-height: 24px;
+  font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+}
+
+.vol { padding: 0.3rem 0.5rem 0.15rem; }
+.vol__row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 0.8rem; padding: 0.22rem 0;
+}
+.vol__row span {
+  font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+.vol__row b {
+  font-family: Fraunces, Georgia, serif; font-weight: 500;
+  font-size: 0.98rem; color: var(--paper); font-variant-numeric: tabular-nums;
+}
+
+/* light popup ----------------------------------------------------------- */
+.lightpop { font-family: Inter, system-ui, sans-serif; }
+.lightpop__eyebrow {
+  font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+.lightpop__hero { margin: 0.55rem 0 0.85rem; display: flex; align-items: baseline; gap: 0.4rem; }
+.lightpop__big {
+  font-family: Fraunces, Georgia, serif; font-weight: 500;
+  font-size: 2rem; line-height: 1; color: var(--accent);
+}
+.lightpop__unit { font-size: 0.76rem; color: var(--paper-faint); }
+.lightpop__t { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.lightpop__t td { padding: 0.22rem 0; vertical-align: baseline; }
+.lightpop__t td:first-child { color: var(--paper-faint); }
+.lightpop__t td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.lightpop__t em { font-style: normal; color: var(--paper-faint); font-size: 0.9em; }
+.lightpop__note {
+  margin-top: 0.75rem; padding: 0.5rem 0.6rem;
+  border-left: 3px solid var(--accent);
+  background: rgba(251, 79, 20, 0.08);
+  font-size: 0.72rem; line-height: 1.5; color: var(--paper-dim);
+}
+/* Esri popup chrome, toned to the app */
+.esri-popup__main-container { background: var(--glass) !important; backdrop-filter: blur(16px); }
+.esri-popup__header-title { font-size: 0.72rem !important; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--paper-dim) !important; }
+
+/* live weather --------------------------------------------------------- */
+.weather {
+  left: var(--pad); bottom: var(--pad);
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.8rem 0.5rem 0.7rem;
+  background: var(--glass); border: 1px solid var(--line); border-radius: 999px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--shadow);
+}
+.weather[hidden] { display: none; }
+.weather__icon { font-size: 1.1rem; line-height: 1; color: var(--accent-2); }
+.weather__read { display: flex; flex-direction: column; gap: 0.06rem; line-height: 1.15; }
+.weather__temp { font-size: 0.86rem; font-weight: 500; }
+.weather__meta { display: flex; align-items: baseline; gap: 0.34rem; }
+.weather__desc, .weather__time, .weather__sun {
+  font-size: 0.55rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--paper-faint); white-space: nowrap;
+}
+.weather__time { color: var(--paper-dim); }
+/* thin divider between the conditions and the local clock */
+.weather__time::before { content: "·"; margin-right: 0.34rem; color: var(--paper-faint); }
+.weather__sun { font-size: 0.5rem; opacity: 0.72; }
+/* after dark the chip cools off, and the icon picks up moonlight */
+.weather.night .weather__icon { color: #cfe0ff; }
+.weather.night { border-color: rgba(180, 205, 255, 0.22); }
+.weather__live {
+  margin-left: 0.15rem; padding: 0.12rem 0.42rem; border-radius: 999px;
+  font-size: 0.48rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent-2); background: rgba(251,79,20,0.16);
+  border: 1px solid rgba(251,79,20,0.34);
+}
+/* time of day is being driven by hand, not by the clock */
+.weather.manual .weather__live {
+  color: #cfe0ff; background: rgba(150,190,235,0.14); border-color: rgba(150,190,235,0.32);
+}
+.weather.manual .weather__live::before { animation: none; background: #9dbbe6; }
+/* gentle pulse so "live" reads as live */
+.weather__live::before {
+  content: ""; display: inline-block; vertical-align: middle;
+  width: 4px; height: 4px; margin-right: 4px; border-radius: 50%;
+  background: var(--accent); animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+.credit { right: var(--pad); bottom: var(--pad); }
+.credit a {
+  font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--paper-faint); text-decoration: none;
+  border-bottom: 1px solid transparent; transition: color .2s, border-color .2s;
+}
+.credit a:hover { color: var(--paper); border-color: var(--accent); }
+
+/* Esri's own widget chrome, toned down to match. */
+.esri-ui .esri-widget,
+.esri-ui .esri-widget--button {
+  background: var(--glass) !important;
+  color: var(--paper) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+}
+.esri-attribution { display: none !important; }
+
+.rotate { display: none; }
+.noscript { position: fixed; inset: 0; display: grid; place-items: center; z-index: 99; }
+
+@media (max-width: 780px) {
+  .rail { width: min(258px, 66vw); max-height: calc(100vh - 2 * var(--pad) - 150px); }
+  /* 20px puts the title at 225px, inside even a 66vw rail on a small phone. */
+  .masthead__title { font-size: 1.25rem; }
+  .rail .tour { display: none; }        /* views list is the first thing to go */
+  /* On narrow screens the bottom edge gets crowded, so the chip and the
+     panels stack above the time scrubber instead of sharing its line. */
+  .weather { bottom: calc(var(--pad) + 86px); }
+  .dock    { width: calc(100vw - 2 * var(--pad)); }
+  .credit  { bottom: calc(var(--pad) + 86px); }
+}
+@media (max-height: 430px) and (orientation: portrait) {
+  .rotate {
+    display: grid; place-items: center;
+    position: fixed; inset: 0; z-index: 60; background: var(--ink);
+    font-size: 0.72rem; letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--paper-faint);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; }
+}
+
+/* ---------------------------------------------------------------- live action
+   A transport bar, not a video player: one button, one track, and the four
+   moments of the play marked on it so the shape of it is readable at a glance
+   without watching a clock. */
+#playPanel { --tool-h: auto; }
+
+.playbody {
+  display: flex; align-items: center; gap: 0.85rem;
+  padding: 0.7rem 0.9rem 0.2rem;
+}
+
+.playbtn {
+  flex: 0 0 auto;
+  width: 38px; height: 38px; padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: rgba(251, 79, 20, 0.9); color: #fff;
+  cursor: pointer; transition: transform 0.18s var(--ease), background 0.18s;
+}
+.playbtn:hover { transform: scale(1.06); background: var(--accent); }
+.playbtn svg { width: 17px; height: 17px; fill: currentColor; }
+
+.playtrack { flex: 1 1 auto; min-width: 0; position: relative; }
+
+/* Event markers sit behind the scrubber, pinned by percentage of the play. */
+/* One row of labels normally; two when a pair is too close to share one, which
+   is what `.two` reserves the height for. The ticks hang off the bottom so they
+   stay against the scrubber whichever it is. */
+.playtrack__marks { position: relative; height: 11px; }
+.playtrack__marks.two { height: 22px; }
+.playtrack__marks i {
+  position: absolute; bottom: 0; width: 1px; height: 8px;
+  background: var(--paper-faint); transform: translateX(-0.5px);
+}
+/* The label is a real element rather than a pseudo, because its width has to
+   be measured before the labels can be slid clear of one another - see
+   spaceMarks(). --shift is what that pass writes. */
+.playtrack__marks i b {
+  position: absolute; bottom: calc(10px + var(--row, 0) * 11px); left: 0;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  font-size: 0.5rem; font-weight: 400;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--paper-faint); white-space: nowrap;
+  transition: color .2s;
+}
+.playtrack__marks i.hit { background: var(--accent); }
+.playtrack__marks i.hit b { color: var(--accent-2); }
+
+.playtrack__scrub {
+  -webkit-appearance: none; appearance: none;
+  display: block; width: 100%; height: 4px; margin: 0;
+  border-radius: 2px; background: rgba(244, 241, 234, 0.16);
+  cursor: pointer;
+}
+.playtrack__scrub::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--accent);
+  cursor: grab;
+}
+.playtrack__scrub::-moz-range-thumb {
+  width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 50%;
+  background: var(--paper); cursor: grab;
+}
+
+.playtrack__phase {
+  margin-top: 0.3rem;
+  font-size: 0.56rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent-2); min-height: 0.9em;
+}
+
+.playcap {
+  margin: 0; padding: 0.1rem 0.9rem 0.75rem;
+  font-size: 0.62rem; line-height: 1.55; color: var(--paper-faint);
+}
+.playcap b { color: var(--paper-dim); font-weight: 500; }
+
+/* Secondary transport button: present, but not competing with play. */
+.playbtn--ghost {
+  width: 30px; height: 30px;
+  background: transparent; color: var(--paper-dim);
+  border-color: var(--line);
+}
+.playbtn--ghost:hover { background: rgba(244,241,234,0.08); color: var(--paper); transform: none; }
+.playbtn--ghost svg { width: 14px; height: 14px; }
+
+/* ------------------------------------------------- live action tool group
+   One button in the rail that opens out into the two codes. The flyout sits
+   to the left of the rail because the rail is hard against the right edge. */
+.toolgroup { position: relative; }
+
+.toolmenu {
+  position: absolute; top: 0; right: calc(100% + 8px);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px;
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  white-space: nowrap;
+  animation: toolmenu-in 0.16s var(--ease);
+}
+.toolmenu[hidden] { display: none; }
+
+@keyframes toolmenu-in {
+  from { opacity: 0; transform: translateX(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.toolmenu__item {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.42rem 0.7rem 0.42rem 0.5rem;
+  border: 0; border-radius: 7px;
+  background: transparent; color: var(--paper-dim);
+  font: inherit; font-size: 0.7rem; letter-spacing: 0.02em;
+  cursor: pointer; text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.toolmenu__item:hover { background: rgba(244,241,234,0.09); color: var(--paper); }
+.toolmenu__item svg {
+  width: 15px; height: 15px; flex: 0 0 15px;
+  fill: currentColor; stroke: currentColor;
+}
+.toolmenu__item svg [fill="none"] { fill: none; }
+.toolmenu__item.active { color: var(--accent-2); }
+.toolmenu__item.active::after {
+  content: ""; width: 5px; height: 5px; margin-left: auto;
+  border-radius: 50%; background: var(--accent);
+}
+
+/* --------------------------------------------------- collapsing the captures
+   Independent of the hide-interface button: that one takes the whole UI away,
+   and sometimes the only thing in the way is this list. */
+.rail__h { display: block; }
+
+.rail__toggle {
+  display: flex; align-items: center; gap: 0.4rem;
+  width: 100%; padding: 0; margin: 0;
+  border: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+  transition: color 0.16s;
+}
+.rail__toggle:hover { color: var(--paper); }
+
+.rail__chev {
+  width: 11px; height: 11px; margin-left: auto;
+  opacity: 0.7; transition: transform 0.28s var(--ease), opacity 0.16s;
+}
+.rail__toggle:hover .rail__chev { opacity: 1; }
+.captures.collapsed .rail__chev { transform: rotate(-90deg); }
+
+/* 1fr -> 0fr animates where height:auto cannot. The inner element needs
+   min-height:0 or the grid row refuses to shrink below its content. */
+.captures__wrap {
+  display: grid; grid-template-rows: 1fr;
+  transition: grid-template-rows 0.3s var(--ease), opacity 0.22s var(--ease);
+}
+.captures__wrap > * { min-height: 0; overflow: hidden; }
+.captures.collapsed .captures__wrap { grid-template-rows: 0fr; opacity: 0; }
+
+/* With the list shut, the card should sit tight to its heading. */
+.captures { transition: padding 0.3s var(--ease); }
+.captures.collapsed { padding-bottom: 0.62rem; }
+.captures.collapsed .rail__h { margin-bottom: 0; }
+
+/* --------------------------------------------------------------- info sheet
+   Prose wants a column and a scrim, not a dock panel: the dock is 740px of
+   letterbox pinned to the bottom, which is right for a transport bar and wrong
+   for four sections of reading. */
+.sheet {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center;
+  padding: var(--pad);
+}
+.sheet[hidden] { display: none; }
+
+.sheet__scrim {
+  position: absolute; inset: 0;
+  background: rgba(4, 6, 10, 0.62);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: sheet-fade 0.22s var(--ease);
+}
+
+.sheet__card {
+  position: relative;
+  width: min(46rem, 100%);
+  max-height: min(78vh, 46rem);
+  display: flex; flex-direction: column;
+  background: rgba(10, 13, 18, 0.9);
+  border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  animation: sheet-rise 0.28s var(--ease);
+}
+
+@keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.sheet__bar {
+  display: flex; align-items: center; gap: 0.8rem;
+  padding: 1rem 1.1rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+.sheet__h {
+  margin: 0; flex: 1 1 auto;
+  font-size: 0.76rem; font-weight: 600;
+  letter-spacing: 0.26em; text-transform: uppercase;
+  color: var(--paper-dim);
+}
+
+.sheet__body {
+  padding: 1.1rem 1.15rem 1.3rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244,241,234,0.22) transparent;
+}
+
+.sheet__lede {
+  margin: 0 0 1.35rem;
+  font-family: Fraunces, "Iowan Old Style", Georgia, serif;
+  font-size: 1.05rem; font-weight: 300; line-height: 1.5;
+  color: var(--paper);
+  text-wrap: pretty;
+}
+
+/* A numbered step: the ordinal in the margin, the prose in a readable column. */
+.step { display: flex; gap: 0.95rem; padding: 0.95rem 0; }
+.step + .step { border-top: 1px solid rgba(244, 241, 234, 0.07); }
+.step__n {
+  flex: 0 0 auto; width: 1.9rem;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 0.92rem; line-height: 1.4;
+  color: var(--accent); opacity: 0.85;
+}
+.step h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--paper);
+}
+.step p {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem; line-height: 1.7; font-weight: 300;
+  color: var(--paper-dim);
+  text-wrap: pretty;
+}
+.step p:last-child { margin-bottom: 0; }
+.step b { color: var(--paper); font-weight: 500; }
+.step code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em; color: var(--accent-2);
+}
+
+@media (max-width: 560px) {
+  .step { flex-direction: column; gap: 0.3rem; }
+  .step__n { width: auto; }
+}
+
+/* Links in the info sheet: present, but not shouting over the prose. */
+.sheet__body a {
+  color: var(--accent-2);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255, 179, 138, 0.35);
+  transition: color 0.15s, border-color 0.15s;
+}
+.sheet__body a:hover {
+  color: var(--paper);
+  border-bottom-color: var(--accent);
+}

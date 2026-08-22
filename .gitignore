@@ -1,0 +1,41 @@
+# The derived tracking data. Neither source publishes a licence, so the play
+# files are built locally rather than redistributed here - tools/README.md says
+# where to fetch the originals and the scripts do the rest. A fresh clone has
+# no replay data until you have run them.
+/play.json
+/soccer.json
+
+# Build inputs that are not ours to redistribute. tools/README.md says where to
+# fetch them; the scripts refuse to run without them.
+tools/*.csv
+
+# Build by-products. tools/ is where the generators write; the copies the app
+# actually serves are the ones in the root, and those are committed.
+tools/field.jpg
+tools/field_landscape.jpg
+tools/pitch.jpg
+tools/midfield_preview.png
+tools/play.json
+tools/soccer.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Scratch
+*.log
+_*.html
+
+# Chrome profiles and screenshots from headless verification runs
+p_*/
+*.png.bak

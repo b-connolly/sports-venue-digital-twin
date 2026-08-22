@@ -1,0 +1,2148 @@
+/**
+ * Sports Venue Digital Twin — reality mapping explorer
+ * ArcGIS Maps SDK for JavaScript 5.x, loaded as ES modules from the CDN.
+ * No build step: the scene is public, so there is nothing to authenticate.
+ */
+
+import esriConfig from "https://js.arcgis.com/5.0/@arcgis/core/config.js";
+import WebScene from "https://js.arcgis.com/5.0/@arcgis/core/WebScene.js";
+import SceneView from "https://js.arcgis.com/5.0/@arcgis/core/views/SceneView.js";
+import * as reactiveUtils from "https://js.arcgis.com/5.0/@arcgis/core/core/reactiveUtils.js";
+import { manageNearPlane } from "./nearplane.js";
+import DirectLineMeasurement3D from "https://js.arcgis.com/5.0/@arcgis/core/widgets/DirectLineMeasurement3D.js";
+import AreaMeasurement3D from "https://js.arcgis.com/5.0/@arcgis/core/widgets/AreaMeasurement3D.js";
+import ElevationProfile from "https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile.js";
+import ElevationProfileLineGround from "https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile/ElevationProfileLineGround.js";
+import ElevationProfileLineView from "https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile/ElevationProfileLineView.js";
+import VolumeMeasurementAnalysis from "https://js.arcgis.com/5.0/@arcgis/core/analysis/VolumeMeasurementAnalysis.js";
+import SketchViewModel from "https://js.arcgis.com/5.0/@arcgis/core/widgets/Sketch/SketchViewModel.js";
+import GraphicsLayer from "https://js.arcgis.com/5.0/@arcgis/core/layers/GraphicsLayer.js";
+import SunnyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/SunnyWeather.js";
+import CloudyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/CloudyWeather.js";
+import RainyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/RainyWeather.js";
+import SnowyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/SnowyWeather.js";
+import FoggyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/FoggyWeather.js";
+import TimeSlider from "https://js.arcgis.com/5.0/@arcgis/core/widgets/TimeSlider.js";
+import TimeExtent from "https://js.arcgis.com/5.0/@arcgis/core/time/TimeExtent.js";
+import { addJumbotron, attachTuner } from "./jumbotron.js";
+import { addMilkyWay, sunAltitudeDeg } from "./milkyway.js";
+import { addSurfaces } from "./field.js";
+import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
+import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
+import { styleLights } from "./lights.js";
+import { addPlay } from "./play.js";
+import { dressSelects } from "./selectmenu.js";
+
+// Widget icons, workers and localisation are fetched relative to this path.
+esriConfig.assetsPath = "https://js.arcgis.com/5.0/@arcgis/core/assets";
+
+const CONFIG = {
+  webSceneId: "2ecd0214d1c940fca2789d0146069786",
+
+  // Capture groups, rendered in order. Each gets a tri-state master switch and
+  // a child row per layer. `title` matches the web scene's layer title; add a
+  // new splat or mesh by adding a line here.
+  // `open: true` means the group is visible when the app opens.
+  groups: [
+    {
+      label: "Splats", open: true,
+      layers: [
+        { title: "Gaussian Splat", label: "Stadium", kind: "Drone" }
+        // { title: "Statues Splat", label: "Statues", kind: "Handheld" },
+        // { title: "Horses Splat",  label: "Horses",  kind: "Handheld" },
+      ]
+    },
+    {
+      label: "Meshes",
+      layers: [
+        { title: "3D Mesh",               label: "Stadium",          kind: "Drone" },
+        { title: "Broncos Stampede",      label: "Broncos Stampede", kind: "Handheld" },
+        { title: "Bronco Alumni Statues", label: "Alumni Statues",   kind: "Handheld" }
+      ]
+    }
+  ],
+
+  flyDuration: 2600,
+  // How long a view is held before the tour moves on, once the flight to it
+  // has finished. The flight itself is flyDuration on top of this.
+  slideDwellMs: 3600,
+
+  // Views authored for a particular hour. The night shot is only a night shot
+  // after dark, so arriving at it sets the clock; leaving it puts the clock
+  // back to whatever it was, which is what keeps a time set by hand on the
+  // slider from being lost to a detour through it. Keyed by view number as the
+  // rail numbers them, valued as the local wall clock at the site.
+  // What each view does when you arrive at it, keyed by view number as the rail
+  // numbers them. One table rather than several, because a slide inserted in
+  // the web scene shifts every number after it and one list is one thing to fix.
+  //   clock - force the site's local wall clock to this, and put it back on the
+  //           way out, so a view authored for the dark is always dark
+  //   opens - a tool panel ("time", "measure") or a play key, started on arrival
+  // A view whose `opens` names a play is also that play's stand camera, which
+  // is what Fan Perspective flies to.
+  views: {
+    2:  { clock: "22:30" },
+    // Arrives at half ten, then walks the sun down to midnight and puts the
+    // panel away. "24:00" is the end of the local day, not the start of it.
+    3:  { clock: "22:30", opens: "time", sweepTo: "24:00", sweepMs: 26000 },
+    9:  { opens: "gridiron" },
+    10: { opens: "football" }
+  },
+
+  // Opening camera. The web scene's own initial viewpoint is used when this is
+  // null. Press C in the running app to print the current camera, then paste it
+  // here — this is app-side only and does not touch the web scene.
+  home: null,
+
+
+  // Empower Field at Mile High — used for the live weather lookup.
+  site: { lat: 39.7439, lon: -105.0201, tz: "America/Denver" },
+
+  credit: {
+    base: "Processed by ArcGIS Reality",
+    // Both products are credited whenever a hand-held capture is on screen,
+    // which is read from the layers themselves rather than from a view number.
+    // It used to be a threshold - "from view 3 onward" - and a slide inserted
+    // ahead of the hand-held views silently moved every one of them, leaving
+    // the line crediting Pix4D over shots that are drone data alone.
+    both: "Processed by ArcGIS Reality & Pix4D Catch"
+  },
+
+  // Layers shown only after dark, driven by the same clock as the sky — so they
+  // follow the time slider as well as live time. Matched on layer title; the
+  // first one found wins, so several spellings can be listed.
+  nightLayers: {
+    titles: ["Mile High Stadium Lights", "MileHigh_StadiumLights_v2",
+             "Stadium Lights", "Mile High - Stadium Lights"],
+    // Sun altitude at which they switch on. -0.83 is geometric sunset; a few
+    // degrees lower matches when it actually looks dark.
+    sunBelowDeg: -3
+  },
+
+  // The field was covered when the site was captured, so it renders as a grey
+  // slab in both the splat and the mesh. Measured off the splat: the slab is
+  // 130 x 76.6 m, long axis 0.59 deg east of north. A regulation field is laid
+  // on it, 8 cm proud so it wins the depth test without floating.
+  field: {
+    enabled: true,
+    lat: 39.74392969,
+    lon: -105.02011614,
+    // Top of the splat's field cloud (p92), not its modal height - gaussians
+    // have volume, so the visible surface sits above the point centres.
+    z: 1582.53,              // EGM96 / gravity-related
+    zEllipsoidal: 1564.73,
+    // Raised clear of both captures. The splat's field cloud reaches ~1.8 m
+    // above its modal height and the mesh sits higher still, so this is the one
+    // number to tune. Settled at 1.8 by eye - 2.6 cleared both but read as
+    // floating. Try a value live with __field.setLift(1.4), which returns the
+    // resulting z.
+    lift: 1.8,
+    groundEgm96: 1582.05,    // measured ground beneath the field, both ways
+    groundEllipsoidal: 1564.25,
+    rotation: -0.59,         // degrees about local up, to meet the measured axis
+    // Two painted surfaces on the one slab, cross-faded between. The slab is
+    // 130 x 76.6 m, which holds either. `depth` is the long axis, north-south.
+    default: "gridiron",
+    surfaces: {
+      // Regulation, so that the markings measure true in the app: 120 yd end
+      // line to end line and 53 1/3 yd across, which is 109.728 x 48.768 m and
+      // the 2.25:1 aspect the texture is drawn at. Goal line to goal line then
+      // comes out at exactly 100 yd (91.44 m).
+      //
+      // This was 113.40 x 50.40, taken from measuring the grey slab in-app. But
+      // the slab is the whole covered area, not the field: sizing the texture to
+      // it stretched every yard to 0.945 m, so the field measured 103.3 yd
+      // between the goal lines. The slab is 130 x 76.6 m and still holds this
+      // comfortably - there is simply a little more of it showing round the edge.
+      gridiron: { width: 48.768, depth: 109.728, texture: "./field.jpg" },
+      // A full-size pitch at the top of the permitted range.
+      pitch:    { width: 68.00, depth: 105.00, texture: "./pitch.jpg" }
+    }
+  },
+
+  // Passages of play replayed on the slab. Each entry names its data file; the
+  // file itself declares its coordinate space and which surface it needs.
+  //
+  // Both are driven by real tracking: the gridiron play from the NFL's own
+  // public 10 Hz release, the football goal from Metrica Sports' open 25 Hz
+  // sample data (anonymised at source, resampled to 10). Each file records its
+  // own provenance in `meta`, and the caption is written from that, so a play
+  // can never describe itself as measured when it is not.
+  //
+  // The two flip flags decide which way a play runs and which touchline is
+  // which. They depend on how the texture landed on the quad, so they are set
+  // by looking, not by derivation.
+  play: {
+    enabled: true,
+    plays: [
+      { key: "gridiron", label: "Gridiron", data: "./play.json" },
+      { key: "football", label: "Football", data: "./soccer.json" }
+    ],
+    flipAlong: false,
+    flipAcross: false,
+    speed: 1,
+    // Broadcast camera: just past the touchline and well up, tracking the ball.
+    // Distances in metres from the near touchline. `out` has to stay small:
+    // the seating deck begins almost at the sideline, so anything beyond about
+    // 12 m puts the camera inside the stand and the capture occludes the field.
+    // Player Highlight: how far out past the touchline, how high, and how
+    // lazily the aim follows the ball. `lag` is a time constant in seconds -
+    // roughly how long the pan takes to cover most of the distance to the ball.
+    // It used to be a fraction applied once per update, which only meant
+    // anything while the update rate was fixed; see followLoop(). `settle` is
+    // how long the swing in from wherever the camera already was takes.
+    camera: { out: 4, up: 30, lag: 0.66, settle: 1.2 },
+    // Where the view is taken to once, when the panel opens, so the surface is
+    // actually on screen. `up` is metres above the turf - high enough to clear
+    // the roof rim, since inside the bowl the capture's own geometry gets
+    // between the camera and the grass. `fill` is the slant distance as a
+    // fraction of the surface's length.
+    //
+    // These two trade against each other and the roof is the constraint. The
+    // rim sits at 100-133 m radius and 36-49 m up, so the camera has to stay
+    // inside 100 m horizontally or the catwalk and light towers get in front of
+    // it - which rules out buying coverage by backing away. Coverage comes from
+    // height instead. SceneView's fov is horizontal, so the slant distance
+    // needed to frame the long axis is about length / (2 tan 27.5deg), and 1.35
+    // leaves a little air at each end.
+    frame: { up: 88, fill: 1.35 }
+  },
+
+  // Galactic band painted into the sky pixels, placed by real sidereal time.
+  // `gain` 0.35 is a whisper, 0.7 restrained, 1.4 clear. Set enabled:false to
+  // drop the whole render pass.
+  // Getting close to a hand-held capture is the whole point of having one, and
+  // by default the renderer will not let you: it fixes the near clipping plane
+  // at far / 20000, which in this scene is a little over 10 m, so anything
+  // nearer is sliced away. See nearplane.js for the measurements. Near the
+  // ground the planes are pulled towards the camera together, keeping the
+  // renderer's own far:near ratio so depth precision is unchanged; above about
+  // 120 m the two agree and it hands back, so every slide is untouched.
+  clip: {
+    enabled: true,
+    ground: 1582.5,    // plaza level, same datum as field.z - altitude is measured from here
+    margin: 12,        // near sits at a twelfth of the height above the plaza
+    near: 0.05,        // metres; never closer than this
+    far: 6000,         // metres; never shorter than this, so the city stays in view
+    release: 1.6,      // hysteresis: hand back to "auto" only well clear of the boundary
+    maxRatio: 20000    // never spend more depth precision than the SDK does
+  },
+
+  milkyWay: { enabled: true, gain: 0.7, texture: "./milkyway.jpg" },
+
+  // The SDK's cloudCover is far heavier visually than the raw percentage
+  // suggests - 1.0 is a solid lid that flattens the whole scene. Real cover is
+  // compressed into `cap`, and only genuinely stormy conditions (thunderstorms,
+  // or heavy precipitation) are allowed up towards `stormCap`.
+  weather: { cloudCap: 0.55, stormCloudCap: 0.9, wetFloor: 0.4 },
+
+  weatherRefreshMs: 10 * 60 * 1000,
+  clockTickMs: 30 * 1000,   // sun + clock advance between fetches, no network
+
+  // South video board. Both the splat and the drone mesh render it badly, so it
+  // is covered with a black emissive panel. Geometry measured off the splat and
+  // checked against in-app measurements; see the README for how it was derived.
+  jumbotron: {
+    lat: 39.74289797,
+    lon: -105.02011326,
+    // Two candidates, because the measurement and the scene disagree on datum:
+    // the tileset's transforms are ECEF (ellipsoidal), while the scene's layers
+    // declare gravity-related heights (the mesh is EGM96 / vcsWkid 5773). The
+    // separation here is -17.8 m. resolveZ() probes the ground and picks.
+    z: 1619.15,              // EGM96 / gravity-related
+    zEllipsoidal: 1601.35,
+    groundEgm96: 1586.41,    // measured ground beneath the board, both ways
+    groundEllipsoidal: 1568.61,
+    // Board face measured in-app at 67.24 x 21.96 m, plus a margin. That spans
+    // the full structure (E -34..+34 in the local frame), with the top edge
+    // stopping just under the EMPOWER FIELD signage band.
+    width: 70.0,
+    height: 22.6,
+    // Yaw fitted to the board's own outer-face profile, which is flat and very
+    // nearly due north (N = -105.87 +/- 0.35 m across all 68 m). An earlier
+    // +2.33 here was fitted to the bezel shell and was 2.5 deg out, which tilts
+    // a 70 m panel by 3 m end to end: one end punched through, the other floated.
+    rotation: -0.17,         // degrees about local up, off north-facing
+    // lat/lon above put the panel flush ON the fitted face plane. Flush is not
+    // usable: the splat's gaussians are volumetric, so any centred in front of
+    // the plane smear across the panel. This lifts it clear uniformly - the
+    // clearance is now the same 1.70 m at both ends, and the worst local bump
+    // on the face still passes 0.66 m behind it.
+    standoff: 1.7,           // metres along the outward normal
+    logo: "https://www.arcgis.com/sharing/rest/content/items/eae20c3d3d514423b9c91f135fdea468/data"
+  }
+};
+
+/**
+ * UTC offset of an IANA zone, in hours, computed locally. The weather API also
+ * reports this, but waiting for a network round trip to know where the sun is
+ * would leave the scene in daylight until the request lands.
+ */
+function utcOffsetHours(tz, at = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  }).formatToParts(at).map((x) => [x.type, x.value]));
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day,
+    p.hour === "24" ? 0 : p.hour, p.minute, p.second);
+  // Not at.setMilliseconds(0): that mutates the caller's Date.
+  return Math.round((asUTC - (at.getTime() - at.getMilliseconds())) / 36e5 * 4) / 4;
+}
+
+/**
+ * The instant at which the wall clock in `tz` reads hh:mm, on whichever day
+ * `at` falls on there. Two passes, because the offset depends on the instant:
+ * on a clock-change day the first guess can land the wrong side of the change.
+ */
+function localInstant(tz, hh, mm, at = new Date()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(at).map((x) => [x.type, x.value]));
+  const wall = Date.UTC(p.year, p.month - 1, p.day, hh, mm);
+  let t = wall - utcOffsetHours(tz, new Date(wall)) * 36e5;
+  t = wall - utcOffsetHours(tz, new Date(t)) * 36e5;
+  return new Date(t);
+}
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
+  masthead: $("masthead"), captures: $("captures"),
+  captureGroups: $("captureGroups"),
+  capturesToggle: $("capturesToggle"),
+  rail: $("rail"), tour: $("tour"), prev: $("prev"), next: $("next"),
+  tourPlay: $("tourPlay"), tourIcon: $("tourIcon"),
+  idx: $("tourIdx"), title: $("tourTitle"),
+  tools: $("tools"), home: $("home"), measure: $("measure"), hud: $("hud"),
+  timeOfDay: $("timeOfDay"), tpanel: $("timePanel"), thost: $("timeHost"),
+  tlive: $("timeLive"), tclose: $("timeClose"), treadout: $("timeReadout"),
+  shadowToggle: $("shadowToggle"),
+  mpanel: $("measurePanel"), mhost: $("measureHost"),
+  mclear: $("measureClear"), mclose: $("measureClose"),
+  info: $("info"), infoSheet: $("infoSheet"),
+  live: $("live"), liveMenu: $("liveMenu"),
+  liveGrid: $("liveGrid"), liveBall: $("liveBall"),
+  ppanel: $("playPanel"), ptoggle: $("playToggle"),
+  picon: $("playIcon"), pscrub: $("playScrub"), pmarks: $("playMarks"),
+  pphase: $("playPhase"), pclock: $("playClock"), pcap: $("playCaption"),
+  pcams: [...document.querySelectorAll("#playCams .camseg__b")],
+  pclose: $("playClose"), prestart: $("playRestart"),
+  weather: $("weather"), wxIcon: $("wxIcon"), wxTemp: $("wxTemp"),
+  wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"),
+  wxLive: document.querySelector(".weather__live"),
+  credit: $("credit"), creditLink: $("creditLink")
+};
+
+function progress(pct, message) {
+  els.fill.style.width = `${Math.round(pct)}%`;
+  if (message) els.msg.textContent = message;
+}
+
+/** Flatten the scene's layer tree, including layers nested in group layers. */
+function flatten(collection, out = []) {
+  collection.forEach((layer) => {
+    out.push(layer);
+    if (layer.layers) flatten(layer.layers, out);
+  });
+  return out;
+}
+
+async function main() {
+  progress(8, "Loading scene…");
+
+  // Fire the conditions request now, in parallel with the scene. It has nothing
+  // to do with the scene loading, and queueing it behind the whole chain was
+  // what left the sky in its authored state for several seconds.
+  const conditions = fetchConditions().catch((err) => {
+    console.warn("[venue] live weather unavailable:", err.message);
+    return null;
+  });
+
+  const scene = new WebScene({ portalItem: { id: CONFIG.webSceneId } });
+  const view = new SceneView({
+    container: "viewDiv",
+    map: scene,
+    qualityProfile: "high",
+    ui: { components: [] },                 // all chrome is ours
+    environment: {
+      atmosphere: { quality: "high" },
+      atmosphereEnabled: true,
+      starsEnabled: true,               // only visible after dark, but free
+      // Date and offset are set here rather than after the weather fetch, so the
+      // sky is already at the right time of day on the first rendered frame.
+      lighting: {
+        type: "sun",
+        date: new Date(),
+        displayUTCOffset: utcOffsetHours(CONFIG.site.tz),
+        directShadowsEnabled: true
+      }
+    }
+  });
+
+  try {
+    await scene.load();
+    progress(38, "Reading layers…");
+    await view.when();
+    manageNearPlane(view, CONFIG.clip);
+    progress(62, "Preparing view…");
+    // The web scene carries its own authored environment — a fixed
+    // 2026-03-15 12:00 Denver, cloudy — and it is applied during load, which
+    // overwrites what the SceneView constructor set. Re-assert ours here, the
+    // moment the view is ready, so the sky is never the authored midday.
+    ownSky(view);
+  } catch (err) {
+    // Esri errors carry name/details rather than a useful toString, so unpack
+    // them — "[object Object]" in the console is no help to anyone.
+    const detail = [err?.name, err?.message, err?.details && JSON.stringify(err.details)]
+      .filter(Boolean).join(" · ");
+    els.msg.textContent = "Could not load the scene.";
+    console.error("[venue] scene load failed:", detail || err, err);
+    return;
+  }
+
+  // The view is usable from here. Everything below is enhancement, so entry is
+  // unlocked first and the rest is guarded — a failure in any one feature must
+  // not leave the intro curtain stuck.
+  progress(78, "Streaming geometry…");
+  els.enter.disabled = false;
+  els.enter.classList.add("ready");
+  els.enter.focus({ preventScroll: true });
+
+  // Set before the UI appears, so it is also what the Home button returns to.
+  if (CONFIG.home) {
+    try { view.camera = CONFIG.home; }
+    catch (err) { console.warn("[venue] bad CONFIG.home camera:", err.message); }
+  }
+
+  const layers = flatten(scene.layers);
+  const captures = buildCaptures(layers);
+
+  // Credit whichever products are actually on screen. Watched rather than set
+  // once, so it follows slides, the capture panel and a replay's staging alike.
+  const handheld = CONFIG.groups
+    .flatMap((g) => g.layers)
+    .filter((c) => c.kind === "Handheld")
+    .map((c) => layers.find((l) => l.title === c.title))
+    .filter(Boolean);
+  const paintCredit = () => {
+    els.creditLink.textContent = handheld.some((l) => l.visible)
+      ? CONFIG.credit.both
+      : CONFIG.credit.base;
+  };
+  handheld.forEach((l) => reactiveUtils.watch(() => l.visible, paintCredit));
+  paintCredit();
+
+  // Open on the drone splat alone: splat on, all three meshes off — which also
+  // keeps the mesh group's switch fully off rather than in its mixed state.
+  // The scene's first slide saves both Pix4D meshes as visible, and applyTo()
+  // rewrites visibility as it runs, so this has to be re-asserted afterwards.
+  const openingState = () => {
+    captures.clear();                 // this is the app choosing, not the viewer
+    captures.groups.forEach(({ group, rows }) => {
+      rows.forEach((c) => { c.layer.visible = !!group.open; });
+    });
+  };
+  openingState();
+
+  // The board is reconstructed badly in both the splat and the drone mesh, so
+  // the panel follows either of them — not the splat alone. The two hand-held
+  // Pix4D meshes do not cover the board, so they do not count.
+  // Not awaited: it fetches the logo and probes ground elevation, and the panel
+  // appearing a moment late is far better than holding up the whole view.
+  addJumbotron(view, CONFIG.jumbotron).then((jumbo) => {
+    // Layers that actually contain the video board. Kept as titles so adding a
+    // statues or horses splat later does not accidentally trigger the panel.
+    const carriers = ["Gaussian Splat", "3D Mesh"]
+      .map((t) => layers.find((l) => l.title === t))
+      .filter(Boolean);
+    if (carriers.length) {
+      const sync = () => { jumbo.layer.visible = carriers.some((l) => l.visible); };
+      carriers.forEach((l) => reactiveUtils.watch(() => l.visible, sync));
+      sync();
+    }
+    if (new URLSearchParams(location.search).has("tune")) attachTuner(jumbo);
+  }).catch((err) => console.warn("[venue] jumbotron unavailable:", err.message));
+
+  // Layers that should only appear after dark.
+  const nightLayers = layers.filter((l) =>
+    CONFIG.nightLayers.titles.some((t) => t.toLowerCase() === (l.title || "").toLowerCase()));
+  if (nightLayers.length) {
+    console.info("[venue] night-only layers:", nightLayers.map((l) => l.title).join(", "));
+    sky.nightLayers = nightLayers;
+    try { styleLights(nightLayers); }
+    catch (err) { console.warn("[venue] light styling failed:", err.message); }
+    tickClock(view);          // set them correctly now, not in 30 seconds
+  } else {
+    console.info("[venue] no night-only layer found; titles searched:",
+      CONFIG.nightLayers.titles.join(" | "));
+  }
+
+  // Painted playing surfaces over the grey slab. Kept as a promise: the live
+  // action panel needs the handle, and it is built before this resolves.
+  const surfaces = CONFIG.field.enabled
+    ? addSurfaces(view, CONFIG.field)
+        .then((f) => { window.__field = f; return f; })
+        .catch((err) => {
+          console.warn("[venue] surfaces unavailable:", err.message);
+          return null;
+        })
+    : Promise.resolve(null);
+
+  // A custom render pass; if it fails for any reason the scene is unaffected.
+  if (CONFIG.milkyWay.enabled) {
+    addMilkyWay(view, CONFIG.milkyWay)
+      .then((mw) => { window.__milkyway = mw; })
+      .catch((err) => console.warn("[venue] milky way unavailable:", err.message));
+  }
+
+  const slides = scene.presentation?.slides?.toArray?.() ?? [];
+
+  const tour = buildTour(view, slides, captures);
+
+  // Never gate entry on `view.updating`. Gaussian splat and integrated mesh
+  // layers stream continuously and level-of-detail keeps refining, so that flag
+  // may never settle — the scene is meant to be flown while it sharpens.
+  // Let the bar finish on its own if streaming happens to quieten down, but cap
+  // the wait so the label never sits at "streaming" indefinitely.
+  Promise.race([
+    reactiveUtils.whenOnce(() => !view.updating),
+    new Promise((resolve) => setTimeout(resolve, 8000))
+  ]).catch(() => {}).then(() => progress(100, "Ready"));
+
+  const reveal = () => {
+    els.intro.classList.add("gone");
+    [els.masthead, els.tour, els.captures, els.tools, els.weather, els.credit]
+      .forEach((el, i) => setTimeout(() => el.classList.remove("hidden"), 200 * i));
+    if (tour.count && !CONFIG.home) {
+      // applyTo() rewrites layer visibility from the slide as it starts, so
+      // re-assert straight after, and again next frame in case it settles late.
+      tour.go(0);
+      openingState();
+      tickClock(view);
+      requestAnimationFrame(() => { openingState(); tickClock(view); });
+    }
+  };
+  els.enter.addEventListener("click", reveal, { once: true });
+
+  const tools = wireTools(view, surfaces, { captureDefaults: openingState, slides, tour });
+
+  // Some views open something when you reach them: the night view brings up the
+  // time slider, the two stand views start their replay. One panel at a time,
+  // exactly as the toolbar buttons enforce it - two docks would sit on top of
+  // each other.
+  let autoOpened = null;              // what a view opened, so a plain view can shut it
+  const shut = { play: () => tools.liveAction.close(),
+                 time: () => tools.timeOfDay.close(),
+                 measure: () => tools.measure.close() };
+  tour.onArrive((n) => {
+    const opens = CONFIG.views?.[n]?.opens;
+    if (!opens) {
+      // Arriving somewhere ordinary puts away whatever a staged view opened.
+      // Left alone the replay plays on and its pitch stays painted over the
+      // field while you are looking at something else entirely. Only what this
+      // handler opened is closed, so a panel opened by hand is left alone.
+      if (autoOpened) { shut[autoOpened](); autoOpened = null; }
+      return;
+    }
+    const play = CONFIG.play.plays.find((p) => p.key === opens);
+    if (play) {
+      tools.measure.close();
+      tools.timeOfDay.close();
+      autoOpened = "play";
+      // No reframing: this view *is* the stand camera, so the replay opens on
+      // Fan Perspective, where the flight has already put us.
+      tools.liveAction.open({ key: play.key, frame: false, cam: "fan" })
+        .then((p) => p?.start())
+        .catch(() => {});
+      return;
+    }
+    tools.liveAction.close();
+    if (opens === "time") {
+      tools.measure.close();
+      autoOpened = "time";
+      const v = CONFIG.views[n];
+      if (v.sweepTo) tools.timeOfDay.sweep(v.sweepTo, v.sweepMs);
+      else tools.timeOfDay.open();
+    }
+    else if (opens === "measure") { tools.timeOfDay.close(); tools.measure.open(); autoOpened = "measure"; }
+    else console.warn(`[venue] view ${n} opens "${opens}", which is nothing`);
+  });
+  wireKeys(view, tour);
+
+  // Deep link. ?live opens the replay straight away and plays it; ?live=7.1
+  // opens it paused at that second, so a particular moment - the catch, the
+  // score - can be linked to directly.
+  const deep = new URLSearchParams(location.search);
+  if (deep.has("view")) {
+    // ?view=3 opens straight on that saved view, for linking to one of them.
+    reveal();
+    const n = parseInt(deep.get("view"), 10);
+    if (isFinite(n)) setTimeout(() => tour.go(n - 1), 1200);
+  }
+  for (const [param, key] of [["live", "gridiron"], ["goal", "football"]]) {
+    if (!deep.has(param)) continue;
+    reveal();
+    tools.liveAction.open({ key, frame: !deep.has("view") }).then((play) => {
+      if (!play) return;
+      const at = parseFloat(deep.get(param));
+      if (isFinite(at) && at > 0) play.seek(at);
+      else play.start();
+    }).catch(() => {});
+    break;
+  }
+  startWeather(view, conditions);
+}
+
+/* ------------------------------------------------------------- captures */
+/** Mirror a layer's visibility onto a button, and toggle it on click. */
+function bindToggle(btn, layer, chosen) {
+  btn.type = "button";
+  btn.classList.toggle("on", !!layer.visible);
+  btn.setAttribute("aria-pressed", String(!!layer.visible));
+  btn.addEventListener("click", () => {
+    layer.visible = !layer.visible;
+    chosen.set(layer, layer.visible);
+  });
+  // Slides also change visibility, so mirror the layer rather than assume.
+  reactiveUtils.watch(() => layer.visible, (vis) => {
+    btn.classList.toggle("on", !!vis);
+    btn.setAttribute("aria-pressed", String(!!vis));
+  });
+}
+
+/**
+ * The capture list, and the viewer's choices in it.
+ *
+ * Slides carry their own layer visibility and rewrite it wholesale when they
+ * are applied, which is right for a saved view and wrong for the person who
+ * just switched a mesh on: their choice vanished the next time the camera
+ * moved to a view, and with the slideshow running that looked like the panel
+ * being broken. So anything toggled here is remembered, and put back after a
+ * slide lands. Only deliberate clicks are recorded - visibility the app sets
+ * for itself, such as staging a replay, resets the memory instead.
+ */
+function buildCaptures(layers) {
+  const found = [];
+  const chosen = new Map();
+
+  CONFIG.groups.forEach((group) => {
+    const rows = group.layers
+      .map((c) => ({ ...c, layer: layers.find((l) => l.title === c.title) }))
+      .filter((c) => c.layer);
+    if (!rows.length) return;                 // group absent from the scene
+
+    const head = document.createElement("button");
+    head.className = "grp";
+    head.type = "button";
+    head.innerHTML =
+      '<span class="grp__label"></span>' +
+      '<span class="grp__n"></span>' +
+      '<span class="grp__sw" aria-hidden="true"></span>';
+    head.querySelector(".grp__label").textContent = group.label;
+    const count = head.querySelector(".grp__n");
+
+    const list = document.createElement("div");
+    list.className = "captures__list";
+
+    rows.forEach((c) => {
+      const btn = document.createElement("button");
+      btn.className = "cap";
+      btn.innerHTML =
+        '<span class="cap__dot"></span>' +
+        '<span class="cap__name"></span>' +
+        '<span class="cap__kind"></span>';
+      btn.querySelector(".cap__name").textContent = c.label;
+      btn.querySelector(".cap__kind").textContent = c.kind;
+      bindToggle(btn, c.layer, chosen);
+      list.appendChild(btn);
+    });
+
+    els.captureGroups.appendChild(head);
+    els.captureGroups.appendChild(list);
+    wireGroup(head, count, group, rows, chosen);
+    found.push({ group, rows });
+  });
+
+  if (!found.length) els.captures.style.display = "none";
+  return {
+    groups: found,
+    /** Put the viewer's own choices back over whatever a slide just applied. */
+    restore() { chosen.forEach((vis, layer) => { layer.visible = vis; }); },
+    /** Forget them - the app is deliberately setting the scene itself now. */
+    clear() { chosen.clear(); }
+  };
+}
+
+/** Master switch over one group: all-on, all-off, or mixed. */
+function wireGroup(head, count, group, rows, chosen) {
+  const sync = () => {
+    const on = rows.filter((c) => c.layer.visible).length;
+    const all = on === rows.length;
+    head.classList.toggle("on", all);
+    head.classList.toggle("mixed", on > 0 && !all);
+    head.setAttribute("aria-pressed", String(all));
+    head.title = all ? `Hide all ${group.label.toLowerCase()}` : `Show all ${group.label.toLowerCase()}`;
+    // A bare count adds nothing when the switch already says all-on or all-off;
+    // the fraction only earns its place while the group is split. A single-layer
+    // group never needs one at all.
+    count.textContent = (on > 0 && !all) ? `${on} / ${rows.length}` : "";
+  };
+
+  head.addEventListener("click", () => {
+    // Anything short of all-on turns everything on; only all-on turns them off,
+    // so a mixed selection resolves upward rather than wiping the group.
+    const target = !rows.every((c) => c.layer.visible);
+    rows.forEach((c) => { c.layer.visible = target; chosen.set(c.layer, target); });
+  });
+
+  rows.forEach((c) => reactiveUtils.watch(() => c.layer.visible, sync));
+  sync();
+}
+
+/* ----------------------------------------------------- views (bookmarks) */
+/**
+ * Anything that drives the camera continuously registers here. Applying a saved
+ * view releases it first, so a bookmark always wins: otherwise the replay's
+ * broadcast camera rewrites view.camera every frame and the slide flight is
+ * cancelled the instant it starts — the layers switch, but the camera never
+ * arrives, which looks exactly like broken navigation.
+ */
+let cameraOwner = null;
+function releaseCamera() { if (cameraOwner) cameraOwner(); }
+
+/**
+ * Make a slide's lighting agree with what is already on screen, so applying it
+ * changes nothing about the sky.
+ *
+ * Every slide carries the scene's authored environment - a fixed midday - and
+ * applyTo animates the view's lighting towards it during the flight, which
+ * flashed the live sky back to noon on every navigation.
+ *
+ * The previous fix for that was to set `slide.environment = null`. It did stop
+ * the flash, and it also silently broke navigation for months: Slide's
+ * _applyViewpoint reads `this.environment.lighting` *before* it calls goTo, so a
+ * null environment threw on that line and the camera never moved. Layer
+ * visibility is applied by a separate task, which is why the slides still
+ * appeared to half-work - the layers changed and the view stayed put.
+ *
+ * Matching instead of removing keeps applyTo on its normal path. The lighting
+ * animation still runs; it just interpolates from the current value to the same
+ * value. tickClock reasserts the truth immediately afterwards regardless.
+ */
+function matchLighting(slide) {
+  const now = slide?.environment?.lighting;
+  const live = viewRef?.environment?.lighting;
+  if (!now || !live) return;
+  try {
+    if (live.date) now.date = live.date;
+    if (live.type === now.type) now.directShadowsEnabled = live.directShadowsEnabled;
+  } catch (err) {
+    console.warn("[venue] could not match slide lighting:", err.message);
+  }
+}
+
+let viewRef = null;
+
+function buildTour(view, slides, captures) {
+  viewRef = view;
+  const count = slides.length;
+  let current = -1;
+  let moving = false;
+
+  if (!count) {
+    els.tour.style.display = "none";
+    return { count: 0, go() {}, stop() {}, onArrive() {} };
+  }
+
+  /**
+   * Playing the views in order. A timer rather than a fixed interval, re-armed
+   * only once each flight has actually landed: the flight takes as long as it
+   * takes, and a metronome would start the next one on top of the last.
+   */
+  let playing = false;
+  let dwell = null;
+  let clockWas = null;
+  let arrive = null;
+
+  /**
+   * Put the sun where the view was authored for. Runs before the flight rather
+   * than after it, so the sky is already right when the camera arrives instead
+   * of changing under it once it lands.
+   */
+  function applyClock(idx) {
+    const want = CONFIG.views?.[idx + 1]?.clock;
+    if (want) {
+      const [hh, mm] = want.split(":").map(Number);
+      if (!clockWas) {
+        clockWas = { date: view.environment.lighting.date ?? new Date(), manual: sky.manual };
+      }
+      sky.manual = true;                        // stop the live clock overwriting it
+      view.environment.lighting.date = localInstant(sky.tz, hh, mm);
+    } else if (clockWas) {
+      sky.manual = clockWas.manual;
+      view.environment.lighting.date = clockWas.date;
+      clockWas = null;
+    } else {
+      return;
+    }
+    // Puts the stadium lights on or off with it: tickClock decides that from
+    // the sun's actual altitude, not from a stored sunset time.
+    tickClock(view);
+  }
+
+  function schedule() {
+    clearTimeout(dwell);
+    if (!playing) return;
+    dwell = setTimeout(() => { if (playing) go(current + 1); }, CONFIG.slideDwellMs);
+  }
+
+  function setPlaying(on) {
+    if (playing === on) return;
+    playing = on;
+    clearTimeout(dwell);
+    els.tourPlay.classList.toggle("on", on);
+    els.tourPlay.setAttribute("aria-pressed", String(on));
+    els.tourPlay.setAttribute("aria-label", on ? "Stop playing the views" : "Play the views in order");
+    els.tourPlay.title = on ? "Stop" : "Play the views in order";
+    els.tourIcon.setAttribute("d", on ? PAUSE_D : PLAY_D);
+    // Straight to the next one, so pressing play does something visible rather
+    // than sitting on the current view for a few seconds first.
+    if (on) go(current + 1);
+  }
+
+  async function go(i) {
+    if (moving || !count) return;
+    const idx = (i + count) % count;
+    moving = true;
+    current = idx;
+    paint();
+    releaseCamera();
+    applyClock(idx);
+    matchLighting(slides[idx]);
+    const MAX_FLIGHT = 6000;
+    try {
+      // Bounded, because `moving` is a latch: if applyTo ever fails to settle -
+      // a flight interrupted at the wrong moment, a tab backgrounded mid-
+      // animation - the rail would be dead for the rest of the session, arrows
+      // and all. The cap sits just past maxDuration, so it only ever fires when
+      // something is genuinely stuck.
+      await Promise.race([
+        slides[idx].applyTo(view, {
+          animate: true,
+          duration: CONFIG.flyDuration,
+          easing: "in-out-cubic",
+          maxDuration: MAX_FLIGHT
+        }),
+        new Promise((done) => setTimeout(done, MAX_FLIGHT + 500))
+      ]);
+    } catch { /* interrupted by user navigation — harmless */ }
+    // Insurance only: slide environments are nulled at load, so applyTo should
+    // not have touched the sky. The slide's visibleLayers list predates the
+    // lights layer though, so applying one switches it off - tickClock puts it
+    // back according to the current sun position.
+    ownSky(view);
+    tickClock(view);
+    // applyTo rewrote layer visibility from the slide; anything the viewer had
+    // chosen for themselves goes back on top of it.
+    captures?.restore();
+    moving = false;
+    schedule();
+    // Last, and only once the flight has landed: whatever this view opens is
+    // going to take the panel and possibly the camera, and it should not be
+    // doing that while the camera is still flying.
+    arrive?.(idx + 1);
+  }
+
+  function paint() {
+    els.idx.textContent = `${String(current + 1).padStart(2, "0")} / ${String(count).padStart(2, "0")}`;
+    const name = slides[current]?.title?.text ?? "";
+    els.title.textContent = name;
+    // The title clamps at two lines; the tooltip is what carries a name long
+    // enough to be cut, so nothing is unreachable.
+    els.title.title = name;
+  }
+
+  // Stepping by hand does not stop the tour, it just resets the dwell - go()
+  // re-arms the timer when it lands. Touching the camera does stop it, because
+  // at that point the viewer plainly wants to look at something themselves.
+  els.prev.addEventListener("click", () => go(current - 1));
+  els.next.addEventListener("click", () => go(current + 1));
+  els.tourPlay.addEventListener("click", () => setPlaying(!playing));
+  reactiveUtils.watch(() => view.interacting, (busy) => { if (busy) setPlaying(false); });
+
+  return {
+    count, go,
+    next: () => go(current + 1),
+    prev: () => go(current - 1),
+    stop: () => setPlaying(false),
+    /** Called with the view number, 1-based, once a flight has landed. */
+    onArrive(fn) { arrive = fn; }
+  };
+}
+
+/* -------------------------------------------------------------- measure */
+function buildMeasure(view) {
+  // Only one widget exists at a time and it is destroyed on switch or close.
+  // Merely detaching the container would leave the measurement's analysis on
+  // the view, so the drawn geometry would linger after the panel closed.
+  const make = {
+    distance: () => new DirectLineMeasurement3D({ view }),
+    area:     () => new AreaMeasurement3D({ view }),
+    // Volume has no widget in the SDK — it is an Analysis driven by a polygon.
+    // Handled separately in startVolume(), so this entry is a placeholder.
+    volume:   () => null,
+    // Ground gives the bare terrain; View samples whatever is actually drawn,
+    // which is what picks up the splat and the meshes.
+    // No visibleElements override: passing a partial object drops the members
+    // left out of it, and omitting `sketchButton` leaves the widget with no way
+    // to draw a profile at all. The defaults are what we want.
+    profile:  () => new ElevationProfile({
+      view,
+      profiles: [
+        new ElevationProfileLineView({ title: "Captures" }),
+        new ElevationProfileLineGround({ title: "Terrain" })
+      ]
+    })
+  };
+  let active = null;     // mode key
+  let widget = null;
+  let sketch = null;
+  let sketchLayer = null;
+  const volumes = [];
+
+  const seg = document.createElement("div");
+  seg.className = "mseg";
+  const buttons = {};
+  for (const [key, label] of [["distance", "Distance"], ["area", "Area"],
+                              ["volume", "Volume"], ["profile", "Profile"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.addEventListener("click", () => setMode(key));
+    seg.appendChild(b);
+    buttons[key] = b;
+  }
+  els.mpanel.insertBefore(seg, els.mhost);
+
+  const hint = document.createElement("p");
+  hint.className = "dock__hint";
+  // The widget prints its own step-by-step prompt; this only adds what is
+  // specific to this scene.
+  hint.textContent = "Points snap to the splat and mesh surfaces.";
+  els.mpanel.insertBefore(hint, els.mhost);
+
+  // The widget's unit lists are native selects, whose open menu the browser
+  // paints on the light system scheme whatever the page declares. This swaps
+  // each one for a drop-down we draw ourselves; see selectmenu.js.
+  dressSelects(els.mhost);
+
+  /**
+   * A widget takes ownership of the element handed to it as `container`, and
+   * destroy() removes that element from the DOM. Handing over the panel's own
+   * host would therefore work exactly once — every later tool would render into
+   * an orphaned node and show nothing. So each widget gets a fresh child.
+   */
+  function mountPoint() {
+    const host = document.createElement("div");
+    els.mhost.appendChild(host);
+    return host;
+  }
+
+  function teardown() {
+    widget?.destroy();          // also drops the analysis off the view
+    widget = null;
+    sketch?.cancel();
+    sketch?.destroy();
+    sketch = null;
+    els.mhost.replaceChildren();   // clear anything destroy() left behind
+  }
+
+  function setMode(key) {
+    if (active === key && (widget || key === "volume")) return;
+    teardown();
+    active = key;
+    Object.entries(buttons).forEach(([k, b]) => b.classList.toggle("on", k === key));
+    // The profile widget prompts for itself, so the panel hint would just be
+    // another line of text competing for height.
+    hint.hidden = key === "profile";
+    hint.textContent = key === "volume"
+      ? "Draw a polygon over the area of interest."
+      : "Points snap to the splat and mesh surfaces.";
+    if (key === "volume") { startVolume(); return; }
+    widget = make[key]();
+    widget.container = mountPoint();
+    arm();
+  }
+
+  /**
+   * Volume: sketch a polygon, then hand it to a VolumeMeasurementAnalysis.
+   * The analysis renders its own cut/fill labels into the scene, so there is
+   * no panel readout to populate.
+   */
+  function startVolume() {
+    if (!sketchLayer) {
+      sketchLayer = new GraphicsLayer({ listMode: "hide", elevationInfo: { mode: "absolute-height" } });
+      view.map.add(sketchLayer);
+    }
+    sketch?.destroy();
+    sketch = new SketchViewModel({
+      view,
+      layer: sketchLayer,
+      polygonSymbol: {
+        type: "polygon-3d",
+        symbolLayers: [{ type: "fill", material: { color: [251, 79, 20, 0.22] },
+                         outline: { color: [251, 79, 20, 0.9], size: "2px" } }]
+      }
+    });
+    const out = mountPoint();
+    out.className = "vol";
+
+    sketch.on("create", (e) => {
+      if (e.state !== "complete") return;
+      const analysis = new VolumeMeasurementAnalysis({ geometry: e.graphic.geometry });
+      view.analyses.add(analysis);
+      volumes.push(analysis);
+      sketchLayer.remove(e.graphic);       // the analysis draws its own footprint
+      showVolume(analysis, out);
+      sketch.create("polygon");            // re-arm for the next one
+    });
+    sketch.create("polygon");
+  }
+
+  /**
+   * The analysis labels itself in the scene, but the panel should agree with
+   * the other tools, so mirror its computed result here. `result` arrives
+   * asynchronously once the GPU pass finishes, hence the watch.
+   */
+  async function showVolume(analysis, out) {
+    const fmt = (label, m) => {
+      if (!m || m.value == null) return "";
+      const v = m.value >= 1000 ? Math.round(m.value).toLocaleString() : m.value.toFixed(1);
+      const unit = (m.unit || "").replace("cubic-meters", "m³").replace("square-meters", "m²");
+      return `<div class="vol__row"><span>${label}</span><b>${v} ${unit}</b></div>`;
+    };
+    try {
+      const av = await view.whenAnalysisView(analysis);
+      const paint = () => {
+        const r = av.result;
+        out.innerHTML = r
+          ? fmt("Cut", r.cutVolume) + fmt("Fill", r.fillVolume) +
+            fmt("Net", r.netVolume) + fmt("Area", r.area)
+          : `<div class="vol__row"><span>Measuring…</span></div>`;
+      };
+      paint();
+      reactiveUtils.watch(() => av.result, paint);
+    } catch (err) {
+      console.warn("[venue] volume result unavailable:", err.message);
+    }
+  }
+
+  // The widget does not begin a measurement on mount — its "New measurement"
+  // button calls viewModel.start(). Do the same on open and on mode switch so
+  // the tool is live straight away instead of needing an extra click.
+  /**
+   * Put the active tool straight into drawing mode.
+   *
+   * All three widget tools expose `viewModel.start()`. ElevationProfile only
+   * offers its sketch button once the view model leaves "disabled" (it waits on
+   * an elevation source), so wait for that rather than calling start() into the
+   * void — calling it too early is why Profile appeared dead.
+   */
+  function arm() {
+    const w = widget;
+    const vm = w?.viewModel;
+    if (!vm?.start) return;
+    const ready = "state" in vm
+      ? reactiveUtils.whenOnce(() => vm.state && vm.state !== "disabled")
+      : Promise.resolve();
+    Promise.resolve(ready)
+      .then(() => { if (widget === w) return vm.start(); })
+      .catch(() => { /* superseded or unavailable — the widget's own button still works */ });
+  }
+
+  /**
+   * Clear everything, not just the active tool. Volume analyses live on the
+   * view and outlive a mode switch, so they have to be dropped whichever tool
+   * happens to be selected — otherwise Clear looks broken from the other tabs.
+   */
+  function clear() {
+    volumes.splice(0).forEach((a) => view.analyses.remove(a));
+    sketchLayer?.removeAll();
+
+    if (active === "volume") {
+      sketch?.cancel();
+      sketch?.create("polygon");        // re-arm so it stays usable
+      return;
+    }
+    // ElevationProfile keeps its line until cleared, so drop it and immediately
+    // re-arm — Clear should leave you ready to draw the next one, not idle.
+    if (active === "profile") {
+      widget?.viewModel?.clear?.();
+      arm();
+      return;
+    }
+    arm();
+  }
+
+  function open() {
+    els.mpanel.hidden = false;
+    els.measure.classList.add("active");
+    setMode(active ?? "distance");
+  }
+
+  function close() {
+    teardown();
+    volumes.splice(0).forEach((a) => view.analyses.remove(a));
+    sketchLayer?.removeAll();
+    els.mpanel.hidden = true;
+    els.measure.classList.remove("active");
+  }
+
+  els.mclear.addEventListener("click", clear);
+  els.mclose.addEventListener("click", close);
+
+  return { open, close, toggle: () => (els.mpanel.hidden ? open() : close()) };
+}
+
+/* ------------------------------------------------------- live  weather */
+/**
+ * The SDK's Weather widget only *sets* conditions — it has no live feed. So
+ * fetch the real observation for the stadium and drive the scene from it:
+ * conditions from the WMO code, and the sun from the actual clock.
+ * Open-Meteo is keyless and CORS-open; if it fails the scene simply keeps
+ * whatever the web scene was authored with.
+ */
+const WMO = [
+  { max: 0,  kind: "sunny",  text: "Clear" },
+  { max: 2,  kind: "sunny",  text: "Mostly clear" },
+  { max: 3,  kind: "cloudy", text: "Overcast" },
+  { max: 48, kind: "foggy",  text: "Fog" },
+  { max: 57, kind: "rainy",  text: "Drizzle" },
+  { max: 67, kind: "rainy",  text: "Rain" },
+  { max: 77, kind: "snowy",  text: "Snow" },
+  { max: 82, kind: "rainy",  text: "Showers" },
+  { max: 86, kind: "snowy",  text: "Snow showers" },
+  { max: 99, kind: "rainy",  text: "Thunderstorm" }
+];
+const ICON = { sunny: "☀", cloudy: "☁", rainy: "☂", snowy: "❄", foggy: "≋" };
+const NIGHT_ICON = { sunny: "☾", cloudy: "☁", rainy: "☂", snowy: "❄", foggy: "≋" };
+
+function classify(code) {
+  return WMO.find((w) => code <= w.max) ?? { kind: "cloudy", text: "Cloudy" };
+}
+
+// What the last fetch told us; the clock ticks against this between fetches.
+const sky = {
+  tz: CONFIG.site.tz, offsetHours: null, kind: "sunny",
+  sunrise: null, sunset: null, nextRise: null, weather: null,
+  nightLayers: null, wasNight: null,
+  manual: false            // true while the time slider is driving the sun
+};
+
+/**
+ * Map real cloud cover onto the SDK's cloudCover.
+ *
+ * The two are not the same scale: 100% real cover is an overcast sky you can
+ * still see the stadium under, whereas cloudCover 1.0 is an opaque ceiling.
+ * So the real percentage is compressed into `cloudCap`, and only thunderstorms
+ * or heavy precipitation are allowed to climb towards `stormCloudCap`.
+ * WMO codes 95-99 are thunderstorms.
+ */
+function cloudCoverFor(kind, cloud, precip, code) {
+  const { cloudCap, stormCloudCap, wetFloor } = CONFIG.weather;
+  const stormy = code >= 95 || precip > 0.6;
+  const base = cloud * cloudCap;
+  if (stormy) return Math.min(stormCloudCap, Math.max(base, 0.72));
+  // Rain and snow need enough cloud to be plausible, but not a lid.
+  if (kind === "rainy" || kind === "snowy") return Math.max(base, wetFloor);
+  return base;
+}
+
+function makeWeather(kind, cloud, precip, code = 0) {
+  const cover = cloudCoverFor(kind, cloud, precip, code);
+  switch (kind) {
+    case "rainy": return new RainyWeather({ cloudCover: cover, precipitation: precip });
+    case "snowy": return new SnowyWeather({ cloudCover: cover, precipitation: precip, snowCover: "enabled" });
+    // Fog thickness should track how murky it actually is, not sit at a constant.
+    case "foggy": return new FoggyWeather({ fogStrength: Math.min(0.6, 0.25 + cloud * 0.35) });
+    case "cloudy": return new CloudyWeather({ cloudCover: cover });
+    default: return new SunnyWeather({ cloudCover: cover });
+  }
+}
+
+/** Network only — kept separate so it can be started before the scene loads. */
+function fetchConditions() {
+  const { lat, lon } = CONFIG.site;
+  const url = "https://api.open-meteo.com/v1/forecast" +
+    `?latitude=${lat}&longitude=${lon}` +
+    "&current=temperature_2m,cloud_cover,precipitation,weather_code,is_day" +
+    "&daily=sunrise,sunset&forecast_days=2&timezone=auto" +
+    "&temperature_unit=fahrenheit";
+  return fetch(url, { cache: "no-store" }).then((res) => {
+    if (!res.ok) throw new Error(`weather ${res.status}`);
+    return res.json();
+  });
+}
+
+/** Apply a fetched payload to the scene and the chip. */
+function applyConditions(view, data) {
+  const now = data.current;
+  const { kind, text } = classify(now.weather_code);
+  const cloud = Math.min(1, Math.max(0, (now.cloud_cover ?? 0) / 100));
+  // `precipitation` is millimetres in the last interval; the SDK wants 0–1.
+  const precip = Math.min(1, Math.max(0.15, (now.precipitation ?? 0) / 2.5));
+
+  sky.weather = makeWeather(kind, cloud, precip, now.weather_code);
+  view.environment.weather = sky.weather;
+
+  sky.tz = data.timezone ?? CONFIG.site.tz;
+  sky.offsetHours = (data.utc_offset_seconds ?? 0) / 3600;
+  sky.kind = kind;
+  view.environment.lighting.displayUTCOffset = sky.offsetHours;
+
+  // Open-Meteo returns sunrise/sunset as local wall-clock strings because of
+  // `timezone=auto`, with no offset on them. Stamp the site's offset on so they
+  // become absolute instants and compare correctly against `new Date()`.
+  const day = data.daily ?? {};
+  const stamp = (iso) => (iso ? new Date(`${iso}:00${offsetSuffix(sky.offsetHours)}`) : null);
+  sky.sunrise = stamp(day.sunrise?.[0]);
+  sky.sunset  = stamp(day.sunset?.[0]);
+  sky.nextRise = stamp(day.sunrise?.[1]);
+
+  els.wxTemp.textContent = `${Math.round(now.temperature_2m)}°F`;
+  els.wxDesc.textContent = text;
+  els.weather.hidden = false;
+  tickClock(view);
+
+  console.info(
+    `[venue] ${text}, ${Math.round(now.temperature_2m)}°F, ` +
+    `${now.cloud_cover}% cloud -> cover ${cloudCoverFor(kind, cloud, precip, now.weather_code).toFixed(2)} · ${sky.tz} (UTC${sky.offsetHours >= 0 ? "+" : ""}${sky.offsetHours}) · ` +
+    `sunrise ${day.sunrise?.[0]?.slice(11)} sunset ${day.sunset?.[0]?.slice(11)}`
+  );
+}
+
+/** "-06:00" / "+02:00" from a signed hour offset. */
+function offsetSuffix(hours) {
+  const sign = hours < 0 ? "-" : "+";
+  const abs = Math.abs(hours);
+  const hh = String(Math.floor(abs)).padStart(2, "0");
+  const mm = String(Math.round((abs % 1) * 60)).padStart(2, "0");
+  return `${sign}${hh}:${mm}`;
+}
+
+const clockAt = (tz, opts) => new Intl.DateTimeFormat("en-US", { timeZone: tz, ...opts });
+
+/**
+ * Assert the app's own environment over whatever the web scene authored.
+ * Called once the view is ready, and again if anything reapplies scene state.
+ */
+function ownSky(view) {
+  const env = view.environment;
+  env.atmosphereEnabled = true;
+  env.starsEnabled = true;
+  if (!sky.manual) env.lighting.date = new Date();
+  env.lighting.displayUTCOffset = sky.offsetHours ?? utcOffsetHours(CONFIG.site.tz);
+  // Slides carry an authored weather too; put the live one back.
+  if (sky.weather) env.weather = sky.weather;
+}
+
+/**
+ * Advance the sun and the clock. A Date is an absolute instant, so this puts
+ * the sun where it genuinely is over Denver regardless of the viewer's own
+ * timezone; the readout is formatted into the stadium's zone to match.
+ */
+function tickClock(view) {
+  // In manual mode the slider owns the date; only advance it when live.
+  if (!sky.manual) view.environment.lighting.date = new Date();
+  const now = view.environment.lighting.date ?? new Date();
+
+  if (!sky.tz) return;
+  const hhmm = clockAt(sky.tz, { hour: "numeric", minute: "2-digit" });
+  els.wxTime.textContent = hhmm.format(now);
+  els.treadout.textContent = clockAt(sky.tz,
+    { weekday: "short", hour: "numeric", minute: "2-digit" }).format(now);
+  els.weather.classList.toggle("manual", sky.manual);
+  els.wxLive.textContent = sky.manual ? "Manual" : "Live";
+
+  // Day or night from the sun's actual altitude, not the sunrise/sunset strings.
+  // Those are only fetched for today, so they would be wrong the moment the time
+  // slider is scrubbed to another date; altitude is correct for any instant.
+  const sunAlt = sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon);
+  const night = sunAlt < CONFIG.nightLayers.sunBelowDeg;
+  els.wxIcon.textContent = (night ? NIGHT_ICON : ICON)[sky.kind] ?? "☁";
+  els.weather.classList.toggle("night", !!night);
+
+  // Lights only after dark. Runs on every clock tick and on every time-slider
+  // move, so it follows both live time and manual scrubbing. Asserted every
+  // tick rather than only on transitions, because applying a slide rewrites
+  // layer visibility and would otherwise leave them stuck until the next
+  // sunrise or sunset. Setting an unchanged value is a no-op.
+  if (sky.nightLayers) {
+    sky.nightLayers.forEach((l) => { l.visible = night; });
+    if (night !== sky.wasNight) {
+      sky.wasNight = night;
+      console.info("[venue] lights", night ? "on" : "off",
+        "(sun " + sunAlt.toFixed(1) + " deg)");
+    }
+  }
+
+  // Whichever comes next: sunrise if it is still dark, otherwise today's
+  // sunset, otherwise tomorrow's sunrise.
+  let label = "", when = null;
+  if (sky.sunrise && now < sky.sunrise) { label = "Sunrise"; when = sky.sunrise; }
+  else if (sky.sunset && now < sky.sunset) { label = "Sunset"; when = sky.sunset; }
+  else if (sky.nextRise) { label = "Sunrise"; when = sky.nextRise; }
+  els.wxSun.textContent = when ? `${label} ${hhmm.format(when)}` : "";
+}
+
+function startWeather(view, inflight) {
+  const apply = (data) => { if (data) applyConditions(view, data); };
+  const run = () => fetchConditions().then(apply).catch((err) => {
+    console.warn("[venue] live weather unavailable:", err.message);
+    els.weather.hidden = true;      // no chip rather than a stale one
+  });
+  // Reuse the request started before the scene loaded rather than issuing a
+  // second one; only fall back to a fresh fetch if that one failed.
+  inflight.then((data) => (data ? apply(data) : run()));
+  setInterval(run, CONFIG.weatherRefreshMs);
+  // The sun advances on its own between fetches — no network cost, so shadows
+  // creep in real time rather than jumping every ten minutes.
+  setInterval(() => tickClock(view), CONFIG.clockTickMs);
+}
+
+/* ---------------------------------------------------------- time of day */
+/**
+ * A TimeSlider scrubbing one full day, driving the sun.
+ *
+ * Note this is *not* what TimeSlider normally does — bound to a view it filters
+ * time-aware layers via `view.timeExtent` and never touches lighting. It is
+ * deliberately constructed without a `view` so it has no side effects, and its
+ * instant is copied onto `environment.lighting.date` instead.
+ */
+function buildTimeOfDay(view) {
+  let slider = null;
+
+  const dayBounds = () => {
+    // Midnight-to-midnight of the day currently being shown, in site local time.
+    const cur = view.environment.lighting.date ?? new Date();
+    const p = Object.fromEntries(clockAt(sky.tz, {
+      year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(cur).map((x) => [x.type, x.value]));
+    const off = offsetSuffix(sky.offsetHours ?? utcOffsetHours(sky.tz));
+    const start = new Date(`${p.year}-${p.month}-${p.day}T00:00:00${off}`);
+    return [start, new Date(start.getTime() + 24 * 3600 * 1000)];
+  };
+
+  // Set when we move the slider ourselves, so the watch below can tell an
+  // programmatic update apart from a user drag. reactiveUtils.watch fires
+  // asynchronously, so a plain flag cleared on the next line would not work.
+  let programmatic = null;
+
+  function make() {
+    const [start, end] = dayBounds();
+    slider = new TimeSlider({
+      container: els.thost,
+      mode: "instant",
+      fullTimeExtent: new TimeExtent({ start, end }),
+      stops: { interval: { value: 10, unit: "minutes" } },
+      timeExtent: new TimeExtent({
+        start: view.environment.lighting.date, end: view.environment.lighting.date
+      }),
+      playRate: 90,
+      loop: true,
+      timeVisible: true
+    });
+    // Any movement of the slider takes ownership of the sun.
+    reactiveUtils.watch(() => slider.timeExtent, (t) => {
+      if (!t?.start) return;
+      if (programmatic && Math.abs(t.start - programmatic) < 1000) { programmatic = null; return; }
+      stopSweep();                            // a hand on the slider wins
+      sky.manual = true;
+      view.environment.lighting.date = t.start;
+      tickClock(view);
+    });
+  }
+
+  /**
+   * Walk the sun forward to a wall-clock time and then put the panel away.
+   *
+   * The slider's own playback would do something like this, but it steps stop
+   * to stop - ten minutes at a time - and the whole point here is to watch the
+   * light go. So the lighting date is moved directly, ten times a second, and
+   * the handle is dragged along behind it for show.
+   */
+  let sweepRaf = null;
+  const STEP_MS = 100;
+
+  function stopSweep() {
+    if (sweepRaf) cancelAnimationFrame(sweepRaf);
+    sweepRaf = null;
+  }
+
+  function sweep(toHHMM, ms) {
+    open();
+    stopSweep();
+    const [hh, mm] = String(toHHMM).split(":").map(Number);
+    const from = new Date(view.environment.lighting.date ?? Date.now()).getTime();
+    const to = localInstant(sky.tz, hh, mm, new Date(from)).getTime();
+    if (!(to > from)) return;                 // already past it; nothing to do
+    sky.manual = true;
+    const t0 = performance.now();
+    let wrote = 0;
+    const frame = (now) => {
+      const u = Math.min(1, (now - t0) / (ms || 24000));
+      if (u === 1 || now - wrote >= STEP_MS) {
+        wrote = now;
+        const when = new Date(from + (to - from) * u);
+        view.environment.lighting.date = when;
+        if (slider) {
+          programmatic = when;
+          slider.timeExtent = new TimeExtent({ start: when, end: when });
+        }
+        tickClock(view);
+      }
+      if (u < 1) { sweepRaf = requestAnimationFrame(frame); return; }
+      sweepRaf = null;
+      close();
+    };
+    sweepRaf = requestAnimationFrame(frame);
+  }
+
+  function open() {
+    els.tpanel.hidden = false;
+    els.timeOfDay.classList.add("active");
+    if (!slider) make();
+  }
+  function close() {
+    stopSweep();
+    els.tpanel.hidden = true;
+    els.timeOfDay.classList.remove("active");
+  }
+  function live() {
+    const now = new Date();
+    sky.manual = false;
+    view.environment.lighting.date = now;
+    if (slider) {
+      slider.viewModel?.stop?.();
+      const [start, end] = dayBounds();
+      slider.fullTimeExtent = new TimeExtent({ start, end });
+      programmatic = now;
+      slider.timeExtent = new TimeExtent({ start: now, end: now });
+    }
+    tickClock(view);
+  }
+
+  // Direct shadows are part of the sun model, so this reads as a lighting
+  // control and belongs beside the time scrubber rather than in a settings menu.
+  const shadows = () => {
+    const on = !view.environment.lighting.directShadowsEnabled;
+    view.environment.lighting.directShadowsEnabled = on;
+    els.shadowToggle.classList.toggle("on", on);
+    els.shadowToggle.setAttribute("aria-pressed", String(on));
+  };
+  els.shadowToggle.addEventListener("click", shadows);
+  els.shadowToggle.classList.toggle("on", !!view.environment.lighting.directShadowsEnabled);
+
+  els.tlive.addEventListener("click", live);
+  els.tclose.addEventListener("click", close);
+  return { open, close, sweep, toggle: () => (els.tpanel.hidden ? open() : close()) };
+}
+
+/**
+ * Print the current camera as a paste-ready CONFIG.home block, and put it on the
+ * clipboard when the browser allows it. The only way to capture a viewpoint you
+ * framed by hand without round-tripping through the web scene.
+ */
+function copyCamera(view) {
+  const c = view.camera;
+  const p = c.position;
+  const block = {
+    position: {
+      longitude: +p.longitude.toFixed(8),
+      latitude: +p.latitude.toFixed(8),
+      z: +p.z.toFixed(2)
+    },
+    heading: +c.heading.toFixed(2),
+    tilt: +c.tilt.toFixed(2)
+  };
+  const text = "home: " + JSON.stringify(block, null, 2).replace(/\n/g, "\n  ") + ",";
+  console.log("[venue] paste into CONFIG:\n" + text);
+  navigator.clipboard?.writeText(text).then(
+    () => console.log("[venue] copied to clipboard"),
+    () => {}
+  );
+  return block;
+}
+
+/* ---------------------------------------------------------------- tools */
+/* --------------------------------------------------------------- live action
+ * The transport for the replayed touchdown. The play itself is built lazily on
+ * first open: it is twenty-three meshes, and there is no reason to pay for them
+ * unless someone asks to see it.
+ */
+/**
+ * A league play description names the passer and the receiver. The replay is
+ * about the movement, not the individuals, and the
+ * figures carry no names or numbers, so the caption should not either. Strips
+ * the leading game clock and any initial-and-surname, including the "to" that
+ * introduces the receiver, then recapitalises what is left.
+ *
+ * play.json keeps the original text; this only changes what is shown.
+ */
+function describe(text) {
+  return String(text)
+    .replace(/^\(\d+:\d+\)\s*/, "")
+    // "deep right" is the offence's right, which is only meaningful if you know
+    // which way they are going. From the touchline camera the play runs right to
+    // left and the receiver drifts away from you, so the word contradicts what
+    // is on screen without being wrong. Keep the depth, drop the side.
+    .replace(/\b(deep|short)\s+(left|right|middle)\b/gi, "$1")
+    .replace(/\s+to\s+[A-Z]\.[A-Za-z'’-]+/g, "")
+    .replace(/[A-Z]\.[A-Za-z'’-]+\s*/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/^(\(?[a-z])/, (c) => c.toUpperCase())
+    .replace(/\)\s*([a-z])/, (m0, c) => `) ${c.toUpperCase()}`);
+}
+
+const PLAY_D = "M8 5.5v13l11-6.5z";
+const PAUSE_D = "M8 5.5h3.2v13H8zM12.8 5.5H16v13h-3.2z";
+const PHASES = {
+  gridiron: [
+    ["ball_snap", "Snap"],
+    ["pass_forward", "Throw"],
+    ["pass_outcome_caught", "Catch"],
+    ["touchdown", "Touchdown"],
+    ["celebration", "Celebration"]
+  ],
+  football: [
+    ["kick", "Goal kick"],
+    ["win", "Tackle"],
+    ["switch", "Switch"],
+    ["cross", "Cross"],
+    ["goal", "Goal"],
+    ["celebration", "Celebration"]
+  ]
+};
+
+/**
+ * What the caption says, and how far it commits. The gridiron play is measured
+ * says which source it came from. A reconstruction, if one is ever added
+ * again, says so instead of claiming measurement.
+ * Neither names a player.
+ */
+function captionFor(m) {
+  // The provenance sentence comes from the data, so a play can never describe
+  // itself as measured when it is not, or credit the wrong source.
+  const how = m.measured
+    ? `Positions are measured, not invented: tracking for all 22 players and the `
+      + `ball, from ${m.sourceShort}.`
+    : "Reconstructed from footage — the order of events and the rhythm are "
+      + "faithful, the positions are authored, not tracked.";
+  // Nodes rather than a string of markup. Every value here comes out of a JSON
+  // file, and a fork of this app will point it at its own; there is no reason
+  // for a data file to be able to write HTML into the page.
+  const out = document.createDocumentFragment();
+  const lead = document.createElement("b");
+  // `blurb` is a sentence written for a viewer. Without one the league's own
+  // play description is tidied up instead, which is terse and full of trade
+  // shorthand - fine for a developer, less so for someone watching.
+  lead.textContent = m.blurb || describe(m.description);
+  // The occasion is optional: a play that does not name one just moves on.
+  const rest = [m.credit ? `${m.credit}.` : "", how, "Players and kit are generic."]
+    .filter(Boolean).join(" ");
+  out.append(lead, ` ${rest}`);
+  return out;
+}
+
+function buildLiveAction(view, surfacesReady, stage, slides = []) {
+  const loaded = new Map();          // key -> play
+  let api = null, pending = null, active = null;
+  let cam = null, scrubbing = false, restore = null, shown = false;
+  let aim = null;                      // smoothed look-at point, local metres
+
+  function phases() { return PHASES[api?.data.meta.sport] ?? []; }
+
+  function drawMarks() {
+    els.pmarks.textContent = "";
+    const marks = [];
+    for (const [key, label] of phases()) {
+      const f = api.data.events[key];
+      if (f == null) continue;
+      const at = f / api.data.meta.hz;
+      const i = document.createElement("i");
+      i.style.left = `${(at / api.duration * 100).toFixed(2)}%`;
+      i.dataset.at = at.toFixed(2);
+      const b = document.createElement("b");
+      b.textContent = label;
+      i.appendChild(b);
+      els.pmarks.appendChild(i);
+      marks.push(i);
+    }
+    spaceMarks();
+  }
+
+  /**
+   * Keep every label, and keep every label over its own tick.
+   *
+   * Two events close together - the goal kick and the tackle are 2.7 s apart at
+   * the head of a 37 s clip - cannot both have a label centred on them, and
+   * sliding them sideways to fit is what makes the bar read as a row of words
+   * rather than as marks on a timeline. So a label that will not fit beside its
+   * neighbour goes *above* it instead, where it can stay centred on the tick it
+   * belongs to. Sliding is the fallback, for when even two rows are not enough.
+   *
+   * The ticks themselves are the record of when something happened and never
+   * move, whatever the writing above them does.
+   */
+  function spaceMarks() {
+    const track = els.pmarks.clientWidth;
+    if (!track) return;                        // panel not laid out yet
+    const PAD = 7;                             // px of air between two labels
+    const EDGE = 1;                            // and between a label and the ends
+    const items = [...els.pmarks.children].map((i) => {
+      const b = i.firstElementChild;
+      b.style.setProperty("--shift", "0px");
+      b.style.setProperty("--row", "0");
+      return { b, tick: i.offsetLeft, w: b.offsetWidth, row: 0 };
+    });
+    if (!items.length) return;
+
+    // Which row each label goes on, judged on where it would like to sit.
+    const rowEnd = [-Infinity, -Infinity];
+    for (const m of items) {
+      const left = m.tick - m.w / 2;
+      m.row = left >= rowEnd[0] + PAD ? 0 : (left >= rowEnd[1] + PAD ? 1 : 0);
+      rowEnd[m.row] = Math.max(rowEnd[m.row], left + m.w);
+      m.b.style.setProperty("--row", String(m.row));
+    }
+    els.pmarks.classList.toggle("two", items.some((m) => m.row === 1));
+
+    // Then each row is spaced on its own, because labels on different rows
+    // cannot collide. Within a row, a crowded label hangs off the edge nearest
+    // its tick rather than drifting away from it.
+    for (const row of [0, 1]) {
+      const line = items.filter((m) => m.row === row);
+      if (!line.length) continue;
+      const want = line.map((m) => m.tick - m.w / 2);
+      for (let n = 1; n < line.length; n++) {
+        if (want[n] < want[n - 1] + line[n - 1].w + PAD) {
+          want[n - 1] = line[n - 1].tick - line[n - 1].w;   // hang off its right
+          want[n] = line[n].tick;                            // and this off its left
+        }
+      }
+      const rightward = () => {
+        want[0] = Math.max(want[0], EDGE);
+        for (let n = 1; n < line.length; n++) {
+          want[n] = Math.max(want[n], want[n - 1] + line[n - 1].w + PAD);
+        }
+      };
+      rightward();
+      const last = line.length - 1;
+      want[last] = Math.min(want[last], track - EDGE - line[last].w);
+      for (let n = last - 1; n >= 0; n--) {
+        want[n] = Math.min(want[n], want[n + 1] - PAD - line[n].w);
+      }
+      rightward();
+      // The label is centred on the tick in CSS, so the shift is measured from
+      // there rather than from its left edge.
+      line.forEach((m, n) => {
+        m.b.style.setProperty("--shift", `${(want[n] + m.w / 2 - m.tick).toFixed(1)}px`);
+      });
+    }
+  }
+
+  window.addEventListener("resize", () => { if (shown) spaceMarks(); });
+
+  /** The most recent event at or before this moment. */
+  function phaseAt(t) {
+    let out = "";
+    for (const [key, label] of phases()) {
+      const f = api.data.events[key];
+      if (f != null && t >= f / api.data.meta.hz - 0.001) out = label;
+    }
+    return out;
+  }
+
+  /**
+   * Player Highlight: out past the touchline, up in the stand, panning to hold
+   * the ball. The aim point is eased rather than the camera position, so the
+   * pan lags the ball very slightly the way a real operator does. This is the
+   * only one of the three that keeps hold of the camera, frame by frame.
+   */
+  function follow(dt) {
+    if (!api || !shown) return;
+    const b = api.ballEN();
+    const u = api.acrossAxis();
+    const c = CONFIG.play.camera;
+    if (!aim) aim = [b[0], b[1], b[2]];
+    // Framerate-independent easing. A fixed fraction per step means the pan
+    // speed depends on how often the step happens, which is exactly how this
+    // went wrong: it was driven off the panel's 10 Hz readout tick, so the
+    // camera moved in ten visible jumps a second. Converting to a time constant
+    // means the same pan whether the display runs at 60 Hz or 144.
+    const k = 1 - Math.exp(-dt / c.lag);
+    aim = [aim[0] + (b[0] - aim[0]) * k,
+           aim[1] + (b[1] - aim[1]) * k,
+           aim[2] + (b[2] - aim[2]) * k];
+
+    const d = api.halfWidth + c.out;
+    const ce = aim[0] - u[0] * d, cn = aim[1] - u[1] * d;
+    const cz = api.surfaceZ + c.up;
+
+    const dE = aim[0] - ce, dN = aim[1] - cn;
+    const dz = cz - (api.surfaceZ + aim[2]);
+    const ll = api.toLonLat(ce, cn);
+    let lon = ll[0], lat = ll[1], z = cz;
+    let heading = (Math.atan2(dE, dN) * 180) / Math.PI;
+    let tilt = 90 - (Math.atan2(dz, Math.hypot(dE, dN)) * 180) / Math.PI;
+
+    // Swing in rather than cut. Choosing this camera used to drop it straight
+    // onto the touchline - a ninety metre jump in a single frame, which reads
+    // as a jolt however smooth everything after it is. Fan and Broadcast both
+    // arrive on an eased goTo, so this one should not be the odd one out.
+    if (blend < 1 && from) {
+      blend = Math.min(1, blend + dt / c.settle);
+      const u = blend * blend * (3 - 2 * blend);          // smoothstep
+      const turn = (a, b) => a + ((((b - a + 540) % 360) - 180) * u);
+      lon = from.lon + (lon - from.lon) * u;
+      lat = from.lat + (lat - from.lat) * u;
+      z = from.z + (z - from.z) * u;
+      heading = turn(from.heading, heading);
+      tilt = from.tilt + (tilt - from.tilt) * u;
+    }
+
+    view.camera = new Camera({
+      position: new Point({ longitude: lon, latitude: lat, z,
+                            spatialReference: { wkid: 4326 } }),
+      heading, tilt
+    });
+  }
+
+  /**
+   * The stadium lights are emissive symbols: they read as lit but they cast no
+   * light, so at 2 a.m. the replay happens in the dark. Only when the sun is
+   * actually down, move the clock to mid-afternoon for the duration - and put
+   * it back exactly as it was on close.
+   */
+  let lightWas = null;
+  function daylight() {
+    const now = new Date(view.environment.lighting.date ?? Date.now());
+    if (sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon) > 0) return;
+    lightWas = { date: now, manual: sky.manual };
+    const noonish = new Date(now);
+    noonish.setUTCHours(20, 0, 0, 0);          // 14:00 in Denver, either offset
+    sky.manual = true;
+    view.environment.lighting.date = noonish;
+    tickClock(view);
+  }
+  function restoreLight() {
+    if (!lightWas) return;
+    sky.manual = lightWas.manual;
+    view.environment.lighting.date = lightWas.date;
+    lightWas = null;
+    tickClock(view);
+  }
+
+  /**
+   * Broadcast: the whole field on screen from the touchline, which is where a
+   * television camera would be cut from. One move, and then the camera is the
+   * viewer's again - nothing holds it unless Player Highlight is chosen.
+   */
+  function frameField() {
+    const u = api.acrossAxis();
+    const f = CONFIG.play.frame;
+    // Aim across the surface from one touchline, and let goTo fit the corners.
+    // The pitch is wider than the gridiron field and the gridiron field longer
+    // than the pitch, so a fixed stand-off cannot suit both.
+    // Stand off far enough that the long axis fills the frame, and no
+    // further. Driving this from the surface's own length is what lets one
+    // setting suit both: the pitch is 8 m shorter than the gridiron field but
+    // 18 m wider, so a fixed distance beyond the touchline frames one of them
+    // and clips the other. goTo fitting the corners itself was tried and
+    // overshoots badly - it pads out to the whole stadium.
+    const slant = api.depth * f.fill;
+    const d = Math.sqrt(Math.max(slant * slant - f.up * f.up, 400));
+    const ce = -u[0] * d, cn = -u[1] * d;
+    const ll = api.toLonLat(ce, cn);
+    return view.goTo({
+      position: new Point({ longitude: ll[0], latitude: ll[1], z: api.surfaceZ + f.up,
+                            spatialReference: { wkid: 4326 } }),
+      heading: (Math.atan2(-ce, -cn) * 180) / Math.PI,
+      tilt: 90 - (Math.atan2(f.up, d) * 180) / Math.PI
+    }, { duration: 1600, easing: "in-out-cubic" }).catch(() => {});
+  }
+
+  /**
+   * Player Highlight runs on its own frame loop rather than on the transport's
+   * readout tick. The ball's own position still only moves when the players are
+   * posed - 15 to 33 Hz, whatever the machine can afford - but the aim is eased
+   * towards it every frame, so a stepped target still produces a smooth pan.
+   */
+  let camRaf = null, camLast = 0, blend = 1, from = null;
+  function followLoop(ts) {
+    camRaf = requestAnimationFrame(followLoop);
+    // Clamped: coming back to a backgrounded tab hands over one enormous frame,
+    // and without a ceiling the camera would snap straight onto the ball.
+    const dt = camLast ? Math.min(0.1, (ts - camLast) / 1000) : 1 / 60;
+    camLast = ts;
+    follow(dt);
+  }
+  function startFollow() {
+    if (camRaf) return;
+    camLast = 0;
+    // Where the swing in starts from.
+    const p = view.camera.position;
+    from = { lon: p.longitude, lat: p.latitude, z: p.z,
+             heading: view.camera.heading, tilt: view.camera.tilt };
+    blend = 0;
+    camRaf = requestAnimationFrame(followLoop);
+  }
+  function stopFollow() {
+    if (camRaf) cancelAnimationFrame(camRaf);
+    camRaf = null;
+  }
+
+  /**
+   * From the stand. Only the slide's camera is taken, never the slide itself:
+   * applying one rewrites layer visibility, which would undo the staging the
+   * replay just did and put the hand-held meshes back on top of the field.
+   */
+  function fanView() {
+    // The stand view for a play is the saved view that starts it - one fact,
+    // not two that have to be kept in step.
+    const n = Object.keys(CONFIG.views ?? {}).find((k) => CONFIG.views[k].opens === active);
+    const camera = slides[Number(n) - 1]?.viewpoint?.camera;
+    if (!camera) {
+      console.warn(`[venue] no saved view opens "${active}"; framing the field instead`);
+      return frameField();
+    }
+    return view.goTo(camera.clone(), { duration: 1600, easing: "in-out-cubic" }).catch(() => {});
+  }
+
+  const MOVE = { fan: fanView, broadcast: frameField, highlight: null };
+
+  /**
+   * Pick a camera. Two of the three are a single move and then the view is
+   * yours again; Player Highlight is the one that keeps hold, so pressing it a
+   * second time lets go and hands the camera back to wherever it was. The other
+   * two have nothing to hand back to - they are a destination, not a loan.
+   */
+  function setCam(mode) {
+    // Nothing to point at yet. The buttons are live while a replay loads, and
+    // every one of these moves is worked out from the field the play is on.
+    if (!api) return;
+    const letGo = mode === "highlight" && cam === "highlight";
+    cam = letGo ? null : mode;
+    paintCams();
+    if (letGo) { stopFollow(); return handBack(); }
+    if (cam === "highlight") {
+      restore = restore || view.camera.clone();
+      aim = null;
+      return startFollow();
+    }
+    stopFollow();
+    restore = null;
+    return MOVE[cam]?.();
+  }
+
+  function paintCams() {
+    for (const b of els.pcams) {
+      const on = b.dataset.cam === cam;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    }
+  }
+
+  /** Stand down whichever camera is in charge, without stealing the view back. */
+  cameraOwner = () => {
+    if (!cam) return;
+    stopFollow();
+    cam = null;
+    paintCams();
+    restore = null;
+  };
+
+  /** Return the camera to wherever the viewer had it before broadcast took it. */
+  function handBack() {
+    if (!restore) return;
+    view.goTo(restore, { duration: 1000, easing: "in-out-cubic" }).catch(() => {});
+    restore = null;
+  }
+
+  function paint(st) {
+    if (!scrubbing) els.pscrub.value = String(st.t / st.dur);
+    els.pclock.textContent = `${st.t.toFixed(1)}s`;
+    els.picon.setAttribute("d", st.running ? PAUSE_D : PLAY_D);
+    els.ptoggle.setAttribute("aria-label", st.running ? "Pause" : "Play");
+    els.pphase.textContent = phaseAt(st.t);
+    for (const i of els.pmarks.children) {
+      i.classList.toggle("hit", st.t >= parseFloat(i.dataset.at) - 0.001);
+    }
+  }
+
+  /**
+   * Load a play the first time it is asked for, and keep it. Twenty-three
+   * meshes apiece, so there is no reason to build the other one until someone
+   * actually wants it.
+   */
+  async function ensure(key) {
+    if (loaded.has(key)) return loaded.get(key);
+    const spec = CONFIG.play.plays.find((x) => x.key === key);
+    if (!spec) throw new Error("no play " + key);
+    if (!pending) {
+      els.pcap.textContent = "Loading…";
+      pending = surfacesReady
+        .then((surfaces) => {
+          if (!surfaces) throw new Error("no playing surface");
+          return addPlay(view, CONFIG, { data: spec.data, z: surfaces.z });
+        })
+        .then((p) => {
+          loaded.set(key, p);
+          p.onUpdate(paint);
+          pending = null;
+          return p;
+        })
+        .catch((err) => {
+          // A fresh clone has no play data: it is built locally rather than
+          // committed, because neither source publishes a licence. Say so,
+          // rather than leaving a bare 404 for someone to interpret.
+          els.pcap.textContent = /\b404\b/.test(err.message)
+            ? "No replay data yet. It is built from the tracking sources rather "
+              + "than shipped with the code — see tools/README.md."
+            : `Unavailable: ${err.message}`;
+          pending = null;
+          throw err;
+        });
+    }
+    return pending;
+  }
+
+  function button(key) { return key === "football" ? els.liveBall : els.liveGrid; }
+
+  function menu(open) {
+    els.liveMenu.hidden = !open;
+    els.live.setAttribute("aria-expanded", String(!!open));
+    els.live.classList.toggle("open", !!open);
+  }
+
+  return {
+    /** A code's own button toggles it; the other code's switches over to it. */
+    async toggle(key) {
+      if (shown && active === key) { this.close(); return; }
+      await this.open({ key });
+    },
+    /** The rail button just opens the chooser - or shuts an open replay. */
+    group() {
+      if (shown) { this.close(); return; }
+      menu(els.liveMenu.hidden);
+    },
+    async open(opts) {
+      const key = opts?.key ?? active ?? CONFIG.play.plays[0].key;
+      els.ppanel.hidden = false;
+      shown = true;
+
+      let p;
+      try { p = await ensure(key); } catch { return; }
+
+      // After the data is in hand, not before: a failed load should not have
+      // folded the panel away and switched the layers about for nothing.
+      stage?.();
+
+      // Put the other one away first, or both sets of players stand on the
+      // same grass.
+      for (const [k, other] of loaded) {
+        if (k !== key) { other.pause(); other.show(false); }
+      }
+      api = p;
+      active = key;
+      // A debugging handle, and only that - nothing in the app reads it.
+      window.__play = p;
+
+      for (const spec of CONFIG.play.plays) {
+        button(spec.key)?.classList.toggle("active", spec.key === key);
+      }
+      els.live.classList.add("active");
+      menu(false);
+      els.pcap.replaceChildren(captionFor(p.data.meta));
+      drawMarks();
+
+      // Repaint the slab as whichever surface this play is played on.
+      const surfaces = await surfacesReady;
+      if (surfaces) await surfaces.use(p.surface);
+
+      daylight();
+      aim = null;
+      api.show(true);
+      api.seek(0);
+      // Broadcast is the opening view, so the button says so rather than the
+      // panel opening with nothing selected on a camera it had just moved.
+      // Only if nobody got there first: loading the other sport takes a second
+      // or two, and a viewer who picks a camera during it should keep it.
+      if (opts?.cam) { cam = opts.cam; paintCams(); }
+      else if (opts?.frame !== false && !cam) { cam = "broadcast"; paintCams(); await frameField(); }
+      else paintCams();
+      return p;
+    },
+    close() {
+      shown = false;
+      restoreLight();
+      els.ppanel.hidden = true;
+      for (const spec of CONFIG.play.plays) button(spec.key)?.classList.remove("active");
+      els.live.classList.remove("active");
+      menu(false);
+      if (api) { api.pause(); api.show(false); }
+      // Back to whatever the field is normally painted as.
+      surfacesReady.then((s) => s?.use(CONFIG.field.default)).catch(() => {});
+      handBack();
+      stopFollow();
+      cam = null;
+      paintCams();
+    },
+    wire() {
+      els.ptoggle.addEventListener("click", () => {
+        if (!api) return;
+        api.running ? api.pause() : api.start();
+      });
+      els.pscrub.addEventListener("pointerdown", () => { scrubbing = true; });
+      els.pscrub.addEventListener("pointerup", () => { scrubbing = false; });
+      els.pscrub.addEventListener("input", () => {
+        if (!api) return;
+        api.pause();
+        api.seek(parseFloat(els.pscrub.value) * api.duration);
+      });
+      els.prestart.addEventListener("click", () => {
+        if (!api) return;
+        api.seek(0);
+        api.start();
+      });
+      for (const b of els.pcams) {
+        b.addEventListener("click", () => setCam(b.dataset.cam));
+      }
+      els.pclose.addEventListener("click", () => this.close());
+      // Clicking away closes the flyout, the way a menu should.
+      document.addEventListener("pointerdown", (e) => {
+        if (els.liveMenu.hidden) return;
+        if (els.liveMenu.contains(e.target) || els.live.contains(e.target)) return;
+        menu(false);
+      });
+      window.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+      if (!els.liveMenu.hidden) menu(false);
+      });
+    }
+  };
+}
+
+function wireTools(view, surfacesReady, { captureDefaults, slides = [], tour } = {}) {
+  const start = view.camera.clone();
+  els.home.addEventListener("click", () =>
+    view.goTo(start, { duration: 1800, easing: "in-out-cubic" }).catch(() => {}));
+
+  // Collapsing the capture list is deliberately separate from hiding the
+  // interface: that button takes everything away, and often the only thing in
+  // the way is this one panel. The choice is remembered, because someone who
+  // shuts it once is unlikely to want it back on the next load.
+  const COLLAPSE_KEY = "venue.captures.collapsed";
+  const setCollapsed = (on) => {
+    els.captures.classList.toggle("collapsed", on);
+    els.capturesToggle.setAttribute("aria-expanded", String(!on));
+    els.capturesToggle.title = on ? "Show the capture list" : "Collapse the capture list";
+  };
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(COLLAPSE_KEY) === "1"; } catch { /* private mode */ }
+  setCollapsed(collapsed);
+  els.capturesToggle.addEventListener("click", () => {
+    collapsed = !collapsed;
+    setCollapsed(collapsed);
+    try { localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
+  });
+
+  // Starting a replay folds the list away, because it sits directly over the
+  // near corner of the field. That is a nudge and not a preference, so it is
+  // deliberately not written to storage - the next load still opens on whatever
+  // the user last chose for themselves. `collapsed` is kept in step or the
+  // toggle's first click afterwards would do nothing visible.
+  const collapseCaptures = () => {
+    if (collapsed) return;
+    collapsed = true;
+    setCollapsed(true);
+  };
+
+  const measure = buildMeasure(view);
+  const timeOfDay = buildTimeOfDay(view);
+
+  // What a replay wants on screen: the capture list out of the way, and the
+  // scene back to the drone splat alone. The hand-held meshes cover a few square
+  // metres of concourse and nothing of the field, so during a replay they are
+  // only cost; the splat is what reads as a stadium from the broadcast camera.
+  const stage = () => {
+    // A running slideshow and a replay both want the camera; the replay wins,
+    // because starting one is the more deliberate act of the two.
+    tour?.stop();
+    collapseCaptures();
+    captureDefaults?.();
+  };
+  const liveAction = buildLiveAction(view, surfacesReady, stage, slides);
+  liveAction.wire();
+
+  // One panel at a time, and the outgoing one is properly torn down rather than
+  // just hidden — a hidden measurement widget leaves its analysis on the view.
+  els.measure.addEventListener("click", () => {
+    timeOfDay.close(); liveAction.close(); measure.toggle();
+  });
+  els.timeOfDay.addEventListener("click", () => {
+    measure.close(); liveAction.close(); timeOfDay.toggle();
+  });
+  els.live.addEventListener("click", () => {
+    measure.close(); timeOfDay.close(); liveAction.group();
+  });
+  for (const spec of CONFIG.play.plays) {
+    const btn = spec.key === "football" ? els.liveBall : els.liveGrid;
+    btn?.addEventListener("click", () => {
+      measure.close(); timeOfDay.close(); liveAction.toggle(spec.key);
+    });
+  }
+
+  // How it was made. A sheet rather than a dock panel: four sections of prose
+  // want a column, and the dock is a letterbox pinned to the bottom.
+  const showInfo = (on) => {
+    els.infoSheet.hidden = !on;
+    els.info.classList.toggle("active", on);
+    if (on) els.infoSheet.querySelector("#infoClose")?.focus();
+  };
+  els.info.addEventListener("click", () => showInfo(els.infoSheet.hidden));
+  // Anything marked data-close dismisses it, scrim included.
+  els.infoSheet.addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]")) showInfo(false);
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !els.infoSheet.hidden) showInfo(false);
+  });
+
+  els.hud.addEventListener("click", () => document.body.classList.toggle("hud-off"));
+  return { measure, timeOfDay, liveAction };
+}
+
+function wireKeys(view, tour) {
+  window.addEventListener("keydown", (e) => {
+    if (e.target instanceof HTMLInputElement) return;
+    switch (e.key) {
+      case "ArrowRight": tour.next?.(); break;
+      case "ArrowLeft":  tour.prev?.(); break;
+      case "u": case "U": document.body.classList.toggle("hud-off"); break;
+      case "m": case "M": els.measure.click(); break;
+      case "t": case "T": els.timeOfDay.click(); break;
+      case "i": case "I": els.info.click(); break;
+      case "l": case "L": els.live.click(); break;
+      case "a": case "A": els.liveGrid.click(); break;
+      case "g": case "G": els.liveBall.click(); break;
+      case "h": case "H": els.home.click(); break;
+      case "c": case "C": copyCamera(view); break;
+    }
+  });
+}
+
+main();

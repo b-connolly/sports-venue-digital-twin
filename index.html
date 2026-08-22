@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!-- Inline so the browser stops asking for /favicon.ico. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2711%27 fill=%27%23fb4f14%27/%3E%3C/svg%3E" />
+<title>Sports Venue Digital Twin — Empower Field at Mile High</title>
+<meta name="description" content="A digital twin of Empower Field at Mile High: drone and hand-held reality capture as Gaussian splats and meshes, with live action animations." />
+
+<link rel="preconnect" href="https://js.arcgis.com" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://js.arcgis.com/5.0/@arcgis/core/assets/esri/themes/dark/main.css" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+<!-- 3D view -->
+<div id="viewDiv" aria-label="3D scene"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<!-- Intro / loading curtain -->
+<section id="intro" class="intro">
+  <div class="intro__inner">
+    <p class="eyebrow">Reality mapping &middot; Denver, Colorado</p>
+    <h1 class="display">Sports&nbsp;Venue<br />Digital&nbsp;Twin</h1>
+    <p class="subtitle">Empower&nbsp;Field at Mile&nbsp;High</p>
+    <p class="lede">
+      Drone and hand-held reality captures georeferenced into a single scene
+      with Live Action animations, using the ArcGIS Maps SDK for JavaScript.
+    </p>
+    <div class="loadbar" role="progressbar" aria-label="Loading scene">
+      <span id="loadfill" class="loadbar__fill"></span>
+    </div>
+    <p id="loadmsg" class="loadmsg">Loading scene&hellip;</p>
+    <button id="enter" class="enter" disabled>Explore</button>
+  </div>
+  <p class="intro__foot">Powered by Esri</p>
+</section>
+
+<!-- Top-left rail: title, views, captures — one flow column -->
+<div id="rail" class="rail">
+  <header id="masthead" class="masthead hidden">
+    <span class="masthead__title">Sports Venue Digital Twin</span>
+    <span class="masthead__sub">Built with ArcGIS &amp; Reality Mapping</span>
+  </header>
+
+  <nav id="tour" class="tour hidden" aria-label="Views">
+    <div class="tour__bar">
+      <span id="tourIdx" class="tour__idx">01 / 01</span>
+      <div class="tour__nav">
+        <button id="tourPlay" class="tour__arrow tour__arrow--play" type="button"
+                aria-pressed="false" aria-label="Play the views in order"
+                title="Play the views in order">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path id="tourIcon" d="M8 5.5v13l11-6.5z" /></svg>
+        </button>
+        <button id="prev" class="tour__arrow" type="button" aria-label="Previous view">&#8249;</button>
+        <button id="next" class="tour__arrow" type="button" aria-label="Next view">&#8250;</button>
+      </div>
+    </div>
+    <span id="tourTitle" class="tour__title">&nbsp;</span>
+  </nav>
+
+  <aside id="captures" class="captures hidden" aria-label="Captures">
+    <h2 class="rail__h">
+      <button id="capturesToggle" class="rail__toggle" type="button"
+              aria-expanded="true" aria-controls="captureGroups"
+              title="Collapse the capture list">
+        <span>Captures</span>
+        <svg class="rail__chev" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor"
+                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </h2>
+    <div class="captures__wrap"><div id="captureGroups"></div></div>
+  </aside>
+</div>
+
+<!-- Utility -->
+<div id="tools" class="tools hidden">
+  <button id="home"    class="tool" title="Reset view (H)" aria-label="Reset view">&#8962;</button>
+  <button id="measure"  class="tool" title="Analysis (M)" aria-label="Analysis"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="2" y="9" width="20" height="6" rx="1.2"/><path d="M6.5 9v2.6M10.5 9v3.6M14.5 9v2.6M18.5 9v3.6"/></g></svg></button>
+  <button id="timeOfDay" class="tool" title="Time of day (T)" aria-label="Time of day">&#9728;</button>
+  <div class="toolgroup">
+    <button id="live" class="tool" title="Live action (L) — American Football (A), Football (G)" aria-label="Live action"
+            aria-expanded="false" aria-haspopup="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+    <div id="liveMenu" class="toolmenu" hidden role="menu" aria-label="Live action">
+      <button id="liveGrid" class="toolmenu__item" type="button" role="menuitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="8.2" ry="5.4" transform="rotate(-28 12 12)"/><path d="M8.4 15.6 15.6 8.4M10.6 12.9l1.6 1.6M12.9 10.6l1.6 1.6"/></svg><span>American Football</span>
+      </button>
+      <button id="liveBall" class="toolmenu__item" type="button" role="menuitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.4l3.1 2.25-1.18 3.64h-3.84L8.9 9.65z"/><path d="M12 3.4v4M15.1 9.65l3.8-1.25M13.92 13.29l2.36 3.2M10.08 13.29l-2.36 3.2M8.9 9.65L5.1 8.4" fill="none" stroke="currentColor" stroke-width="1.4"/></svg><span>Football</span>
+      </button>
+    </div>
+  </div>
+  <button id="info" class="tool" title="How this was made (I)" aria-label="How this was made"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="7.6" r="1.15"/><path d="M12 10.8v6.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+  <button id="hud"     class="tool" title="Hide interface (U)" aria-label="Hide interface">&#9678;</button>
+</div>
+
+<section id="measurePanel" class="dock" hidden aria-label="Measure">
+  <header class="dock__bar">
+    <span class="dock__h">Analysis</span>
+    <button id="measureClear" class="dock__btn" type="button">Clear</button>
+    <button id="measureClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
+  </header>
+  <div id="measureHost" class="panelhost"></div>
+</section>
+
+<section id="timePanel" class="dock" hidden aria-label="Time of day">
+  <header class="dock__bar">
+    <span class="dock__h">Time of day</span>
+    <span id="timeReadout" class="dock__now"></span>
+    <button id="timeLive" class="dock__btn" type="button" title="Resume tracking the real clock">Live</button>
+    <button id="timeClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
+  </header>
+  <div id="timeHost" class="panelhost"></div>
+  <div class="dock__opts">
+    <button id="shadowToggle" class="optsw on" type="button" aria-pressed="true">
+      <span class="optsw__label">Shadows</span>
+      <span class="optsw__sw" aria-hidden="true"></span>
+    </button>
+  </div>
+</section>
+
+<section id="playPanel" class="dock" hidden aria-label="Live action">
+  <header class="dock__bar">
+    <span class="dock__h">Live action</span>
+    <span id="playClock" class="dock__now">0.0s</span>
+    <div id="playCams" class="camseg" role="group" aria-label="Camera">
+      <button class="camseg__b" type="button" data-cam="fan" aria-pressed="false"
+              title="From the stand, where you would actually be sitting.">Fan Perspective</button>
+      <button class="camseg__b" type="button" data-cam="broadcast" aria-pressed="false"
+              title="The television framing: the whole field, from the touchline.">Broadcast</button>
+      <button class="camseg__b" type="button" data-cam="highlight" aria-pressed="false"
+              title="Follows the ball. Press again to hand the camera back.">Player Highlight</button>
+    </div>
+    <button id="playClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
+  </header>
+  <div class="playbody">
+    <button id="playToggle" class="playbtn" type="button" aria-label="Play">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path id="playIcon" d="M8 5.5v13l11-6.5z" /></svg>
+    </button>
+    <button id="playRestart" class="playbtn playbtn--ghost" type="button" aria-label="Restart" title="Restart">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5a6.5 6.5 0 1 0 6.2 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 2.4v6.2l4.4-3.1z"/></svg>
+    </button>
+    <div class="playtrack">
+      <div id="playMarks" class="playtrack__marks"></div>
+      <input id="playScrub" class="playtrack__scrub" type="range" min="0" max="1" step="0.001" value="0" aria-label="Scrub the play" />
+      <div id="playPhase" class="playtrack__phase">&nbsp;</div>
+    </div>
+  </div>
+  <p id="playCaption" class="playcap"></p>
+</section>
+
+<div id="weather" class="weather hidden" hidden>
+  <span id="wxIcon" class="weather__icon">&#9788;</span>
+  <span class="weather__read">
+    <span id="wxTemp" class="weather__temp">--&deg;</span>
+    <span class="weather__meta">
+      <span id="wxDesc" class="weather__desc">&nbsp;</span>
+      <span id="wxTime" class="weather__time"></span>
+    </span>
+    <span id="wxSun" class="weather__sun"></span>
+  </span>
+  <span class="weather__live" title="Live conditions applied to the scene">Live</span>
+</div>
+
+<footer id="credit" class="credit hidden">
+  <a id="creditLink" href="https://www.esri.com/en-us/arcgis/products/arcgis-reality/overview" target="_blank" rel="noopener">Processed by ArcGIS Reality</a>
+</footer>
+
+
+<!-- How it was made -->
+<div id="infoSheet" class="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+  <div class="sheet__scrim" data-close></div>
+  <article class="sheet__card">
+    <header class="sheet__bar">
+      <h2 id="infoTitle" class="sheet__h">How this was made</h2>
+      <button id="infoClose" class="dock__btn" type="button" aria-label="Close" data-close>&times;</button>
+    </header>
+    <div class="sheet__body">
+      <p class="sheet__lede">
+        A real stadium, photographed from the air and from the ground, rebuilt in
+        3D, and put in your browser &mdash; with two real passages of play running
+        on the field.
+      </p>
+
+      <section class="step">
+        <span class="step__n">01</span>
+        <div>
+          <h3>Capturing the stadium</h3>
+          <p>
+            A drone flew the venue and photographed it from every angle.
+            <a href="https://www.esri.com/en-us/arcgis/products/arcgis-reality/overview"
+               target="_blank" rel="noopener">ArcGIS Reality</a> generated two
+            different 3D products from that one set of overlapping imagery, and
+            you can switch between them in the Captures panel.
+          </p>
+          <p>
+            An <a href="https://pro.arcgis.com/en/pro-app/latest/help/mapping/layer-properties/the-integrated-mesh-scene-layer-in-arcgis-pro.htm"
+               target="_blank" rel="noopener"><b>integrated mesh</b></a> is a
+            continuous meshed surface capturing the current state of an area. An
+            automated process constructs 3D objects out of the overlapping
+            imagery, and the result integrates the original image information as
+            a textured mesh built on a triangular interlaced structure &mdash;
+            representing built and natural features alike, walls and trees and
+            ground, with elevation carried in the surface itself.
+          </p>
+          <p>
+            A <a href="https://doc.esri.com/en/arcgis-pro/latest/help/mapping/layer-properties/work-with-gaussian-splat-layers.html"
+               target="_blank" rel="noopener"><b>Gaussian splat</b></a> renders the
+            scene from millions of splats &mdash; fuzzy ellipsoids, each defined by
+            its position, rotation, size, colour and transparency &mdash; instead of
+            the triangulated mesh above. They are reconstructed from the same 2D
+            images using machine learning, and they hold fine detail that a mesh
+            tends to lose: thin structures like railings, netting and cables.
+            There is no solid surface underneath, which is why the two are worth
+            having side by side.
+          </p>
+        </div>
+      </section>
+
+      <section class="step">
+        <span class="step__n">02</span>
+        <div>
+          <h3>Walking the ground</h3>
+          <p>
+            A drone looks down, so it never sees the front of a statue or what the
+            plaza looks like at eye level. Those parts were captured on foot, with
+            a phone, using Pix4D Catch, and dropped into the same 3D model in
+            exactly the right spot &mdash; which is what makes the two surveys one
+            place rather than two.
+          </p>
+        </div>
+      </section>
+
+      <section class="step">
+        <span class="step__n">03</span>
+        <div>
+          <h3>Putting it in a browser</h3>
+          <p>
+            The whole thing runs in a web page, built with the
+            <a href="https://developers.arcgis.com/javascript/latest/"
+               target="_blank" rel="noopener">ArcGIS Maps SDK for JavaScript</a>.
+            Nothing is installed and nothing is pre-rendered &mdash; the 3D is
+            streamed and drawn live as you move.
+          </p>
+          <p>
+            That is also what the rest of the buttons are: measuring distances,
+            areas and volumes on the real capture; dragging the time of day around
+            to move the sun and the shadows; the floodlights coming on once it is
+            actually dark; real current weather at the stadium; and the night sky
+            with the Milky Way in the position it would genuinely be in.
+          </p>
+        </div>
+      </section>
+
+      <section class="step">
+        <span class="step__n">04</span>
+        <div>
+          <h3>The Live Action replays</h3>
+          <p>
+            Two passages of real sport, played out on the field. The field itself
+            is painted on, because the pitch was covered when the stadium was
+            photographed.
+          </p>
+          <p>
+            <b>These are not animations somebody drew.</b> Both come from real
+            match tracking &mdash; the position of every one of the 22 players and
+            the ball, recorded many times a second during an actual game. The runs,
+            the speeds and the angles are the ones that happened. One is a
+            75-yard touchdown; the other is a goal worked from a tackle in
+            midfield.
+          </p>
+          <p>
+            Both datasets are public. The gridiron play comes from the NFL's
+            <a href="https://github.com/nfl-football-ops/Big-Data-Bowl"
+               target="_blank" rel="noopener">Big Data Bowl</a> release, and the
+            football from <a href="https://github.com/metrica-sports/sample-data"
+               target="_blank" rel="noopener">Metrica Sports' open sample data</a>,
+            which is anonymised at source.
+          </p>
+        </div>
+      </section>
+    </div>
+  </article>
+</div>
+
+<div class="rotate" aria-hidden="true"><p>Rotate your device</p></div>
+
+<noscript><p class="noscript">This experience requires JavaScript.</p></noscript>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
