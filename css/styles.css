@@ -225,6 +225,7 @@ body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6
 .tour__bar { display: flex; align-items: center; gap: 0.7rem; }
 .tour__nav { display: flex; gap: 4px; margin-left: auto; }
 .tour__arrow {
+  flex: 0 0 auto;                       /* never squeezed by a narrow rail */
   width: 26px; height: 26px; display: grid; place-items: center;
   border: 1px solid var(--line); border-radius: 7px;
   background: rgba(244, 241, 234, 0.05);
@@ -239,6 +240,7 @@ body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6
 .tour__arrow--play svg { width: 13px; height: 13px; fill: currentColor; display: block; }
 .tour__arrow--play.on { background: var(--accent); border-color: transparent; color: #fff; }
 .tour__idx {
+  flex: 0 1 auto; min-width: 0; overflow: hidden;
   font-size: 0.56rem; font-weight: 600; letter-spacing: 0.2em;
   color: var(--accent-2);
   font-variant-numeric: tabular-nums;
@@ -769,12 +771,23 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   .rail { width: min(258px, 66vw); max-height: calc(100vh - 2 * var(--pad) - 150px); }
   /* 20px puts the title at 225px, inside even a 66vw rail on a small phone. */
   .masthead__title { font-size: 1.25rem; }
-  .rail .tour { display: none; }        /* views list is the first thing to go */
-  /* On narrow screens the bottom edge gets crowded, so the chip and the
-     panels stack above the time scrubber instead of sharing its line. */
-  .weather { bottom: calc(var(--pad) + 86px); }
-  .dock    { width: calc(100vw - 2 * var(--pad)); }
-  .credit  { bottom: calc(var(--pad) + 86px); }
+
+  /* The views card stays. It used to be the first thing dropped on a narrow
+     screen, which also took the slideshow play button with it - the one control
+     that makes the app watchable one-handed. It is the title that goes instead:
+     the counter and the three buttons are what you need, and the name of the
+     view is already the thing you are looking at. */
+  .tour { padding: 0.45rem 0.55rem; gap: 0; }
+  .tour__title { display: none; }
+  .tour__bar { gap: 0.5rem; }
+  .tour__arrow { width: 30px; height: 30px; }   /* thumbs, not cursors */
+
+  /* Live conditions are the first thing to go instead. On a phone the chip sits
+     over the field itself, and the same reading is in the time-of-day panel. */
+  .weather { display: none; }
+
+  .dock   { width: calc(100vw - 2 * var(--pad)); }
+  .credit { bottom: var(--pad); }
 }
 @media (max-height: 430px) and (orientation: portrait) {
   .rotate {
