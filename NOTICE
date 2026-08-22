@@ -12,13 +12,13 @@ Third-party material
 The following is not ours, and is listed so that anyone reading the code knows
 where it came from and on what terms.
 
-TRACKING DATA — not distributed here
+TRACKING DATA — a derivation is distributed here
 
-  Neither of the two sources publishes a licence file, so no derived tracking
-  data is committed to this repository. `play.json` and `soccer.json` are built
-  locally from the originals; see tools/README.md for how to fetch them and
-  README.md for why. Anyone running this app obtains the source data under the
-  terms of whoever published it, directly from them.
+  data/play.json and data/soccer.json are committed so the hosted app works.
+  They are not either source: each is one passage of play, resampled to 10 Hz,
+  with player names and squad numbers stripped by tools/anonymise.py. Neither
+  source publishes a licence file. The raw releases are not redistributed - the
+  scripts in tools/ fetch them from the publishers.
 
     NFL Big Data Bowl (2017 release)
     https://github.com/nfl-football-ops/Big-Data-Bowl

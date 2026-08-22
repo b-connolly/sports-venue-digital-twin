@@ -154,9 +154,9 @@ const CONFIG = {
       // it stretched every yard to 0.945 m, so the field measured 103.3 yd
       // between the goal lines. The slab is 130 x 76.6 m and still holds this
       // comfortably - there is simply a little more of it showing round the edge.
-      gridiron: { width: 48.768, depth: 109.728, texture: "./field.jpg" },
+      gridiron: { width: 48.768, depth: 109.728, texture: "./assets/field.jpg" },
       // A full-size pitch at the top of the permitted range.
-      pitch:    { width: 68.00, depth: 105.00, texture: "./pitch.jpg" }
+      pitch:    { width: 68.00, depth: 105.00, texture: "./assets/pitch.jpg" }
     }
   },
 
@@ -175,8 +175,8 @@ const CONFIG = {
   play: {
     enabled: true,
     plays: [
-      { key: "gridiron", label: "Gridiron", data: "./play.json" },
-      { key: "football", label: "Football", data: "./soccer.json" }
+      { key: "gridiron", label: "Gridiron", data: "./data/play.json" },
+      { key: "football", label: "Football", data: "./data/soccer.json" }
     ],
     flipAlong: false,
     flipAcross: false,
@@ -228,7 +228,7 @@ const CONFIG = {
     maxRatio: 20000    // never spend more depth precision than the SDK does
   },
 
-  milkyWay: { enabled: true, gain: 0.7, texture: "./milkyway.jpg" },
+  milkyWay: { enabled: true, gain: 0.7, texture: "./assets/milkyway.jpg" },
 
   // The SDK's cloudCover is far heavier visually than the raw percentage
   // suggests - 1.0 is a solid lid that flattens the whole scene. Real cover is

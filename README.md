@@ -18,23 +18,23 @@ python -m http.server 8777        # or: npx serve .
 
 Then open <http://localhost:8777>.
 
-### The replays need building first
+### Layout
 
-A fresh clone has no `play.json` or `soccer.json`. Neither tracking source
-publishes a licence, so the derived files are built locally rather than
-redistributed here - see **Attribution** at the end. Everything
-else works without them; the two Live Action replays will say so until you
-run the scripts:
+No build step, no `npm`, nothing to install. It is a static site: ES modules
+loaded straight from the CDN, served as files.
 
 ```
-cd tools
-# fetch the tracking sources (see tools/README.md for the exact commands)
-python build_play.py            # -> play.json
-python build_soccer.py          # -> soccer.json
+index.html          the page
+css/                styles.css
+js/                 the ten modules; app.js is the entry point
+assets/             painted surfaces and the night sky
+data/               the two replays, built by tools/
+tools/              generators - textures, tracking extraction
+serve.py            local dev server, no-cache
 ```
 
-The painted surfaces (`field.jpg`, `pitch.jpg`) are committed, because those
-are generated here rather than derived from anyone else's data.
+Everything the browser needs is committed, so the site works as-is when hosted.
+`tools/` is only needed to regenerate the data; see `tools/README.md`.
 
 `python -m http.server` works, but it sends no `Cache-Control`, which lets the
 browser decide for itself how long each file stays fresh and serve a cached copy

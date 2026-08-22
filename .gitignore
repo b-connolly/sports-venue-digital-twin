@@ -1,9 +1,11 @@
-# The derived tracking data. Neither source publishes a licence, so the play
-# files are built locally rather than redistributed here - tools/README.md says
-# where to fetch the originals and the scripts do the rest. A fresh clone has
-# no replay data until you have run them.
-/play.json
-/soccer.json
+# data/*.json IS committed, deliberately. The site is served straight from this
+# repository by GitHub Pages, so anything not committed does not exist on the
+# live app - and without the play files both replays are dead. What is published
+# is a heavy derivation rather than either source: one passage of play each,
+# resampled to 10 Hz, with names and squad numbers stripped by tools/anonymise.py.
+# Attribution is in NOTICE, in the replay caption and in the info sheet.
+#
+# The raw tracking sources are a different matter and stay out - see below.
 
 # Build inputs that are not ours to redistribute. tools/README.md says where to
 # fetch them; the scripts refuse to run without them.

@@ -168,7 +168,7 @@ function loadTexture(url) {
  */
 export async function addMilkyWay(view, cfg = {}) {
   const {
-    texture = "./milkyway.jpg",
+    texture = "./assets/milkyway.jpg",
     scale = 0.705,          // encode scale from the texture build
     fadeStartDeg = -4,      // sun altitude where the band starts to appear
     fadeFullDeg = -12       // ...and where it reaches full strength
