@@ -48,8 +48,7 @@ The captures were processed with
 | [Open-Meteo](https://open-meteo.com) | live conditions at the venue |
 
 Both replays are real movement, not animation. Names and squad numbers are
-stripped from the data before it ships, and no team is identified anywhere in
-the app. See [`NOTICE`](NOTICE).
+stripped from the data before it ships, and no team is identified in the animated data despite being based on real-world events and actual data. The Denver Broncos are only highlighted by the capture data with permission from City of Denver to use in demos and marketing materials. See [`NOTICE`](NOTICE).
 
 ## Running it locally
 
