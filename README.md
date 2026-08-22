@@ -42,7 +42,7 @@ The captures were processed with
 
 | | |
 |---|---|
-| [NFL Big Data Bowl](https://github.com/nfl-football-ops/Big-Data-Bowl) | gridiron tracking, 10 Hz, all 22 players and the ball |
+| [NFL Big Data Bowl](https://github.com/nfl-football-ops/Big-Data-Bowl) | American football tracking, 10 Hz, all 22 players and the ball |
 | [Metrica Sports sample data](https://github.com/metrica-sports/sample-data) | football tracking, 25 Hz, anonymised at source |
 | [NASA SVS Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851) | night sky texture, public domain |
 | [Open-Meteo](https://open-meteo.com) | live conditions at the venue |
