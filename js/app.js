@@ -156,19 +156,6 @@ const CONFIG = {
   // has finished. The flight itself is flyDuration on top of this.
   slideDwellMs: 5200,
 
-  // Views authored for a particular hour. The night shot is only a night shot
-  // after dark, so arriving at it sets the clock; leaving it puts the clock
-  // back to whatever it was, which is what keeps a time set by hand on the
-  // slider from being lost to a detour through it. Keyed by view number as the
-  // rail numbers them, valued as the local wall clock at the site.
-  // What each view does when you arrive at it, keyed by view number as the rail
-  // numbers them. One table rather than several, because a slide inserted in
-  // the web scene shifts every number after it and one list is one thing to fix.
-  //   clock - force the site's local wall clock to this, and put it back on the
-  //           way out, so a view authored for the dark is always dark
-  //   opens - a tool panel ("time", "measure") or a play key, started on arrival
-  // A view whose `opens` names a play is also that play's stand camera, which
-  // is what Fan Perspective flies to.
   // What a view does when you arrive at it.
   //
   // Matched on the slide's own title, not its position. Numbering these was a
@@ -185,7 +172,9 @@ const CONFIG = {
   //
   // `dwellMs` matters for a view that exists to show something happening: hold
   // it for less than that thing takes and the show cuts away mid-way, which is
-  // what it did to the sun walking down to midnight.
+  // what it did to the sun walking down to midnight. A view whose `opens` names
+  // a play is also that play's stand camera, which is what Fan Perspective
+  // flies to.
   views: [
     // Both night views want their stars. An overcast ceiling hides them, and
     // whether it happens to be cloudy in Denver tonight should not decide

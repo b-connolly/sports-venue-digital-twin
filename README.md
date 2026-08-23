@@ -20,7 +20,8 @@ replays driven by actual sports tracking data.
   follow-the-ball cameras
 - **Analysis** — distance, area, volume and elevation profile against the captures
 - **Time of day** — scrub the sun; stadium lights come on after dark
-- **Conditions** — live weather at the venue drives the sky
+- **Conditions** — live weather at the venue drives the sky, or pick your own:
+  clear, cloudy, rain, snow that lies, fog
 
 ## Built with
 
