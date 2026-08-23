@@ -1,9 +1,9 @@
 # Sports Venue Digital Twin
 
-A digital twin of Empower Field at Mile High, in the browser. Drone and
+An example digital twin of Empower Field at Mile High. Drone and
 hand-held reality captures — Gaussian splats and integrated meshes — georeferenced
 into one scene, lit by live weather and the real position of the sun, with two
-replays driven by actual match tracking data.
+replays driven by actual sports tracking data.
 
 **Live:** https://b-connolly.github.io/sports-venue-digital-twin/
 
@@ -50,21 +50,3 @@ The captures were processed with
 Both replays are real movement, not animation. Names and squad numbers are
 stripped from the data before it ships, and no team is identified in the animated data despite being based on real-world events and actual data. The Denver Broncos are only highlighted by the capture data with permission from City of Denver to use in demos and marketing materials. See [`NOTICE`](NOTICE).
 
-## Running it locally
-
-```
-python serve.py          # http://localhost:8777
-```
-
-Any static server works — `serve.py` just disables caching, which saves
-confusion while editing.
-
-## Layout
-
-```
-index.html   css/   js/   assets/   data/   tools/
-```
-
-`tools/` regenerates the painted surfaces and the replay data
-([how](tools/README.md)). [`docs/NOTES.md`](docs/NOTES.md) is the long version:
-how it was measured, why it is built this way, and what the SDK would not do.
