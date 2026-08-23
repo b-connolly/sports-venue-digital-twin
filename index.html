@@ -182,16 +182,29 @@
 </button>
 
 <div id="weather" class="weather hidden" hidden>
-  <span id="wxIcon" class="weather__icon">&#9788;</span>
+  <!-- The icon is the control. A separate button would need its own room on a
+       chip that already has to fit a phone, and the icon is the thing on it
+       that most obviously means "the weather". -->
+  <button id="wxPick" class="weather__pick" type="button"
+          aria-haspopup="menu" aria-expanded="false"
+          aria-label="Change the weather" title="Change the weather">
+    <span id="wxIcon" class="weather__icon">&#9788;</span>
+  </button>
   <span class="weather__read">
-    <span id="wxTemp" class="weather__temp">--&deg;</span>
-    <span class="weather__meta">
+    <span class="weather__place">Denver, Colorado</span>
+    <span class="weather__now">
+      <span id="wxTemp" class="weather__temp">--&deg;</span>
       <span id="wxDesc" class="weather__desc">&nbsp;</span>
-      <span id="wxTime" class="weather__time"></span>
     </span>
-    <span id="wxSun" class="weather__sun"></span>
+    <span class="weather__sub">
+      <span id="wxTime" class="weather__time"></span>
+      <span id="wxSun" class="weather__sun"></span>
+    </span>
   </span>
-  <span class="weather__live" title="Live conditions applied to the scene">Live</span>
+  <button id="wxLive" class="weather__live" type="button"
+          title="Back to the conditions and the time at the venue right now">Live</button>
+  <!-- Filled from WEATHER_PICKS. -->
+  <div id="wxMenu" class="toolmenu toolmenu--wx" hidden role="menu" aria-label="Weather"></div>
 </div>
 
 

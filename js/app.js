@@ -172,8 +172,12 @@ const CONFIG = {
     // - and the stop is deliberately shorter than it. A viewer is meant to
     // watch the stars travel a stretch of sky, not to sit through the whole
     // walk to midnight; the slideshow moves on and the sweep is stood down.
+    // `sky` is imposed for as long as the view is on screen and handed back
+    // after. The night view is about the stars: overcast is a ceiling that
+    // hides them, and whether it happens to be cloudy in Denver tonight should
+    // not decide whether this view works.
     3:  { clock: "22:30", opens: "time", sweepTo: "24:00", sweepMs: 26000,
-          dwellMs: 7500 },
+          dwellMs: 7500, sky: "sunny" },
     // Long enough for the replay each one starts, which is why these are not
     // the same number: the gridiron pass runs 19.7 s and the football goal 37.5.
     // Both allow for the pause before a replay begins - see CONFIG.arrival -
@@ -434,7 +438,7 @@ const els = {
   precenter: $("playRecenter"),
   weather: $("weather"), wxIcon: $("wxIcon"), wxTemp: $("wxTemp"),
   wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"),
-  wxLive: document.querySelector(".weather__live"),
+  wxLive: $("wxLive"), wxPick: $("wxPick"), wxMenu: $("wxMenu"),
 };
 
 /**
@@ -1100,6 +1104,13 @@ function matchLighting(slide) {
  */
 let sweepOwner = () => {};
 
+/**
+ * Hands the clock back to real time. Set by the time tool, called by the Live
+ * control - which has to stand down a running sweep and the slider's own idea
+ * of the time as well as the weather, or the sun springs back a moment later.
+ */
+let liveOwner = () => {};
+
 let viewRef = null;
 
 function buildTour(view, slides, captures) {
@@ -1129,6 +1140,14 @@ function buildTour(view, slides, captures) {
    * of changing under it once it lands.
    */
   function applyClock(idx) {
+    // The sky a view insists on, if any. Nothing to save and restore: `imposed`
+    // is only ever set from here, so clearing it is enough to hand the weather
+    // back to whatever the viewer or the feed had decided.
+    const wantSky = CONFIG.views?.[idx + 1]?.sky ?? null;
+    if (wantSky !== sky.imposed) {
+      sky.imposed = wantSky;
+      paintSky(view);
+    }
     const want = CONFIG.views?.[idx + 1]?.clock;
     if (want) {
       const [hh, mm] = want.split(":").map(Number);
@@ -1501,6 +1520,25 @@ const WMO = [
   { max: 99, kind: "rainy",  text: "Thunderstorm" }
 ];
 const ICON = { sunny: "☀", cloudy: "☁", rainy: "☂", snowy: "❄", foggy: "≋" };
+
+/**
+ * The weather a viewer can ask for, and what each one is made of.
+ *
+ * The live feed gives cloud cover and precipitation as measurements; a picked
+ * sky has to invent both, so these are the numbers that make each one read as
+ * itself. Snow lies: `snowCover` is what puts it on the ground rather than only
+ * in the air, which is most of what makes a snowy stadium look snowy.
+ */
+const WEATHER_PICKS = [
+  { kind: "sunny",  label: "Clear",  cloud: 0.04, precip: 0,    tempF: 74 },
+  { kind: "cloudy", label: "Cloudy", cloud: 0.62, precip: 0,    tempF: 61 },
+  { kind: "rainy",  label: "Rain",   cloud: 0.85, precip: 0.55, tempF: 54 },
+  { kind: "snowy",  label: "Snow",   cloud: 0.80, precip: 0.55, tempF: 27 },
+  { kind: "foggy",  label: "Fog",    cloud: 0.70, precip: 0,    tempF: 41 }
+];
+
+/** What a picked or imposed sky is called on the chip. */
+const PICK_TEXT = Object.fromEntries(WEATHER_PICKS.map((p) => [p.kind, p.label]));
 const NIGHT_ICON = { sunny: "☾", cloudy: "☁", rainy: "☂", snowy: "❄", foggy: "≋" };
 
 function classify(code) {
@@ -1512,7 +1550,15 @@ const sky = {
   tz: CONFIG.site.tz, offsetHours: null, kind: "sunny",
   sunrise: null, sunset: null, nextRise: null, weather: null,
   nightLayers: null, wasNight: null,
-  manual: false            // true while the time slider is driving the sun
+  manual: false,           // true while the time slider is driving the sun
+  // Three ways the sky can be decided, in order of who wins. `imposed` is a
+  // view insisting on something for as long as you are on it - the night view
+  // wants its stars, and an overcast ceiling hides them whatever the weather
+  // is really doing. `picked` is the viewer's own choice. Neither set, and the
+  // scene shows what the venue is actually under.
+  imposed: null,
+  picked: null,
+  live: null               // the last fetched conditions, to come back to
 };
 
 /**
@@ -1568,8 +1614,8 @@ function applyConditions(view, data) {
   // `precipitation` is millimetres in the last interval; the SDK wants 0–1.
   const precip = Math.min(1, Math.max(0.15, (now.precipitation ?? 0) / 2.5));
 
-  sky.weather = makeWeather(kind, cloud, precip, now.weather_code);
-  view.environment.weather = sky.weather;
+  sky.live = { kind, text, cloud, precip, code: now.weather_code,
+               temp: Math.round(now.temperature_2m) };
 
   sky.tz = data.timezone ?? CONFIG.site.tz;
   sky.offsetHours = (data.utc_offset_seconds ?? 0) / 3600;
@@ -1585,9 +1631,8 @@ function applyConditions(view, data) {
   sky.sunset  = stamp(day.sunset?.[0]);
   sky.nextRise = stamp(day.sunrise?.[1]);
 
-  els.wxTemp.textContent = `${Math.round(now.temperature_2m)}°F`;
-  els.wxDesc.textContent = text;
   els.weather.hidden = false;
+  paintSky(view);
   tickClock(view);
 
   console.info(
@@ -1627,6 +1672,60 @@ function ownSky(view) {
  * the sun where it genuinely is over Denver regardless of the viewer's own
  * timezone; the readout is formatted into the stadium's zone to match.
  */
+/**
+ * Put the right sky on the scene and the right words on the chip.
+ *
+ * Called whenever any of the three inputs changes - a fetch landing, a viewer
+ * picking, a view imposing - so there is one place that knows the order of
+ * precedence and nowhere else that writes `environment.weather`.
+ */
+function paintSky(view) {
+  const chosen = sky.imposed ?? sky.picked;
+  const p = chosen && WEATHER_PICKS.find((w) => w.kind === chosen);
+  if (p) {
+    sky.kind = p.kind;
+    sky.weather = makeWeather(p.kind, p.cloud, p.precip);
+  } else if (sky.live) {
+    sky.kind = sky.live.kind;
+    sky.weather = makeWeather(sky.live.kind, sky.live.cloud, sky.live.precip, sky.live.code);
+  } else {
+    return;                                   // nothing known yet
+  }
+  view.environment.weather = sky.weather;
+
+  // The temperature follows a sky the viewer picked, and does not follow one a
+  // view imposed.
+  //
+  // Ninety-eight degrees beside falling snow is the one thing left on the chip
+  // still claiming to be a measurement, and it contradicts everything around
+  // it - the sky is already invented by then, so a reading that matches is no
+  // more of a fiction than the snow is, and the unlit Live pip says as much.
+  // A view imposing a sky is different: that is a framing decision about one
+  // shot rather than a claim about the weather, and a clear night at the real
+  // temperature does not contradict itself.
+  const shown = sky.picked && !sky.imposed
+    ? WEATHER_PICKS.find((w) => w.kind === sky.picked)?.tempF
+    : sky.live?.temp;
+  if (shown != null) els.wxTemp.textContent = `${shown}°F`;
+  els.wxDesc.textContent = p ? PICK_TEXT[p.kind] : (sky.live?.text ?? "");
+  for (const b of els.wxMenu.querySelectorAll("button")) {
+    b.classList.toggle("on", b.dataset.kind === chosen);
+  }
+  paintLive();
+}
+
+/** The Live control reads as pressed only when nothing has been overridden. */
+function paintLive() {
+  const off = sky.manual || !!sky.picked || !!sky.imposed;
+  els.wxLive.textContent = off ? "Live" : "Live";
+  els.wxLive.classList.toggle("on", !off);
+  els.weather.classList.toggle("manual", off);
+  els.wxLive.disabled = !off;
+  els.wxLive.title = off
+    ? "Back to the conditions and the time at the venue right now"
+    : "Showing the venue's live conditions";
+}
+
 function tickClock(view) {
   // In manual mode the slider owns the date; only advance it when live.
   if (!sky.manual) view.environment.lighting.date = new Date();
@@ -1637,8 +1736,7 @@ function tickClock(view) {
   els.wxTime.textContent = hhmm.format(now);
   els.treadout.textContent = clockAt(sky.tz,
     { weekday: "short", hour: "numeric", minute: "2-digit" }).format(now);
-  els.weather.classList.toggle("manual", sky.manual);
-  els.wxLive.textContent = sky.manual ? "Manual" : "Live";
+  paintLive();
 
   // Day or night from the sun's actual altitude, not the sunrise/sunset strings.
   // Those are only fetched for today, so they would be wrong the moment the time
@@ -1671,7 +1769,64 @@ function tickClock(view) {
   els.wxSun.textContent = when ? `${label} ${hhmm.format(when)}` : "";
 }
 
+/**
+ * The weather picker, and the way back from it.
+ *
+ * Live is a control rather than a badge now: it was already telling you whether
+ * the scene was showing real conditions, and the thing you want when it says no
+ * is to get back, which is one press.
+ */
+function wireWeather(view) {
+  const menu = (open) => {
+    els.wxMenu.hidden = !open;
+    els.wxPick.setAttribute("aria-expanded", String(!!open));
+  };
+  for (const p of WEATHER_PICKS) {
+    const b = document.createElement("button");
+    b.className = "toolmenu__item";
+    b.type = "button";
+    b.setAttribute("role", "menuitem");
+    b.dataset.kind = p.kind;
+    const ic = document.createElement("span");
+    ic.className = "toolmenu__ico";
+    ic.textContent = ICON[p.kind] ?? "☁";
+    const tx = document.createElement("span");
+    tx.textContent = p.label;
+    b.append(ic, tx);
+    b.addEventListener("click", () => {
+      // Picking the one already showing puts it back to live, so the icon is
+      // a toggle and not a one-way door.
+      sky.picked = sky.picked === p.kind ? null : p.kind;
+      menu(false);
+      paintSky(view);
+    });
+    els.wxMenu.appendChild(b);
+  }
+  els.wxPick.addEventListener("click", () => menu(els.wxMenu.hidden));
+  document.addEventListener("pointerdown", (e) => {
+    if (els.wxMenu.hidden) return;
+    if (els.wxMenu.contains(e.target) || els.wxPick.contains(e.target)) return;
+    menu(false);
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !els.wxMenu.hidden) menu(false);
+  });
+
+  els.wxLive.addEventListener("click", () => {
+    // Everything back: the viewer's sky, a view's insistence, and the clock.
+    sky.picked = null;
+    sky.imposed = null;
+    sky.manual = false;
+    liveOwner();                      // stand down a sweep, and the slider with it
+    view.environment.lighting.date = new Date();
+    paintSky(view);
+    tickClock(view);
+  });
+  paintLive();
+}
+
 function startWeather(view, inflight) {
+  wireWeather(view);
   const apply = (data) => { if (data) applyConditions(view, data); };
   const run = () => fetchConditions().then(apply).catch((err) => {
     console.warn("[venue] live weather unavailable:", err.message);
@@ -1813,6 +1968,8 @@ function buildTimeOfDay(view) {
     }
     tickClock(view);
   }
+  // The weather chip's Live control has to put the clock back too.
+  liveOwner = () => { stopSweep(); live(); };
 
   // Direct shadows are part of the sun model, so this reads as a lighting
   // control and belongs beside the time scrubber rather than in a settings menu.

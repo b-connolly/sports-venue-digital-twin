@@ -745,28 +745,55 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   box-shadow: var(--shadow);
 }
 .weather[hidden] { display: none; }
-.weather__icon { font-size: 1.1rem; line-height: 1; color: var(--accent-2); }
-.weather__read { display: flex; flex-direction: column; gap: 0.06rem; line-height: 1.15; }
-.weather__temp { font-size: 0.86rem; font-weight: 500; }
-.weather__meta { display: flex; align-items: baseline; gap: 0.34rem; }
+/* The icon is a button. It gets a hit area a thumb can find without making the
+   chip any taller than the three lines of text beside it. */
+.weather__pick {
+  flex: 0 0 auto;
+  display: grid; place-items: center;
+  width: 30px; height: 30px; padding: 0;
+  border: 1px solid transparent; border-radius: 50%;
+  background: rgba(244,241,234,0.06);
+  color: inherit; font: inherit; cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.weather__pick:hover { background: rgba(244,241,234,0.14); border-color: var(--line); }
+.weather__pick[aria-expanded="true"] { border-color: var(--accent); }
+.weather__icon { font-size: 1.05rem; line-height: 1; color: var(--accent-2); }
+
+.weather__read { display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.15; }
+/* The venue, said once. Every reading below it is this place's. */
+.weather__place {
+  font-size: 0.5rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--paper-faint); white-space: nowrap;
+}
+.weather__now { display: flex; align-items: baseline; gap: 0.4rem; }
+.weather__temp { font-size: 0.92rem; font-weight: 500; }
+.weather__sub { display: flex; align-items: baseline; gap: 0.34rem; }
 .weather__desc, .weather__time, .weather__sun {
   font-size: 0.55rem; letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--paper-faint); white-space: nowrap;
 }
+.weather__desc { color: var(--paper-dim); }
 .weather__time { color: var(--paper-dim); }
-/* thin divider between the conditions and the local clock */
-.weather__time::before { content: "·"; margin-right: 0.34rem; color: var(--paper-faint); }
+/* thin divider between the local clock and the next sun event */
+.weather__sun::before { content: "·"; margin-right: 0.34rem; color: var(--paper-faint); }
 .weather__sun { font-size: 0.5rem; opacity: 0.72; }
 /* after dark the chip cools off, and the icon picks up moonlight */
 .weather.night .weather__icon { color: #cfe0ff; }
 .weather.night { border-color: rgba(180, 205, 255, 0.22); }
 .weather__live {
-  margin-left: 0.15rem; padding: 0.12rem 0.42rem; border-radius: 999px;
+  margin-left: 0.15rem; padding: 0.24rem 0.5rem; border-radius: 999px;
+  font: inherit; cursor: pointer;
   font-size: 0.48rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--accent-2); background: rgba(251,79,20,0.16);
   border: 1px solid rgba(251,79,20,0.34);
 }
-/* time of day is being driven by hand, not by the clock */
+/* Nothing to go back to while it is already live. */
+.weather__live:disabled { cursor: default; }
+.weather__live:not(:disabled):hover {
+  background: rgba(251,79,20,0.3); border-color: rgba(251,79,20,0.6); color: var(--paper);
+}
+/* the sky or the clock is being driven by hand, not by the feed */
 .weather.manual .weather__live {
   color: #cfe0ff; background: rgba(150,190,235,0.14); border-color: rgba(150,190,235,0.32);
 }
@@ -1197,3 +1224,16 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
 @media (max-width: 780px), (max-height: 500px) {
   .recenter { bottom: calc(var(--pad) + 15rem); font-size: 0.62rem; padding: 0.45rem 0.8rem; }
 }
+
+/* The weather picker hangs above the chip rather than beside it: the chip sits
+   in the bottom-left corner and there is nothing to its left. */
+.weather { position: fixed; }
+.toolmenu--wx {
+  top: auto; right: auto; bottom: calc(100% + 8px); left: 0;
+  min-width: 9rem;
+}
+.toolmenu__ico {
+  display: inline-block; width: 1.1rem; text-align: center;
+  color: var(--accent-2); font-size: 0.9rem;
+}
+.toolmenu--wx .toolmenu__item.on { color: var(--paper); background: rgba(244,241,234,0.13); }
