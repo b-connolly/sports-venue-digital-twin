@@ -88,11 +88,18 @@ const CONFIG = {
       ]
     },
     {
+      // `live` may be set per layer as well as per group. A replay is watched
+      // from inside the bowl and the two hand-held captures are out on the
+      // concourse, so they are never once in shot - and an integrated mesh
+      // costs the same whether or not it is in front of the camera. Leaving
+      // them on carried a couple of hundred textures into the heaviest moment
+      // the app has, which is a phone's whole budget spent on something nobody
+      // can see.
       label: "Meshes", open: false, live: true,
       layers: [
         { title: "3D Mesh",               label: "Stadium",          kind: "Drone" },
-        { title: "Broncos Stampede",      label: "Broncos Stampede", kind: "Handheld" },
-        { title: "Bronco Alumni Statues", label: "Alumni Statues",   kind: "Handheld" }
+        { title: "Broncos Stampede",      label: "Broncos Stampede", kind: "Handheld", live: false },
+        { title: "Bronco Alumni Statues", label: "Alumni Statues",   kind: "Handheld", live: false }
       ]
     }
   ],
@@ -610,6 +617,28 @@ function flatten(collection, out = []) {
   return out;
 }
 
+/**
+ * A device that should not be handed a two-gigabyte memory budget.
+ *
+ * `qualityProfile` is not only about how the scene looks: it is what the SDK
+ * sizes its own cache against. On high it reports a budget of about 1930 MB and
+ * fills it, which is right on a desktop and is a phone's entire tab allowance -
+ * measured walking to the live-action view, high leaves roughly 980 MB resident
+ * between the heap and the scene, and medium roughly 660.
+ *
+ * That is the reset people were seeing on a phone: nothing leaks, the app is
+ * simply given a budget the device does not have and spends it.
+ *
+ * The test matches the CSS breakpoint on purpose - the layout and the memory
+ * budget should agree about what a phone is - with a nod to any machine that
+ * admits to being short of memory.
+ */
+function modestDevice() {
+  const small = matchMedia("(max-width: 780px), (max-height: 500px)").matches;
+  const lean = (navigator.deviceMemory ?? 8) <= 4;
+  return small || lean;
+}
+
 async function main() {
   progress(3, "Loading…");
   // The SDK is a thousand module requests deep and cannot report on itself, so
@@ -629,7 +658,10 @@ async function main() {
   const view = new SceneView({
     container: "viewDiv",
     map: scene,
-    qualityProfile: "high",
+    // ?q=low|medium|high overrides it, which is how the numbers above were
+    // measured and how to check a device that still struggles.
+    qualityProfile: new URLSearchParams(location.search).get("q")
+      || (modestDevice() ? "medium" : "high"),
     ui: { components: [] },                 // all chrome is ours
     environment: {
       atmosphere: { quality: "high" },
@@ -703,7 +735,8 @@ async function main() {
   const captureState = (which) => {
     captures.clear();                 // this is the app choosing, not the viewer
     captures.groups.forEach(({ group, rows }) => {
-      rows.forEach((c) => { c.layer.visible = !!group[which]; });
+      // A layer may answer for itself; otherwise its group answers for it.
+      rows.forEach((c) => { c.layer.visible = !!(c[which] ?? group[which]); });
     });
   };
   const openingState = () => captureState("open");
