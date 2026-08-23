@@ -29,22 +29,32 @@ def out_path(*parts):
     return dst
 
 M = 16                                   # pixels per metre
-L, W = 105.0, 68.0
+L, W = 105.0, 68.0                       # the marked pitch
+# Grass beyond the markings, as a real ground has. Without it the turf stopped
+# dead on the goal line and the goal itself stood on the grey slab - with the
+# net slung 2.2 m further back still - so a ball crossing the line went from
+# green to grey at the one moment anybody is looking at it. Four metres behind
+# each goal covers the net and then some.
+APRON_END, APRON_SIDE = 4.0, 3.0
+OL, OW = L + 2 * APRON_END, W + 2 * APRON_SIDE
 LW = max(2, int(0.12 * M))               # 12 cm lines
 
 TURF_A, TURF_B = (38, 96, 48), (32, 86, 42)
 WHITE = (243, 245, 242)
 
-img = Image.new("RGB", (int(L * M), int(W * M)), TURF_A)
+img = Image.new("RGB", (int(OL * M), int(OW * M)), TURF_A)
 d = ImageDraw.Draw(img)
 
 # Mown stripes, five metres each, running across the pitch as they usually do.
-for i in range(int(L / 5) + 1):
+# Struck across the whole apron so the mowing does not stop at the touchline.
+for i in range(int(OL / 5) + 1):
     if i % 2:
-        d.rectangle([i * 5 * M, 0, (i + 1) * 5 * M, W * M], fill=TURF_B)
+        d.rectangle([i * 5 * M, 0, (i + 1) * 5 * M, OW * M], fill=TURF_B)
 
-def X(m): return m * M
-def Y(m): return m * M
+# Everything below is drawn in pitch metres - 0,0 is the corner flag - and the
+# apron is applied here, so the markings never have to know about it.
+def X(m): return (m + APRON_END) * M
+def Y(m): return (m + APRON_SIDE) * M
 def line(x0, y0, x1, y1, w=None):
     d.line([(X(x0), Y(y0)), (X(x1), Y(y1))], fill=WHITE, width=w or LW)
 def rect(x0, y0, x1, y1):
@@ -96,3 +106,5 @@ dst = out_path("assets", "pitch.jpg")
 rot.save(dst, quality=88, optimize=True)
 print("  pitch.jpg %dx%d  %.0f KB" % (rot.size[0], rot.size[1],
                                       os.path.getsize(dst) / 1024))
+print("  %.1f x %.1f m painted, %.1f x %.1f m marked (%.1f m apron behind each goal)"
+      % (OL, OW, L, W, APRON_END))

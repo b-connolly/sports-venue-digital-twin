@@ -199,9 +199,12 @@ export async function addPlay(view, cfg, spec) {
   const space = data.space ?? { length: 120, width: 53.333 };
   const surfaceKey = data.surface ?? "gridiron";
   const painted = cfg.field.surfaces[surfaceKey];
+  // The marked area inside the painted one. A surface without an apron is its
+  // own playing area, so this is the whole of it.
+  const marked = painted.play ?? painted;
   const dims = {
     length: space.length, width: space.width,
-    depth: painted.depth, acrossM: painted.width
+    depth: marked.depth, acrossM: marked.width
   };
 
   const surface = spec.z;
@@ -307,7 +310,7 @@ export async function addPlay(view, cfg, spec) {
   if (surfaceKey === "pitch") {
     addGoals(layer, {
       origin, sr,
-      halfLength: painted.depth / 2,
+      halfLength: marked.depth / 2,
       place: (along, across) => {
         const th = (cfg.field.rotation || 0) * DEG, ct = Math.cos(th), st = Math.sin(th);
         return [across * ct - along * st, across * st + along * ct];
@@ -441,8 +444,8 @@ export async function addPlay(view, cfg, spec) {
       const dx = c[0] - a[0], dy = c[1] - a[1], L = Math.hypot(dx, dy) || 1;
       return [dx / L, dy / L];
     },
-    halfWidth: painted.width / 2,
-    depth: painted.depth,
+    halfWidth: marked.width / 2,
+    depth: marked.depth,
     show(on) { layer.visible = !!on; if (on) poseAt(t); },
     seek(time) { t = Math.max(0, Math.min(DUR, time)); poseAt(t); emit(); },
     start() {

@@ -143,9 +143,10 @@ export async function addSurfaces(view, cfg) {
       posts = addUprights(layer, {
         origin: [cfg.lon, cfg.lat, baseZ],
         sr: { wkid: 4326 },
-        // The painted texture runs end line to end line, so its own half-length
-        // is exactly where the posts stand.
-        halfLength: surface.depth / 2,
+        // Where the posts stand is the end of the *marked* area, not the end
+        // of the painted one - a surface with an apron of grass around it is
+        // wider than the pitch it carries.
+        halfLength: (surface.play ?? surface).depth / 2,
         place: (along, across) => [across * ct - along * st, across * st + along * ct],
         heading: -(cfg.rotation || 0)
       });

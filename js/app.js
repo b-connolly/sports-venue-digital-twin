@@ -120,7 +120,11 @@ const CONFIG = {
   // gets, and entry is never held up beyond hardCapMs.
   preload: {
     enabled: true,
-    views: [5, 7, 8],     // all three hand-held meshes, and the combined view
+    // Named, not numbered, for the same reason CONFIG.views is: a slide added
+    // or deleted in the web scene shifts every position after it, and this
+    // would quietly start warming the wrong views. Between them these three
+    // cover all the hand-held captures and the combined view.
+    views: ["Pix4DCatch", "Broncos Alumni", "Combined Mesh"],
     // How many of those must be warm before Explore opens. The rest are warmed
     // behind a curtain that is only still up because nobody has clicked yet,
     // and are abandoned the moment somebody does - warming means moving the
@@ -165,34 +169,42 @@ const CONFIG = {
   //   opens - a tool panel ("time", "measure") or a play key, started on arrival
   // A view whose `opens` names a play is also that play's stand camera, which
   // is what Fan Perspective flies to.
-  // `dwellMs` is how long the slideshow holds a view, where the default is not
-  // long enough. A view that exists to show something happening has to be held
-  // for as long as that thing takes, or the show cuts away in the middle of it -
-  // which is what it did to the sun walking down to midnight, giving it three
-  // and a half seconds of the whole sweep.
-  views: {
-    2:  { clock: "22:30" },
-    // Arrives at half ten, then walks the sun down to midnight and puts the
-    // panel away. "24:00" is the end of the local day, not the start of it.
-    // No dwellMs: a view that sweeps works its own out from sweepMs.
-    // The sweep is slow on purpose - that is the pace the sky actually moves at
-    // - and the stop is deliberately shorter than it. A viewer is meant to
-    // watch the stars travel a stretch of sky, not to sit through the whole
-    // walk to midnight; the slideshow moves on and the sweep is stood down.
-    // `sky` is imposed for as long as the view is on screen and handed back
-    // after. The night view is about the stars: overcast is a ceiling that
-    // hides them, and whether it happens to be cloudy in Denver tonight should
-    // not decide whether this view works.
-    3:  { clock: "22:30", opens: "time", sweepTo: "24:00", sweepMs: 26000,
-          dwellMs: 7500, sky: "sunny" },
+  // What a view does when you arrive at it.
+  //
+  // Matched on the slide's own title, not its position. Numbering these was a
+  // trap waiting to spring: deleting one slide from the web scene shifts every
+  // one after it, and the night sky, the sun sweep and the two replays would
+  // have quietly moved onto whichever views happened to inherit the numbers.
+  // A title is what the author actually chose, and it survives reordering.
+  //
+  //   clock    force the site's local wall clock to this, and put it back on
+  //            the way out, so a view authored for the dark is always dark
+  //   sky      insist on a weather for as long as the view is on screen
+  //   opens    a tool panel ("time", "measure") or a play key, on arrival
+  //   dwellMs  how long the slideshow holds it, where the default is too short
+  //
+  // `dwellMs` matters for a view that exists to show something happening: hold
+  // it for less than that thing takes and the show cuts away mid-way, which is
+  // what it did to the sun walking down to midnight.
+  views: [
+    // Both night views want their stars. An overcast ceiling hides them, and
+    // whether it happens to be cloudy in Denver tonight should not decide
+    // whether these two work.
+    { title: "Stadium at Night", clock: "22:30", sky: "sunny" },
+    // Arrives at half ten, then walks the sun down towards midnight. "24:00" is
+    // the end of the local day, not the start of it. The stop is deliberately
+    // shorter than the sweep - a viewer watches the stars travel a stretch of
+    // sky, not the whole walk.
+    { title: "Night Sky", clock: "22:30", sky: "sunny",
+      opens: "time", sweepTo: "24:00", sweepMs: 26000, dwellMs: 7500 },
     // Long enough for the replay each one starts, which is why these are not
-    // the same number: the gridiron pass runs 19.7 s and the football goal 37.5.
-    // Both allow for the pause before a replay begins - see CONFIG.arrival -
-    // and a moment on the celebration afterwards, so the show is not cutting
-    // away over somebody's shoulder.
-    9:  { opens: "gridiron", dwellMs: 26000 },
-    10: { opens: "football", dwellMs: 44000 }
-  },
+    // the same number: the gridiron pass runs 19.7 s and the football goal
+    // 37.5. Both allow for the pause before a replay begins - see
+    // CONFIG.arrival - and a moment on the celebration afterwards.
+    { title: "Fan Perspective (American Football)", opens: "gridiron", dwellMs: 26000 },
+    { title: "Fan Perspective (Football)", opens: "football", dwellMs: 44000 }
+  ],
+
 
   // Opening camera. The web scene's own initial viewpoint is used when this is
   // null. Press C in the running app to print the current camera, then paste it
@@ -250,8 +262,18 @@ const CONFIG = {
       // between the goal lines. The slab is 130 x 76.6 m and still holds this
       // comfortably - there is simply a little more of it showing round the edge.
       gridiron: { width: 48.768, depth: 109.728, texture: "./assets/field.jpg" },
-      // A full-size pitch at the top of the permitted range.
-      pitch:    { width: 68.00, depth: 105.00, texture: "./assets/pitch.jpg" }
+      // A full-size pitch at the top of the permitted range, with an apron of
+      // grass around it as a real ground has.
+      //
+      // `width`/`depth` are the painted slab; `play` is the marked pitch inside
+      // it. The two have to be told apart or everything that measures itself
+      // against the surface stretches to fill the apron - players would stand
+      // eight metres wide of their own markings and the goals would sit four
+      // metres behind the goal line.
+      pitch: {
+        width: 74.00, depth: 113.00, texture: "./assets/pitch.jpg",
+        play: { width: 68.00, depth: 105.00 }
+      }
     }
   },
 
@@ -571,7 +593,10 @@ async function warmUp(view, slides, restore,
   const home = view.camera.clone();
   onStart?.(home);
   const deadline = performance.now() + cfg.budgetMs;
-  const wanted = cfg.views.map((n) => slides[n - 1]).filter(Boolean);
+  // Same title match the rail's own views use, so both agree what a name means.
+  const wanted = cfg.views
+    .map((t) => slideNamed(slides, t))
+    .filter(Boolean);
   let done = 0;
 
   for (const slide of wanted) {
@@ -796,6 +821,7 @@ async function main() {
 
   const slides = scene.presentation?.slides?.toArray?.() ?? [];
 
+  bindViews(slides);
   const tour = buildTour(view, slides, captures);
 
   // Never gate entry on `view.updating`. Gaussian splat and integrated mesh
@@ -899,7 +925,7 @@ async function main() {
   };
 
   tour.onArrive((n) => {
-    const opens = CONFIG.views?.[n]?.opens;
+    const opens = viewAt(n)?.opens;
     if (!opens) {
       // Arriving somewhere ordinary puts away whatever a staged view opened.
       // Left alone the replay plays on and its pitch stays painted over the
@@ -926,7 +952,7 @@ async function main() {
     if (opens === "time") {
       tools.measure.close();
       autoOpened = "time";
-      const v = CONFIG.views[n];
+      const v = viewAt(n);
       // This one does not wait. A replay is a burst of movement that a
       // half-loaded scene spoils, but the sun sweep is a slow ramp - it is not
       // spoiled by tiles still arriving, and holding it back only ate the front
@@ -1128,6 +1154,48 @@ function matchLighting(slide) {
 }
 
 /**
+ * Which view number each entry in CONFIG.views turned out to be.
+ *
+ * Filled once, from the slides the web scene actually has. An entry that
+ * matches nothing is a title that has been renamed or a slide that has been
+ * deleted, and one that matches several is a title too vague to be an
+ * identifier - both say so rather than silently attaching to the wrong view.
+ */
+const viewSpecs = new Map();
+
+/**
+ * The one slide whose title matches, or nothing.
+ *
+ * Exact first, then a prefix, so a spec can name "Night Sky" and reach "Night
+ * Sky (Drone Capture)" without repeating the parenthetical. Anything that
+ * matches more than one slide is too vague to be an identifier and is refused
+ * rather than guessed at.
+ */
+function slideNamed(slides, title) {
+  const want = (title || "").trim().toLowerCase();
+  const hits = slides.filter((sl) => {
+    const t = (sl.title?.text || "").trim().toLowerCase();
+    return t === want || t.startsWith(want);
+  });
+  if (hits.length === 1) return hits[0];
+  console.warn(`[venue] "${title}" matches ${hits.length} slides - ignored`);
+  return null;
+}
+
+function bindViews(slides) {
+  viewSpecs.clear();
+  for (const spec of CONFIG.views ?? []) {
+    const hit = slideNamed(slides, spec.title);
+    if (hit) viewSpecs.set(slides.indexOf(hit) + 1, spec);
+  }
+  console.info("[venue] views bound:",
+    [...viewSpecs].map(([n, v]) => `${n} ${v.title}`).join(" | ") || "none");
+}
+
+/** The entry for a view, as the rail numbers them. */
+const viewAt = (n) => viewSpecs.get(n);
+
+/**
  * Stops a sun sweep, set by whoever owns one. Leaving a view has to stand it
  * down *before* the flight rather than on arrival at the next one: a sweep
  * writes the lighting date every few frames, so for the whole two and a half
@@ -1176,12 +1244,12 @@ function buildTour(view, slides, captures) {
     // The sky a view insists on, if any. Nothing to save and restore: `imposed`
     // is only ever set from here, so clearing it is enough to hand the weather
     // back to whatever the viewer or the feed had decided.
-    const wantSky = CONFIG.views?.[idx + 1]?.sky ?? null;
+    const wantSky = viewAt(idx + 1)?.sky ?? null;
     if (wantSky !== sky.imposed) {
       sky.imposed = wantSky;
       paintSky(view);
     }
-    const want = CONFIG.views?.[idx + 1]?.clock;
+    const want = viewAt(idx + 1)?.clock;
     if (want) {
       const [hh, mm] = want.split(":").map(Number);
       if (!clockWas) {
@@ -1203,7 +1271,7 @@ function buildTour(view, slides, captures) {
 
   /** How long to hold a view before moving on, in the slideshow. */
   function dwellFor(idx) {
-    const v = CONFIG.views?.[idx + 1];
+    const v = viewAt(idx + 1);
     if (!v) return CONFIG.slideDwellMs;
     return v.dwellMs || CONFIG.slideDwellMs;
   }
@@ -1913,6 +1981,17 @@ function buildTimeOfDay(view) {
       mode: "instant",
       fullTimeExtent: new T.TimeExtent({ start, end }),
       stops: { interval: { value: 10, unit: "minutes" } },
+      // Five ticks, not a hundred and two. The default rules the whole track
+      // and reads as texture rather than as a scale; a quarter of a day apart
+      // is as fine as anybody needs to aim by, and the stops still snap to ten
+      // minutes whatever the ticks say.
+      tickConfigs: [{
+        mode: "count",
+        values: 5,
+        labelsVisible: true,
+        labelFormatFunction: (value) => clockAt(sky.tz, { hour: "numeric" })
+          .format(new Date(value))
+      }],
       timeExtent: new T.TimeExtent({
         start: view.environment.lighting.date, end: view.environment.lighting.date
       }),
@@ -2472,9 +2551,9 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     const sport = CONFIG.play.plays.find((p) => p.key === active)?.sport;
     const opensOneOf = new Set(CONFIG.play.plays
       .filter((p) => p.sport === sport).map((p) => p.key));
-    const views = CONFIG.views ?? {};
-    const n = Object.keys(views).find((k) => views[k].opens === active)
-           ?? Object.keys(views).find((k) => opensOneOf.has(views[k].opens));
+    const entries = [...viewSpecs];
+    const n = entries.find(([, v]) => v.opens === active)?.[0]
+           ?? entries.find(([, v]) => opensOneOf.has(v.opens))?.[0];
     const camera = slides[Number(n) - 1]?.viewpoint?.camera;
     if (!camera) {
       console.warn(`[venue] no saved view opens "${active}"; framing the field instead`);

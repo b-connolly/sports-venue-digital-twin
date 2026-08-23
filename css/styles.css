@@ -1237,3 +1237,45 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
   color: var(--accent-2); font-size: 0.9rem;
 }
 .toolmenu--wx .toolmenu__item.on { color: var(--paper); background: rgba(244,241,234,0.13); }
+
+/* ------------------------------------------------- time of day, refined */
+/* The widget ships three rows and only one of them is the control. The first
+   reads out the current instant, which the panel's own header already does, and
+   the last states the day's bounds, which are midnight to midnight and hardly
+   news. Between them that was 72px of a 240px panel spent on nothing, on top of
+   the field it is meant to be showing. */
+#timePanel { width: min(520px, calc(100vw - 2 * var(--pad))); }
+#timeHost .esri-time-slider__row:has(.esri-time-slider__time-extent),
+#timeHost .esri-time-slider__row:has(.esri-time-slider__min) { display: none; }
+/* Belt and braces for a browser without :has() - the rows collapse instead. */
+#timeHost .esri-time-slider__time-extent,
+#timeHost .esri-time-slider__min,
+#timeHost .esri-time-slider__max { display: none; }
+
+#timeHost { padding: 0.1rem 0.1rem 0; }
+#timeHost .esri-time-slider { background: transparent; }
+#timeHost .esri-time-slider__row { padding: 0; min-height: 0; }
+
+/* The track itself: thinner, and in the app's own colours rather than Calcite's
+   blue. The handle is the only thing that needs to catch the eye. */
+#timeHost .esri-slider__track { height: 3px; background: rgba(244,241,234,0.16); }
+/* segment-0 is the stretch behind the handle - the part of the day already
+   gone. Colouring segment-1 instead lit up the hours still to come, which
+   reads backwards. */
+#timeHost .esri-slider__segment-0 { background: var(--accent); }
+#timeHost .esri-slider__segment-1 { background: transparent; }
+#timeHost .esri-slider__thumb {
+  width: 15px; height: 15px; border: 2px solid var(--paper);
+  background: var(--accent); box-shadow: 0 1px 5px rgba(0,0,0,0.45);
+}
+#timeHost .esri-slider__thumb:hover { background: var(--accent-2); }
+#timeHost .esri-slider__tick { background: rgba(244,241,234,0.2); }
+#timeHost .esri-slider__tick-label {
+  font-size: 0.5rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+#timeHost .esri-slider__label { color: var(--paper-dim); font-size: 0.55rem; }
+
+@media (max-width: 780px), (max-height: 500px) {
+  #timePanel { width: calc(100vw - 2 * var(--pad)); }
+}
