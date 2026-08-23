@@ -794,7 +794,7 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 .noscript { position: fixed; inset: 0; display: grid; place-items: center; z-index: 99; }
 
 @media (max-width: 780px) {
-  .rail { width: min(258px, 66vw); max-height: calc(100vh - 2 * var(--pad) - 150px); }
+  .rail { width: min(258px, 66vw); }
   /* 20px puts the title at 225px, inside even a 66vw rail on a small phone. */
   .masthead__title { font-size: 1.25rem; }
 
@@ -811,6 +811,14 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   /* Live conditions are the first thing to go instead. On a phone the chip sits
      over the field itself, and the same reading is in the time-of-day panel. */
   .weather { display: none; }
+
+  /* And the capture list after it. Six rows and two group switches is the
+     tallest thing in the rail, and on a phone it covers the near corner of the
+     field it is describing. Nothing is lost that a viewer needs: the saved
+     views already turn the right captures on as they arrive, and a replay
+     stages itself. It is hidden rather than removed, so everything that mirrors
+     a layer's visibility onto it goes on working. */
+  .captures { display: none; }
 
   .dock   { width: calc(100vw - 2 * var(--pad)); }
 
