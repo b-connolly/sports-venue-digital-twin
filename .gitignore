@@ -15,6 +15,7 @@ tools/*.csv
 # actually serves are the ones in the root, and those are committed.
 tools/field.jpg
 tools/field_landscape.jpg
+tools/pitch_landscape.jpg
 tools/pitch.jpg
 tools/midfield_preview.png
 tools/play.json
