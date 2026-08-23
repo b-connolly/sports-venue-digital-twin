@@ -402,7 +402,16 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   font-size: 0.6rem; font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase;
   color: var(--paper-faint);
 }
+/* The clock is the only thing in this bar whose text changes, and it used to be
+   sized by that text: every tenth of a second the string grew or shrank and the
+   camera buttons beside it shuffled to suit. Reserving the width of the longest
+   value it can ever show - "37.5s" today - stops the row reflowing at all, and
+   tabular figures stop the digits jostling within it. Right-aligned so the
+   number stays anchored against the buttons rather than drifting. */
 .dock__now {
+  flex: 0 0 auto;
+  min-width: 3.4em; text-align: right;
+  font-variant-numeric: tabular-nums;
   font-family: Fraunces, Georgia, serif; font-size: 0.95rem; color: var(--paper);
   white-space: nowrap; margin-right: 0.15rem;
 }
@@ -432,6 +441,11 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   background: var(--accent); border-color: transparent; color: #fff;
 }
 .camseg__b:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; z-index: 1; }
+/* Two labels per button, one shown at a time. The full names do not fit a
+   phone: the three of them plus the clock and the close button needed 488px
+   of a 330px bar, which put the close button off the screen entirely - there
+   was no way to shut a replay. aria-label carries the full name either way. */
+.camseg__short { display: none; }
 
 .dock__opts {
   display: flex; align-items: center; gap: 0.6rem;
@@ -808,6 +822,13 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 
   .dock   { width: calc(100vw - 2 * var(--pad)); }
   .credit { bottom: var(--pad); }
+
+  /* The replay's title bar has to fit a phone. "Live action" goes - the panel
+     is plainly the replay - and the cameras use their short names. */
+  #playPanel .dock__h { display: none; }
+  .camseg__full  { display: none; }
+  .camseg__short { display: inline; }
+  .camseg__b { padding: 0.3rem 0.45rem; }
 }
 @media (max-height: 430px) and (orientation: portrait) {
   .rotate {
