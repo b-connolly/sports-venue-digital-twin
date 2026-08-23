@@ -157,7 +157,11 @@ def add_kickoff(out):
         events[k] += lead
     events["kick"] = int(round(REST * hz))
     out["meta"]["measuredFrom"] = lead
-    out["meta"]["frames"] += lead
+    # Set, never incremented. The trim above shortens the arrays but cannot know
+    # what the count was before, so `+= lead` inflated it by another lead every
+    # time this was re-run - the arrays stayed right while meta.frames drifted,
+    # which the app reads as a clip longer than its own data.
+    out["meta"]["frames"] = len(ball["x"])
     return out, keeper, receiver, max(bzs)
 
 
