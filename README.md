@@ -7,8 +7,6 @@ replays driven by actual sports tracking data.
 
 **Live:** https://b-connolly.github.io/sports-venue-digital-twin/
 
-Built by Brian Connolly, vibe coding with Claude.
-
 ---
 
 ## What's in it
