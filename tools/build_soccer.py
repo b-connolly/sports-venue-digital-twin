@@ -24,7 +24,7 @@ anywhere in it - which happens to be exactly what the app wants.
 
 Needs trk2_Home.csv and trk2_Away.csv beside it; see README.md for the fetch.
 """
-import csv, json, math, os
+import csv, json, math, os, sys
 from kickoff import add_kickoff
 from anonymise import anonymise
 import os
@@ -42,13 +42,61 @@ L, W = 105.0, 68.0
 OUT_HZ = 10.0                  # resampled from 25 Hz to keep the file small
 SRC_HZ = 25.0
 
-# Sample Game 2, first half.
-PERIOD = "1"
-# The ball is only tracked while it is in play - 465.6 s (the tackle) to 488.5 s
-# (the shot). The players are tracked throughout. So the clip starts exactly on
-# the turnover: any earlier and the ball would have no recorded position and
-# would hang motionless while everyone else moved around it.
-T_START, T_GOAL, T_END = 465.6, 488.1, 500.0
+# The passages the app offers, all from Sample Game 2.
+#
+#   propy build_soccer.py            # the turnover, as before
+#   propy build_soccer.py header     # the cross and the headed finish
+#   propy build_soccer.py counter    # an interception broken away from
+#
+# The ball is only tracked while it is in play; the players are tracked
+# throughout. So a passage starts where the ball's own record starts, and where
+# that record has a hole in the middle - the tracker losing it in a tackle for
+# under a second - `bridge` says it may be drawn straight across. Anything
+# longer than a second or two is a dead ball and is not bridged: that would be
+# inventing a phase of play rather than papering over a dropout.
+#
+# `events` may be given by hand where the interesting moments are not the ones
+# the event file marks. Left out, they are derived from the file - see
+# derive_events().
+PASSAGES = {
+    "turnover": {
+        "period": "1", "start": 465.6, "goal": 488.1, "end": 500.0,
+        "out": "soccer.json", "title": "Turnover to goal",
+        "label": "Turnover to goal",
+        "description": ("Won by a tackle in midfield, worked through eight passes "
+                        "and a switch of play, then crossed and finished first time."),
+        "credit": "First half, anonymised sample match",
+        "lead_in": True,
+        # Hand-picked: the switch of play is the moment that makes this passage
+        # what it is, and the event file records it as one more pass.
+        "events": {"win": 465.6, "switch": 482.8, "cross": 487.2,
+                   "goal": 488.1, "celebration": 492.2}
+    },
+    "header": {
+        "period": "2", "start": 2943.8, "goal": 2959.3, "end": 2971.0,
+        "out": "soccer_header.json", "title": "Cross and header",
+        "label": "Cross and header",
+        "description": ("Won back in midfield, lost to a tackle and won straight "
+                        "back, then crossed and headed in."),
+        "credit": "Second half, anonymised sample match",
+        "bridge": [(2954.2, 2955.1)]
+    },
+    "counter": {
+        "period": "1", "start": 2100.3, "goal": 2122.0, "end": 2133.0,
+        "out": "soccer_counter.json", "title": "Intercept and break",
+        "label": "Intercept and break",
+        "description": ("A goal kick headed clear, intercepted, and carried the "
+                        "length of the pitch in five passes."),
+        "credit": "First half, anonymised sample match"
+    },
+}
+
+KEY = (sys.argv[1] if len(sys.argv) > 1 else "turnover").lower()
+if KEY not in PASSAGES:
+    raise SystemExit("unknown passage %r; try one of %s" % (KEY, ", ".join(PASSAGES)))
+SPEC = PASSAGES[KEY]
+PERIOD = SPEC["period"]
+T_START, T_GOAL, T_END = SPEC["start"], SPEC["goal"], SPEC["end"]
 
 
 def load(path):
@@ -92,6 +140,117 @@ def load(path):
 
 home, ball_raw, times = load(os.path.join(HERE, "trk2_Home.csv"))
 away, _, _ = load(os.path.join(HERE, "trk2_Away.csv"))
+
+
+def bridge_ball(spans):
+    """Draw the ball straight across a dropout the tracker had.
+
+    Only where the passage asks for it, and only over the span it names. The
+    ball is measured either side; in between it was being contested at boot
+    level and the tracker lost sight of it for under a second. A straight line
+    between two known positions a few metres apart is the smallest thing that
+    can be said, and it is recorded in meta so the file admits to it.
+    """
+    filled = []
+    for (a, b) in spans or []:
+        fa = [f for f in ball_raw if times.get(f, 0) <= a]
+        fb = [f for f in ball_raw if times.get(f, 0) >= b]
+        if not fa or not fb:
+            continue
+        f_a, f_b = max(fa), min(fb)
+        pa, pb = ball_raw[f_a], ball_raw[f_b]
+        for f in range(f_a + 1, f_b):
+            if f in ball_raw or f not in times:
+                continue
+            u = (f - f_a) / (f_b - f_a)
+            ball_raw[f] = (pa[0] + (pb[0] - pa[0]) * u, pa[1] + (pb[1] - pa[1]) * u)
+        filled.append({"fromS": round(times[f_a], 2), "toS": round(times[f_b], 2),
+                       "frames": f_b - f_a - 1,
+                       "metres": round(math.hypot((pb[0] - pa[0]) * L,
+                                                  (pb[1] - pa[1]) * W), 1)})
+    return filled
+
+
+# --- reacquisitions --------------------------------------------------------
+# Distinct from a dropout, and needing a different repair. Here the tracker does
+# not lose the ball, it loses track of *which* thing is the ball, and picks it
+# up again somewhere else: the position steps several metres between two
+# consecutive frames and then carries on smoothly. On screen the ball darts
+# sideways and back with nobody near it, which is the one thing in a replay of
+# measured data that looks like a bug rather than like football.
+#
+# Speed alone cannot find these, because a struck ball also jumps in one frame -
+# a shot leaves the foot at 27 m/s from a standing start. What separates them is
+# what happens next: a struck ball stays fast, and a reacquisition is followed by
+# a ball barely moving. Measured over the three passages here, the rule finds one
+# event - a 3.8 m step at 94 m/s followed by 3.8 m/s - and leaves every frame of
+# the shot that scores the first goal alone.
+STEP_MS = 25.0        # a step faster than this is either a strike or an error
+AFTER_MS = 8.0        # ...and if the ball is slower than this after it, an error
+LOOK = 5              # frames to judge "after" over
+BLEND_S = 1.8         # seconds over which the step is absorbed
+
+
+def mend_ball():
+    """Smooth out any place the tracker jumped to a different object."""
+    fs = sorted(ball_raw)
+    mended = []
+
+    def speed(i):
+        dt = times[fs[i]] - times[fs[i - 1]]
+        if dt <= 0 or dt > 0.2:
+            return None
+        a, b = ball_raw[fs[i - 1]], ball_raw[fs[i]]
+        return math.hypot((b[0] - a[0]) * L, (b[1] - a[1]) * W) / dt
+
+    for i in range(1, len(fs)):
+        sp = speed(i)
+        if sp is None or sp < STEP_MS:
+            continue
+        after = [speed(j) for j in range(i + 1, min(i + 1 + LOOK, len(fs)))]
+        after = [v for v in after if v is not None]
+        if not after or sum(after) / len(after) >= AFTER_MS:
+            continue                          # a struck ball; leave it be
+        # Absorb the step rather than draw a line to it.
+        #
+        # Drawing a straight line from a fixed point to where the ball
+        # reappeared was the obvious repair and it is wrong: the line leaves at
+        # its own angle, so the ball swings off its measured course, runs to the
+        # new position and turns back. That is the same dart the step made, just
+        # drawn instead of jumped, and it still happens with nobody near it.
+        #
+        # What has to go is the corner, not the gap. The offset between the two
+        # sides of the seam is spread backwards over the preceding frames with a
+        # smoothstep weight, which is flat at both ends - so the ball keeps the
+        # shape of its own measured motion and is eased sideways onto the new
+        # line without ever changing direction sharply.
+        pa, pb = ball_raw[fs[i - 1]], ball_raw[fs[i]]
+        off = (pb[0] - pa[0], pb[1] - pa[1])
+        span = 0
+        while span < len(fs) - 1 and times[fs[i - 1]] - times[fs[i - 1 - span]] < BLEND_S:
+            span += 1
+        if span < 2:
+            continue
+        for k in range(i - span, i):
+            u = (k - (i - span)) / span
+            w = u * u * (3 - 2 * u)               # smoothstep: flat at both ends
+            base = ball_raw[fs[k]]
+            ball_raw[fs[k]] = (base[0] + off[0] * w, base[1] + off[1] * w)
+        mended.append({"atS": round(times[fs[i]], 2),
+                       "stepM": round(math.hypot(off[0] * L, off[1] * W), 1),
+                       "blendedOverS": round(times[fs[i - 1]] - times[fs[i - span]], 2)})
+    return mended
+
+
+MENDED = mend_ball()
+BRIDGED = bridge_ball(SPEC.get("bridge"))
+
+# Which way the scoring team is playing, taken from where the ball finishes
+# rather than assumed. Teams change ends at half time, so a passage in the
+# second half attacks the opposite way to one in the first, and a goal for the
+# away side attacks the opposite way again.
+_goal_f = min(ball_raw, key=lambda f: abs(times.get(f, 0) - T_GOAL))
+ATTACKS_PLUS_X = ball_raw[_goal_f][0] > 0.5
 # Players and ball are tracked over different spans, so they get separate frame
 # sets. Intersecting them - which is what this used to do - clipped everybody
 # down to the ball's range, and the clip then sat frozen either side of it: no
@@ -105,9 +264,15 @@ first_t = times[f0]
 
 
 def place(p):
-    """Rotate the pitch 180 degrees so the scoring team attacks +x, matching the
-    gridiron play and the way the goals are placed. Rotating rather than
-    mirroring keeps left and right the right way round."""
+    """Put the scoring team's attack along +x, matching the gridiron play and
+    the way the goals are placed.
+
+    Rotating rather than mirroring keeps left and right the right way round.
+    Whether a rotation is needed at all depends on the half and on which side
+    scored, so it is read off the ball's own finishing position rather than
+    written down here and quietly falsified by the next passage."""
+    if ATTACKS_PLUS_X:
+        return (p[0] * L, p[1] * W)
     return (L - p[0] * L, W - p[1] * W)
 
 
@@ -120,7 +285,31 @@ def present(track):
     return sorted(keys, key=lambda s: int(s.replace("Player", "")))
 
 
-att_keys, def_keys = present(home), present(away)
+def events_in(t0, t1, period=None):
+    """The source's own events over a span, in order."""
+    out = []
+    with open(os.path.join(HERE, "ev2.csv"), encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r["Period"] != (period or PERIOD):
+                continue
+            try:
+                st = float(r["Start Time [s]"])
+            except ValueError:
+                continue
+            if t0 <= st <= t1:
+                out.append((st, r["Team"], r["Type"], (r["Subtype"] or "").upper(),
+                            r["From"], r["To"]))
+    return out
+
+
+# "Attacker" means the side that scores, which is not always the home one.
+_shot = next(((st, team) for st, team, ty, sub, _f, _t
+              in events_in(T_GOAL - 0.6, T_GOAL + 0.6)
+              if ty == "SHOT" and "GOAL" in sub), None)
+assert _shot, "no goal in the event file at %.1f s" % T_GOAL
+SCORER_IS_HOME = _shot[1] == "Home"
+att_track, def_track = (home, away) if SCORER_IS_HOME else (away, home)
+att_keys, def_keys = present(att_track), present(def_track)
 assert len(att_keys) == 11 and len(def_keys) == 11, (len(att_keys), len(def_keys))
 
 N = int(round((T_END - T_START) * OUT_HZ)) + 1
@@ -205,11 +394,11 @@ def track_of(source, key, speed=CAP):
 
 players = []
 for k in att_keys:
-    xs, ys, ds = track_of(home, k)
+    xs, ys, ds = track_of(att_track, k)
     players.append({"name": "Attacker", "jersey": "", "side": "off",
                     "pos": k.upper(), "x": xs, "y": ys, "dir": ds})
 for k in def_keys:
-    xs, ys, ds = track_of(away, k)
+    xs, ys, ds = track_of(def_track, k)
     players.append({"name": "Defender", "jersey": "", "side": "def",
                     "pos": k.upper(), "x": xs, "y": ys, "dir": ds})
 
@@ -229,9 +418,28 @@ bx, by, _ = track_of(None, None, BALL_CAP)
 # boundary cannot launch the ball into orbit.
 LOFT_MIN_M = 25.0               # a pass this long is not being rolled
 APEX_CAP = 8.0
+HEAD_M = 2.05                   # where a ball has to be to be headed
+
+
+def met_in_the_air(t):
+    """Was the ball headed, or challenged for in the air, at about time t?
+
+    This is what decides whether a delivery is allowed to finish on the ground.
+    A cross that ends up on somebody's head cannot arrive at ankle height, and
+    modelling it as a parabola that returns to zero - which is what a delivery
+    to feet does - put the ball on the turf at the exact moment it was headed
+    into the net.
+    """
+    for st, _team, ty, sub, _f, _to in events_in(t - 0.45, t + 0.45):
+        if ty == "CHALLENGE" and "AERIAL" in sub:
+            return True
+        if "HEAD" in sub:
+            return True
+    return False
 
 
 def ball_events():
+    """Deliveries that leave the ground, as (start, end, apex, kind)."""
     out = []
     with open(os.path.join(HERE, "ev2.csv"), encoding="utf-8") as fh:
         for r in csv.DictReader(fh):
@@ -246,10 +454,21 @@ def ball_events():
             if b <= a or a < T_START or b > T_END:
                 continue
             sub = (r["Subtype"] or "").upper()
+            hang = 9.80665 * (b - a) ** 2 / 8
             if r["Type"] == "SHOT":
-                out.append((a, b, min(0.6, 9.80665 * (b - a) ** 2 / 8)))
+                # A header at goal starts at head height and goes down into it,
+                # rather than rising from the floor.
+                kind = "from_head" if "HEAD" in sub else "arc"
+                out.append((a, b, min(0.6, hang), kind))
             elif "CROSS" in sub or d >= LOFT_MIN_M:
-                out.append((a, b, min(APEX_CAP, 9.80665 * (b - a) ** 2 / 8)))
+                kind = "to_head" if met_in_the_air(b) else "arc"
+                # A delivery to be headed has to carry: its own hang time gives
+                # a driven cross an apex of a metre and a half, which is under
+                # the height it has to arrive at.
+                apex = min(APEX_CAP, hang)
+                if kind == "to_head":
+                    apex = min(APEX_CAP, max(apex, HEAD_M))
+                out.append((a, b, apex, kind))
     return out
 
 
@@ -258,37 +477,120 @@ bz = []
 for i in range(N):
     t = T_START + i / OUT_HZ
     z = 0.11
-    for (a, b, apex) in AIRBORNE:
-        if a <= t <= b:
-            u = (t - a) / (b - a)
-            z = max(z, 0.11 + 4 * apex * u * (1 - u))
+    for (a, b, apex, kind) in AIRBORNE:
+        if not (a <= t <= b):
+            continue
+        u = (t - a) / (b - a)
+        if kind == "to_head":
+            # Rises and stays up: a parabola with a ramp under it, so it leaves
+            # the ground and arrives at the height it is met.
+            h = 0.11 + 4 * apex * u * (1 - u) * (1 - u) + HEAD_M * u
+        elif kind == "from_head":
+            # Struck downwards off the forehead.
+            h = 0.11 + HEAD_M * (1 - u) ** 2
+        else:
+            h = 0.11 + 4 * apex * u * (1 - u)
+        z = max(z, h)
     bz.append(round(z, 2))
 
-# Markers on the transport bar, taken from the source's own event times.
-events = {
-    "win": int(round((465.6 - T_START) * OUT_HZ)),      # tackle won
-    "switch": int(round((482.8 - T_START) * OUT_HZ)),   # switched right
-    "cross": int(round((487.2 - T_START) * OUT_HZ)),
-    "goal": int(round((T_GOAL - T_START) * OUT_HZ)),
-    # Not an event in the source data - the source stops at the goal. This is
-    # read off the tracking that follows it: between 23.5 s and 27.5 s the
-    # scoring side closes from 20.8 m of spread to 16.2 m and its centroid
-    # starts for the corner flag, which is the moment they wheel away.
-    "celebration": int(round((492.2 - T_START) * OUT_HZ))
-}
+# --- markers on the transport bar ------------------------------------------
+# What a viewer should be told is happening, and when.
+#
+# A passage may name its own moments - the switch of play in the turnover is one
+# pass among nine in the event file and the whole point of the move on screen -
+# but left to itself this reads them off the source. Not every event: a passage
+# runs to twenty of them and a timeline of twenty marks is a smear. Only the
+# turns of possession, the delivery and the finish, which is what anyone
+# watching would call out.
+MARKS = [
+    # (Type, Subtype fragment, key, label rank - lower survives crowding)
+    ("SHOT", "GOAL", "goal", 0),
+    ("PASS", "CROSS", "cross", 1),
+    ("CHALLENGE", "TACKLE-WON", "win", 2),
+    ("RECOVERY", "INTERCEPTION", "intercept", 3),
+    ("CHALLENGE", "AERIAL-WON", "aerial", 4),
+    ("PASS", "GOAL KICK", "kick", 5),
+    ("SET PIECE", "FREE KICK", "freekick", 5),
+    # Last, so a plain recovery only claims a moment no better-named event has.
+    ("RECOVERY", "", "recover", 6),
+]
+MAX_MARKS = 5
+
+
+def derive_events():
+    """The moments worth marking, from the source's own event list."""
+    found = []
+    for st, team, ty, sub, _from, _to in events_in(T_START - 0.2, T_GOAL + 0.2):
+        for want_ty, want_sub, key, rank in MARKS:
+            if ty != want_ty or want_sub not in sub:
+                continue
+            # Only the scoring side's turnovers: the other team winning it back
+            # is the same instant seen from the other side, and marking both
+            # puts two labels on one tick.
+            if key != "goal" and team != ("Home" if SCORER_IS_HOME else "Away"):
+                break
+            found.append((st, key, rank))
+            break
+    # One mark per moment, and never two within a second of each other.
+    found.sort(key=lambda e: (e[0], e[2]))
+    kept = []
+    for st, key, rank in found:
+        if kept and st - kept[-1][0] < 1.0:
+            continue
+        kept.append((st, key, rank))
+    # If it is still crowded, drop the least interesting from the middle - the
+    # goal and the first thing that happens always stay.
+    while len(kept) > MAX_MARKS:
+        middle = kept[1:-1]
+        worst = max(middle, key=lambda e: e[2])
+        kept.remove(worst)
+    # A passage should say how it starts. Without this the counter opens with
+    # fourteen seconds of unexplained football before its first mark.
+    if not kept or kept[0][0] - T_START > 2.0:
+        first = events_in(T_START - 0.2, T_START + 1.5)
+        if first:
+            st, _team, ty, sub, _f, _t = first[0]
+            key = ("kick" if "GOAL KICK" in sub else
+                   "freekick" if ty == "SET PIECE" else
+                   "recover" if ty == "RECOVERY" else "start")
+            kept.insert(0, (st, key, 9))
+
+    out = {}
+    for st, key, _rank in kept:
+        # Two of a kind in one passage - it happens - get a number.
+        name, n = key, 2
+        while name in out:
+            name, n = "%s%d" % (key, n), n + 1
+        out[name] = st
+    out["goal"] = T_GOAL
+    return out
+
+
+raw_events = SPEC.get("events") or derive_events()
+if "celebration" not in raw_events:
+    # Not an event in the source data - the source stops at the goal. Taken as
+    # the moment the scoring side stops running at the ball and starts running
+    # away from it, which in the turnover passage measured 4.1 s after the shot.
+    raw_events["celebration"] = min(T_GOAL + 4.1, T_END - 0.6)
+events = {k: int(round((t - T_START) * OUT_HZ)) for k, t in raw_events.items()}
 
 out = {
     "meta": {
         "hz": OUT_HZ, "frames": N,
         "sport": "football",
-        "title": "Turnover to goal",
-        "description": ("Won by a tackle in midfield, worked through eight passes "
-                        "and a switch of play, then crossed and finished first time."),
-        "credit": "First half, anonymised sample match",
+        "title": SPEC["title"],
+        "description": SPEC["description"],
+        "credit": SPEC["credit"],
         "source": "Metrica Sports open sample data, 25 Hz resampled to 10",
         "sourceShort": "Metrica Sports’ open sample data",
         "measured": True,
-        "carrier": None
+        "carrier": None,
+        # Where the tracker lost the ball and the file draws a straight line.
+        # Absent when it did not; see bridge_ball().
+        **({"bridged": BRIDGED} if BRIDGED else {}),
+        # Where the tracker jumped to a different object and the step was
+        # walked out; see mend_ball().
+        **({"mended": MENDED} if MENDED else {})
     },
     "events": events,
     "space": {"length": L, "width": W, "unit": "m"},
@@ -297,14 +599,22 @@ out = {
     "players": players
 }
 
-# The three staged seconds in front of the tackle; see kickoff.py.
-out, _kicker, _receiver, _apex = add_kickoff(out)
+# The three staged seconds in front of the tackle; see kickoff.py. Only the
+# turnover passage needs them - it opens on the tackle itself, because that is
+# where its ball tracking begins. The others start on a recovery with the move
+# still in front of them.
+if SPEC.get("lead_in"):
+    out, _kicker, _receiver, _apex = add_kickoff(out)
 
 # Same shape as the gridiron file: no fields the renderer never reads.
 out = anonymise(out)
 
-dst = out_path("data", "soccer.json")
-json.dump(out, open(dst, "w", encoding="utf-8"), separators=(",", ":"))
+dst = out_path("data", SPEC["out"])
+# ensure_ascii=False to match kickoff.py, which also writes these files.
+# Without it the two disagree about how to spell an apostrophe and the
+# committed file depends on which script ran last.
+json.dump(out, open(dst, "w", encoding="utf-8"),
+          separators=(",", ":"), ensure_ascii=False)
 print("wrote %s  %.1f KB" % (dst, os.path.getsize(dst) / 1024))
 print("  %d players, %d frames (%.1f s), goal at %.1f s"
       % (len(players), N, N / OUT_HZ, T_GOAL - T_START))
@@ -323,7 +633,8 @@ print("  de-glitched %d of %d samples (%.2f%%): %s"
       % (tot, N * (len(players) + 1), 100.0 * tot / (N * (len(players) + 1)),
          ", ".join("%s x%d" % (k, n) for k, n in sorted(CLEANED, key=lambda kv: -kv[1])) or "none"))
 print("  %d airborne deliveries: %s" % (len(AIRBORNE),
-      ", ".join("%.1fs apex %.1fm" % (a - T_START, k) for a, b, k in AIRBORNE)))
+      ", ".join("%.1fs %s apex %.1fm" % (a - T_START, kind, k)
+                    for a, b, k, kind in AIRBORNE)))
 cross = next((i for i in range(1, N) if bx[i] >= 105 > bx[i - 1]), None)
 if cross:
     print("  ball crosses the goal line at y=%.2f z=%.2f (mouth 30.34-37.66, bar 2.44)"

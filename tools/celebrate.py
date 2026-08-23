@@ -1,11 +1,17 @@
-"""Append an end-zone celebration to the gridiron play.
+"""Append a celebration to a gridiron play.
 
 Everything the app animates is measured tracking data, with one exception, and
-this is it. The league's tracking window closes 1.1 s after the ball crosses
-the line, so the clip ended on a receiver still running flat out with nobody
-within twenty yards of him. What this adds is the few seconds that follow: the
-nearest team-mates run in and mob him, the rest of the offence jogs up and
-pulls short, and the defence walks back upfield.
+this is it. The league's tracking window closes about a second after the ball
+crosses the line, so the clip ended on a receiver still running flat out with
+nobody within twenty yards of him. What this adds is the few seconds that
+follow: the nearest team-mates run in and mob him, the rest of the offence jogs
+up and pulls short, and the defence walks back upfield.
+
+Where they mob him depends on what the play was. A touchdown is celebrated in
+the end zone it was scored in - either end; the app's two touchdowns score at
+opposite ends of the field. A kick has no end zone to run to, because the ball
+is in the air and nobody has crossed a line, so the unit converges on the kicker
+where he stands.
 
 No measured frame is touched. `meta.measuredFrames` records where the tracking
 data stops, so the boundary stays visible in the file itself.
@@ -86,9 +92,24 @@ def add_celebration(out):
     else:
         carry = next(p for p in players if p.get("name") == who)
 
-    # The huddle forms where the play ended, pulled a quarter of the way back
-    # toward the middle of the field so it is not jammed against a sideline.
-    rx = 5.0
+    # Where the huddle forms.
+    #
+    # For a touchdown, the end zone the play actually finished in - which is not
+    # always the same one. This used to be the constant 5.0, which suited the
+    # first play in the app because it happened to score at that end, and walked
+    # the second one thirty-seven yards back up the field to celebrate in the
+    # end zone it had been running away from.
+    #
+    # For a kick there is no end zone to run to: the ball is in the air and
+    # nobody has crossed a line, so the team converges on the kicker where he
+    # stands. Which of the two is decided by what the play's own events say
+    # happened, rather than by anything passed in.
+    if "touchdown" in events:
+        rx = 5.0 if carry["x"][last] < length / 2.0 else length - 5.0
+    else:
+        rx = carry["x"][last]
+    # Pulled a quarter of the way back toward the middle of the field so the
+    # huddle is not jammed against a sideline.
     ry = carry["y"][last] + (width / 2.0 - carry["y"][last]) * 0.25
 
     mates = sorted((p for p in players if p["side"] == "off" and p is not carry),

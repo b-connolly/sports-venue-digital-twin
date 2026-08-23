@@ -120,7 +120,8 @@ html, body {
 .loadbar__fill {
   display: block; width: 0%; height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: width 0.5s var(--ease);
+  /* No transition: the width is set every frame from script, and a transition
+     on top of that only makes the bar chase its own tail. */
 }
 .loadmsg {
   margin: 0.9rem 0 0; min-height: 1.2em;
@@ -150,15 +151,14 @@ html, body {
 
 /* ------------------------------------------------------------- overlays */
 .hidden { opacity: 0 !important; pointer-events: none !important; }
-.tools, .credit, .weather {
+.tools, .weather {
   position: fixed; z-index: 10;
   transition: opacity .8s var(--ease), transform .8s var(--ease);
 }
 body.hud-off .rail,
 body.hud-off .tour,
 body.hud-off .weather,
-body.hud-off .dock,
-body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6px); }
+body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateY(6px); }
 
 /* The whole top-left column is one flow, so nothing needs a magic offset and
    the stack stays correct however many views or captures the scene has. */
@@ -779,14 +779,6 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
 
-.credit { right: var(--pad); bottom: var(--pad); }
-.credit a {
-  font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--paper-faint); text-decoration: none;
-  border-bottom: 1px solid transparent; transition: color .2s, border-color .2s;
-}
-.credit a:hover { color: var(--paper); border-color: var(--accent); }
-
 /* Esri's own widget chrome, toned down to match. */
 .esri-ui .esri-widget,
 .esri-ui .esri-widget--button {
@@ -821,7 +813,6 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   .weather { display: none; }
 
   .dock   { width: calc(100vw - 2 * var(--pad)); }
-  .credit { bottom: var(--pad); }
 
   /* The replay's title bar has to fit a phone. "Live action" goes - the panel
      is plainly the replay - and the cameras use their short names. */
@@ -1114,4 +1105,82 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 .sheet__body a:hover {
   color: var(--paper);
   border-bottom-color: var(--accent);
+}
+
+/* The live-action chooser now lists several plays per sport, so it needs a
+   heading to group them under and room for a second line on each item. The
+   sport's icon rides on the heading rather than on every row: repeating it
+   four times says nothing the grouping has not already said. */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* Which passage of a sport is playing. A row rather than a menu: the choice
+   only means something while you are watching, so it sits under the timeline
+   that explains it, and switching is one press from either of the others. */
+.playseg {
+  display: flex; gap: 4px;
+  margin: 0.15rem 0 0.55rem;
+  padding: 3px; border: 1px solid var(--line); border-radius: 9px;
+  background: rgba(20,20,22,0.35);
+}
+.playseg[hidden] { display: none; }
+
+.playseg__b {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem;
+  padding: 0.38rem 0.6rem;
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--paper-dim);
+  font: inherit; cursor: pointer; text-align: left;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.playseg__b:hover { background: rgba(244,241,234,0.08); color: var(--paper); }
+.playseg__b.on { background: rgba(244,241,234,0.13); color: var(--paper); }
+.playseg__label {
+  font-size: 0.72rem; letter-spacing: 0.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.playseg__note {
+  font-size: 0.56rem; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--paper-dim); opacity: 0.6;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.playseg__b.on .playseg__note { opacity: 0.85; }
+
+@media (max-width: 780px) {
+  .playseg__b { padding: 0.34rem 0.4rem; }
+  .playseg__label { font-size: 0.66rem; }
+  .playseg__note { display: none; }   /* the row is the width of a phone */
+}
+
+/* Player Highlight has let go because the viewer took the camera. Sits just
+   above the replay panel, centred on the field rather than tucked in a corner:
+   it appears at the moment you are looking at the thing it refers to. */
+.recenter {
+  position: fixed; z-index: 12;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--pad) + 13.5rem);
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.5rem 0.95rem;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--glass); color: var(--paper);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--shadow);
+  font: inherit; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; white-space: nowrap;
+  animation: recenter-in 0.22s var(--ease);
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.recenter[hidden] { display: none; }
+.recenter:hover { background: rgba(244,241,234,0.16); border-color: var(--accent); }
+.recenter svg { width: 15px; height: 15px; fill: currentColor; }
+.recenter svg [fill="none"] { fill: none; }
+body.hud-off .recenter { opacity: 0; pointer-events: none; }
+
+@keyframes recenter-in {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (max-width: 780px) {
+  .recenter { bottom: calc(var(--pad) + 15rem); font-size: 0.62rem; padding: 0.45rem 0.8rem; }
 }

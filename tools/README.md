@@ -6,14 +6,25 @@ assets can be rebuilt or changed.
 | Script | Produces | Notes |
 |---|---|---|
 | `make_field.py` | `field.jpg` | The painted playing surface. The midfield mark is two constants at the top (`LOGO_LEN_YD`, `LOGO_HGT_YD`). Needs Pillow. |
-| `build_play.py` | `play.json` | One NFL play, converted for the animation. Measured up to `meta.measuredFrames`; see `celebrate.py` for what follows. |
+| `build_play.py` | `play.json`, `play_run.json`, `play_fieldgoal.json` | One NFL play, converted for the animation. Takes the play as an argument — `pass` (the default), `run` or `fieldgoal`; the table at the top of the file is the list. Measured up to `meta.measuredFrames`; see `celebrate.py` for what follows. |
 | `anonymise.py` | the last step of `play.json` | Drops `name` and `jersey` from every player and the names from the play description; `meta.carrier` becomes an index. The renderer never reads any of it. |
-| `celebrate.py` | the tail of `play.json` | The end-zone celebration, the one piece of movement in the app that is not measured. Imported by `build_play.py`, and runnable on its own against an existing `play.json` when the source CSV is not to hand. |
+| `celebrate.py` | the tail of each gridiron play | The celebration, the one piece of movement in the app that is not measured. A touchdown is celebrated in whichever end zone it was scored in; a kick is celebrated around the kicker. Imported by `build_play.py`, and runnable on its own against an existing `play.json` when the source CSV is not to hand. |
+| `fieldgoal.py` | the ball in `play_fieldgoal.json` | Moves a measured field goal back to the 68 yard record and flies the ball there. The only long kick in the app, and the only one that is not measured — the release tracks one game, whose longest is 32 yards. Imported by `build_play.py`. |
 | `make_pitch.py` | `pitch.jpg` | The association football pitch: regulation markings, no club marks. |
-| `build_soccer.py` | `soccer.json` | A goal from real 25 Hz tracking (Metrica Sports open data), resampled to 10. |
+| `build_soccer.py` | `soccer.json`, `soccer_header.json`, `soccer_counter.json` | A goal from real 25 Hz tracking (Metrica Sports open data), resampled to 10. Takes the passage as an argument — `turnover` (the default), `header` or `counter`. |
 | `kickoff.py` | the head of `soccer.json` | The three staged seconds in front of the tackle - a goal kick, the ball controlled, then the turnover. Imported by `build_soccer.py`, and runnable on its own. |
 
 ## Rebuilding play.json
+
+All three NFL plays come from the one game the 2017 release actually tracks —
+it carries play-by-play for the whole season but tracking for `2017090700`
+alone, 177 plays of it:
+
+```bash
+propy build_play.py            # the deep pass  -> play.json
+propy build_play.py run        # the run        -> play_run.json
+propy build_play.py fieldgoal  # the record kick -> play_fieldgoal.json
+```
 
 `build_play.py` expects `tracking.csv`, `plays.csv` and `players.csv` beside it.
 They come from the NFL's own public release — no Kaggle account needed:
@@ -67,6 +78,35 @@ the file before writing a new one, so it is safe to re-run while tuning.
 ```
 propy kickoff.py
 ```
+
+All three passages come from Sample Game 2:
+
+```bash
+propy build_soccer.py            # tackle to finish  -> soccer.json
+propy build_soccer.py header     # cross and header  -> soccer_header.json
+propy build_soccer.py counter    # intercept, break  -> soccer_counter.json
+```
+
+Only the first needs `kickoff.py`'s staged lead-in: it opens on the tackle,
+because that is where its ball tracking starts. The other two begin on a
+recovery with the move still in front of them.
+
+The ball's path gets two kinds of repair, both recorded in the file. A dropout
+the passage declares in `bridge` is drawn straight across. A *reacquisition* -
+where the tracker keeps tracking but jumps to a different object, stepping
+several metres in one frame and carrying on smoothly - is found automatically
+and eased out: the offset between the two sides of the seam is spread backwards
+over the preceding frames with a smoothstep weight, so the ball keeps the shape
+of its own motion. Drawing a straight line to where it reappeared was tried
+first and is wrong — the line leaves at its own angle, so the ball swings off
+course, runs to the new position and turns back, which is the same dart the step
+made, just drawn instead of jumped. Speed alone cannot spot those, because
+a struck ball also jumps in one frame; what separates them is that a struck ball
+stays fast and a reacquisition is followed by a ball barely moving.
+
+Timeline marks are read from the event file rather than written down, except
+where a passage names its own — the switch of play in `turnover` is one pass
+among nine in the source and the whole point of the move on screen.
 
 ## Rebuilding soccer.json
 

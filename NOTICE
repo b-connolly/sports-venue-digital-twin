@@ -14,11 +14,28 @@ where it came from and on what terms.
 
 TRACKING DATA — a derivation is distributed here
 
-  data/play.json and data/soccer.json are committed so the hosted app works.
-  They are not either source: each is one passage of play, resampled to 10 Hz,
-  with player names and squad numbers stripped by tools/anonymise.py. Neither
-  source publishes a licence file. The raw releases are not redistributed - the
+  The files under data/ are committed so the hosted app works. They are not
+  either source: each is one passage of play, resampled to 10 Hz, with player
+  names and squad numbers stripped by tools/anonymise.py. Neither source
+  publishes a licence file. The raw releases are not redistributed - the
   scripts in tools/ fetch them from the publishers.
+
+  Two of the football passages carry a small repair to the ball's path, each
+  recorded in the file itself. In one, the tracker lost sight of the ball for
+  0.9 s during a tackle and the path is drawn straight between the two measured
+  positions, 4.7 m apart - meta.bridged. In the other, the tracker jumped to a
+  different object and picked the ball up 3.8 m away in a single frame; the
+  offset is eased backwards over the preceding 1.8 s so the ball keeps the shape
+  of its measured motion instead of darting - meta.mended.
+  Both are repairs of tracking artefacts, not authored movement.
+
+  One of them is partly modelled. data/play_fieldgoal.json is a record-distance
+  field goal, and no such kick exists in the tracking: the release covers one
+  game, whose longest made field goal is 32 yards. The players and the strike
+  are that measured attempt, moved bodily down the field; the distance and the
+  ball's flight are computed by tools/fieldgoal.py. The file records this in
+  meta.modelled and the app reads it out in the replay caption, so nothing
+  claims to be measured that is not.
 
     NFL Big Data Bowl (2017 release)
     https://github.com/nfl-football-ops/Big-Data-Bowl

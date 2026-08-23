@@ -73,9 +73,14 @@ const CONFIG = {
   // a child row per layer. `title` matches the web scene's layer title; add a
   // new splat or mesh by adding a line here.
   // `open: true` means the group is visible when the app opens.
+  // The captures, and what is on screen when. `open` is how the app opens -
+  // the drone splat alone, which is the wide establishing shot. `live` is what
+  // a replay wants, which is the opposite: from a seat inside the bowl the
+  // splat reads worse than the mesh, and the saved views for the two fan
+  // perspectives are authored the same way.
   groups: [
     {
-      label: "Splats", open: true,
+      label: "Splats", open: true, live: false,
       layers: [
         { title: "Gaussian Splat", label: "Stadium", kind: "Drone" }
         // { title: "Statues Splat", label: "Statues", kind: "Handheld" },
@@ -83,7 +88,7 @@ const CONFIG = {
       ]
     },
     {
-      label: "Meshes",
+      label: "Meshes", open: false, live: true,
       layers: [
         { title: "3D Mesh",               label: "Stadium",          kind: "Drone" },
         { title: "Broncos Stampede",      label: "Broncos Stampede", kind: "Handheld" },
@@ -127,10 +132,18 @@ const CONFIG = {
     hardCapMs: 60000      // whatever goes wrong, entry unlocks by here
   },
 
+  // Nothing that plays itself starts the instant a flight lands. The camera
+  // arrives before the scene does - tiles are still coming in, the surface is
+  // still cross-fading - and a replay or a sun sweep beginning into that reads
+  // as the app tripping over itself. So an arrival waits for the view to go
+  // quiet, and gives up waiting at maxMs so a scene that never settles still
+  // gets its animation.
+  arrival: { quietMs: 500, maxMs: 3000 },
+
   flyDuration: 2600,
   // How long a view is held before the tour moves on, once the flight to it
   // has finished. The flight itself is flyDuration on top of this.
-  slideDwellMs: 3600,
+  slideDwellMs: 5200,
 
   // Views authored for a particular hour. The night shot is only a night shot
   // after dark, so arriving at it sets the clock; leaving it puts the clock
@@ -145,13 +158,29 @@ const CONFIG = {
   //   opens - a tool panel ("time", "measure") or a play key, started on arrival
   // A view whose `opens` names a play is also that play's stand camera, which
   // is what Fan Perspective flies to.
+  // `dwellMs` is how long the slideshow holds a view, where the default is not
+  // long enough. A view that exists to show something happening has to be held
+  // for as long as that thing takes, or the show cuts away in the middle of it -
+  // which is what it did to the sun walking down to midnight, giving it three
+  // and a half seconds of the whole sweep.
   views: {
     2:  { clock: "22:30" },
     // Arrives at half ten, then walks the sun down to midnight and puts the
     // panel away. "24:00" is the end of the local day, not the start of it.
-    3:  { clock: "22:30", opens: "time", sweepTo: "24:00", sweepMs: 26000 },
-    9:  { opens: "gridiron" },
-    10: { opens: "football" }
+    // No dwellMs: a view that sweeps works its own out from sweepMs.
+    // The sweep is slow on purpose - that is the pace the sky actually moves at
+    // - and the stop is deliberately shorter than it. A viewer is meant to
+    // watch the stars travel a stretch of sky, not to sit through the whole
+    // walk to midnight; the slideshow moves on and the sweep is stood down.
+    3:  { clock: "22:30", opens: "time", sweepTo: "24:00", sweepMs: 26000,
+          dwellMs: 7500 },
+    // Long enough for the replay each one starts, which is why these are not
+    // the same number: the gridiron pass runs 19.7 s and the football goal 37.5.
+    // Both allow for the pause before a replay begins - see CONFIG.arrival -
+    // and a moment on the celebration afterwards, so the show is not cutting
+    // away over somebody's shoulder.
+    9:  { opens: "gridiron", dwellMs: 26000 },
+    10: { opens: "football", dwellMs: 44000 }
   },
 
   // Opening camera. The web scene's own initial viewpoint is used when this is
@@ -162,16 +191,6 @@ const CONFIG = {
 
   // Empower Field at Mile High — used for the live weather lookup.
   site: { lat: 39.7439, lon: -105.0201, tz: "America/Denver" },
-
-  credit: {
-    base: "Processed by ArcGIS Reality",
-    // Both products are credited whenever a hand-held capture is on screen,
-    // which is read from the layers themselves rather than from a view number.
-    // It used to be a threshold - "from view 3 onward" - and a slide inserted
-    // ahead of the hand-held views silently moved every one of them, leaving
-    // the line crediting Pix4D over shots that are drone data alone.
-    both: "Processed by ArcGIS Reality & Pix4D Catch"
-  },
 
   // Layers shown only after dark, driven by the same clock as the sky — so they
   // follow the time slider as well as live time. Matched on layer title; the
@@ -239,9 +258,28 @@ const CONFIG = {
   // by looking, not by derivation.
   play: {
     enabled: true,
+    // The replays on offer, grouped in the chooser by `sport` in the order they
+    // appear here. `key` is the identity used everywhere else - by CONFIG.views
+    // to open one on arrival at a saved view, by the ?live and ?goal deep
+    // links, and by the fan camera to find the view it belongs to - so it is
+    // the one field that must not be renamed lightly. `icon` names a symbol in
+    // index.html; plays of one sport share it.
     plays: [
-      { key: "gridiron", label: "Gridiron", data: "./data/play.json" },
-      { key: "football", label: "Football", data: "./data/soccer.json" }
+      { key: "gridiron", sport: "American Football", icon: "ico-gridiron",
+        label: "Deep pass", note: "75 yd touchdown", data: "./data/play.json" },
+      { key: "gridiron-run", sport: "American Football", icon: "ico-gridiron",
+        label: "Run right", note: "21 yd touchdown", data: "./data/play_run.json" },
+      { key: "gridiron-fg", sport: "American Football", icon: "ico-gridiron",
+        label: "Record field goal", note: "68 yd, modelled",
+        data: "./data/play_fieldgoal.json" },
+      { key: "football", sport: "Football", icon: "ico-football",
+        label: "Turnover to goal", note: "Tackle to finish", data: "./data/soccer.json" },
+      { key: "football-header", sport: "Football", icon: "ico-football",
+        label: "Cross and header", note: "Won back, crossed",
+        data: "./data/soccer_header.json" },
+      { key: "football-counter", sport: "Football", icon: "ico-football",
+        label: "Intercept and break", note: "The length of the pitch",
+        data: "./data/soccer_counter.json" }
     ],
     flipAlong: false,
     flipAcross: false,
@@ -387,20 +425,79 @@ const els = {
   mclear: $("measureClear"), mclose: $("measureClose"),
   info: $("info"), infoSheet: $("infoSheet"),
   live: $("live"), liveMenu: $("liveMenu"),
-  liveGrid: $("liveGrid"), liveBall: $("liveBall"),
   ppanel: $("playPanel"), ptoggle: $("playToggle"),
   picon: $("playIcon"), pscrub: $("playScrub"), pmarks: $("playMarks"),
   pphase: $("playPhase"), pclock: $("playClock"), pcap: $("playCaption"),
+  ppicks: $("playPicks"),
   pcams: [...document.querySelectorAll("#playCams .camseg__b")],
   pclose: $("playClose"), prestart: $("playRestart"),
+  precenter: $("playRecenter"),
   weather: $("weather"), wxIcon: $("wxIcon"), wxTemp: $("wxTemp"),
   wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"),
   wxLive: document.querySelector(".weather__live"),
-  credit: $("credit"), creditLink: $("creditLink")
 };
 
+/**
+ * The loading bar.
+ *
+ * Milestones arrive in a rush and then stop: the SDK, the scene and the view
+ * are all in hand within about three seconds, and the ten seconds after that
+ * are one long wait for geometry. Drawn literally that is a bar which fills
+ * almost completely, freezes, and reads as a hang.
+ *
+ * So the bar is driven by time rather than by events, and mostly it is not
+ * guessing: the two long stages have budgets - CONFIG.preload.firstViewMs and
+ * perViewMs - and the bar simply spends them. Only the opening stretch, where
+ * the SDK is loading and nothing can be timed, is a genuine invention, and it
+ * eases off as it goes so it never arrives anywhere it has not earned.
+ *
+ * `shown` chases `goal` rather than being set to it, so a milestone landing
+ * early glides in instead of jumping.
+ */
+const bar = (() => {
+  let shown = 0, goal = 0, ramp = null, raf = null;
+
+  const step = (now) => {
+    raf = null;
+    if (ramp) {
+      const u = Math.min(1, (now - ramp.t0) / ramp.ms);
+      // Ease out: the closer it gets to the end of a budget, the slower it
+      // moves, so overrunning the budget looks like effort rather than a stall.
+      const at = ramp.from + (ramp.to - ramp.from) * (1 - (1 - u) ** 2);
+      // A ramp is already smooth, so it drives the bar directly. Chasing it as
+      // well only makes the bar trail its own target, and the further behind it
+      // falls the bigger the catch-up when a real milestone lands on top.
+      shown = Math.max(shown, at);
+      goal = Math.max(goal, at);
+      if (u >= 1) ramp = null;
+    }
+    // Milestones do arrive as steps, and those are worth gliding.
+    const gap = goal - shown;
+    if (gap > 0.02) shown = Math.min(goal, shown + Math.max(0.05, gap * 0.06));
+    els.fill.style.width = `${shown.toFixed(2)}%`;
+    if (ramp || goal - shown > 0.02) raf = requestAnimationFrame(step);
+  };
+  const pump = () => { if (raf === null) raf = requestAnimationFrame(step); };
+
+  return {
+    /** A milestone actually reached. Never goes backwards. */
+    to(pct) { goal = Math.max(goal, pct); pump(); },
+    /**
+     * Spend `ms` getting to `pct`, for a stage whose length is known. Always
+     * from where the bar actually is - starting one anywhere else is what a
+     * jump is.
+     */
+    over(pct, ms) {
+      if (pct > shown) { ramp = { from: shown, to: pct, t0: performance.now(), ms }; pump(); }
+    },
+    /** Done: get there now, whatever a ramp had planned. */
+    done() { ramp = null; goal = 100; pump(); }
+  };
+})();
+
 function progress(pct, message) {
-  els.fill.style.width = `${Math.round(pct)}%`;
+  if (pct >= 100) bar.done();
+  else bar.to(pct);
   if (message) els.msg.textContent = message;
 }
 
@@ -478,6 +575,7 @@ async function warmUp(view, slides, restore,
     // while the button is still locked - which is what beforeUnlock is for -
     // it must not claim to be ready.
     els.msg.textContent = els.enter.disabled ? "Loading…" : "Ready — still caching…";
+    if (els.enter.disabled) bar.over(99, Math.min(left, cfg.perViewMs));
     const t0 = performance.now();
     // animate: false - this is a jump, not a flight. Nobody is watching, and a
     // 2.6 s easing per view would be most of the budget spent on nothing.
@@ -509,7 +607,11 @@ function flatten(collection, out = []) {
 }
 
 async function main() {
-  progress(8, "Loading…");
+  progress(3, "Loading…");
+  // The SDK is a thousand module requests deep and cannot report on itself, so
+  // this stretch is the one that is invented - a slow drift that runs out of
+  // road just as the scene usually lands.
+  bar.over(30, 5000);
 
   // Fire the conditions request now, in parallel with the scene. It has nothing
   // to do with the scene loading, and queueing it behind the whole chain was
@@ -542,10 +644,13 @@ async function main() {
 
   try {
     await scene.load();
-    progress(38, "Loading…");
+    bar.over(46, 2500);
     await view.when();
     manageNearPlane(view, CONFIG.clip);
-    progress(62, "Loading…");
+    // A debugging handle, and only that - nothing in the app reads it, the same
+    // way __play and __field are only there to be poked at from a console.
+    window.__view = view;
+    bar.over(56, 2000);
     // The web scene carries its own authored environment — a fixed
     // 2026-03-15 12:00 Denver, cloudy — and it is applied during load, which
     // overwrites what the SceneView constructor set. Re-assert ours here, the
@@ -567,7 +672,7 @@ async function main() {
   // Entry is unlocked further down, once there is something behind the curtain.
   // Everything below is enhancement and is guarded - a failure in any one
   // feature must not leave the curtain stuck.
-  progress(78, "Loading…");
+  bar.over(62, 1500);
   const unlock = () => {
     if (!els.enter.disabled) return;
     els.enter.disabled = false;
@@ -587,31 +692,18 @@ async function main() {
   const layers = flatten(scene.layers);
   const captures = buildCaptures(layers);
 
-  // Credit whichever products are actually on screen. Watched rather than set
-  // once, so it follows slides, the capture panel and a replay's staging alike.
-  const handheld = CONFIG.groups
-    .flatMap((g) => g.layers)
-    .filter((c) => c.kind === "Handheld")
-    .map((c) => layers.find((l) => l.title === c.title))
-    .filter(Boolean);
-  const paintCredit = () => {
-    els.creditLink.textContent = handheld.some((l) => l.visible)
-      ? CONFIG.credit.both
-      : CONFIG.credit.base;
-  };
-  handheld.forEach((l) => reactiveUtils.watch(() => l.visible, paintCredit));
-  paintCredit();
-
   // Open on the drone splat alone: splat on, all three meshes off — which also
   // keeps the mesh group's switch fully off rather than in its mixed state.
   // The scene's first slide saves both Pix4D meshes as visible, and applyTo()
   // rewrites visibility as it runs, so this has to be re-asserted afterwards.
-  const openingState = () => {
+  const captureState = (which) => {
     captures.clear();                 // this is the app choosing, not the viewer
     captures.groups.forEach(({ group, rows }) => {
-      rows.forEach((c) => { c.layer.visible = !!group.open; });
+      rows.forEach((c) => { c.layer.visible = !!group[which]; });
     });
   };
+  const openingState = () => captureState("open");
+  const replayState = () => captureState("live");
   openingState();
 
   // The board is reconstructed badly in both the splat and the drone mesh, so
@@ -704,7 +796,8 @@ async function main() {
 
   (async () => {
     if (deepLinked) return;
-    progress(88, "Loading…");
+    // Real, not guessed: this is exactly how long the wait is allowed to be.
+    bar.over(90, CONFIG.preload.firstViewMs);
     await settle(view, CONFIG.preload.firstViewMs, CONFIG.preload.settleMs, entered);
     if (CONFIG.preload.beforeUnlock <= 0) openTheDoor();
     await warmUp(view, slides, () => { openingState(); tickClock(view); }, {
@@ -733,7 +826,7 @@ async function main() {
       tickClock(view);
     }
     els.intro.classList.add("gone");
-    [els.masthead, els.tour, els.captures, els.tools, els.weather, els.credit]
+    [els.masthead, els.tour, els.captures, els.tools, els.weather]
       .forEach((el, i) => setTimeout(() => el.classList.remove("hidden"), 200 * i));
     if (tour.count && !CONFIG.home) {
       // applyTo() rewrites layer visibility from the slide as it starts, so
@@ -746,7 +839,8 @@ async function main() {
   };
   els.enter.addEventListener("click", reveal, { once: true });
 
-  const tools = wireTools(view, surfaces, { captureDefaults: openingState, slides, tour });
+  const tools = wireTools(view, surfaces,
+    { captureDefaults: openingState, replayDefaults: replayState, slides, tour });
 
   // Some views open something when you reach them: the night view brings up the
   // time slider, the two stand views start their replay. One panel at a time,
@@ -756,6 +850,17 @@ async function main() {
   const shut = { play: () => tools.liveAction.close(),
                  time: () => tools.timeOfDay.close(),
                  measure: () => tools.measure.close() };
+  // Each arrival takes a ticket. Anything waiting on an older one has been
+  // overtaken - the viewer moved on before the scene settled - and drops its
+  // animation rather than starting it over the top of the next view.
+  let arrivals = 0;
+  const settledArrival = async () => {
+    const mine = ++arrivals;
+    await settle(view, CONFIG.arrival.maxMs, CONFIG.arrival.quietMs,
+                 () => mine !== arrivals);
+    return mine === arrivals;
+  };
+
   tour.onArrive((n) => {
     const opens = CONFIG.views?.[n]?.opens;
     if (!opens) {
@@ -773,8 +878,10 @@ async function main() {
       autoOpened = "play";
       // No reframing: this view *is* the stand camera, so the replay opens on
       // Fan Perspective, where the flight has already put us.
+      // The panel opens at once so the arrival is acknowledged; only the play
+      // itself waits, sitting at its first frame until the scene is still.
       tools.liveAction.open({ key: play.key, frame: false, cam: "fan" })
-        .then((p) => p?.start())
+        .then(async (p) => { if (p && await settledArrival()) p.start(); })
         .catch(() => {});
       return;
     }
@@ -783,8 +890,12 @@ async function main() {
       tools.measure.close();
       autoOpened = "time";
       const v = CONFIG.views[n];
+      // This one does not wait. A replay is a burst of movement that a
+      // half-loaded scene spoils, but the sun sweep is a slow ramp - it is not
+      // spoiled by tiles still arriving, and holding it back only ate the front
+      // of the very thing the view exists to show.
+      tools.timeOfDay.open();
       if (v.sweepTo) tools.timeOfDay.sweep(v.sweepTo, v.sweepMs);
-      else tools.timeOfDay.open();
     }
     else if (opens === "measure") { tools.timeOfDay.close(); tools.measure.open(); autoOpened = "measure"; }
     else console.warn(`[venue] view ${n} opens "${opens}", which is nothing`);
@@ -808,7 +919,7 @@ async function main() {
       if (!play) return;
       const at = parseFloat(deep.get(param));
       if (isFinite(at) && at > 0) play.seek(at);
-      else play.start();
+      else settledArrival().then((ours) => { if (ours) play.start(); });
     }).catch(() => {});
     break;
   }
@@ -951,17 +1062,43 @@ function releaseCamera() { if (cameraOwner) cameraOwner(); }
  * animation still runs; it just interpolates from the current value to the same
  * value. tickClock reasserts the truth immediately afterwards regardless.
  */
+/**
+ * Make a slide agree with the sky before it is applied.
+ *
+ * Applying a slide applies its authored environment along with its camera, so
+ * anything the app has since decided about the light has to be written onto the
+ * slide first or the flight undoes it.
+ *
+ * The offset matters as much as the date and is easier to miss. These slides
+ * were authored at -7, the site is on -6 half the year, and the sun is placed
+ * from both - so with the date held fixed at half past ten the sun still swung
+ * an hour back as each slide landed and an hour forward as the app corrected
+ * it. Same instant, different sky, twice per arrival. Two of the slides carry
+ * no offset at all, which is worse: that hands the sun to whatever timezone the
+ * viewer's machine happens to be in.
+ */
 function matchLighting(slide) {
   const now = slide?.environment?.lighting;
   const live = viewRef?.environment?.lighting;
   if (!now || !live) return;
   try {
     if (live.date) now.date = live.date;
+    if (live.displayUTCOffset != null) now.displayUTCOffset = live.displayUTCOffset;
     if (live.type === now.type) now.directShadowsEnabled = live.directShadowsEnabled;
   } catch (err) {
     console.warn("[venue] could not match slide lighting:", err.message);
   }
 }
+
+/**
+ * Stops a sun sweep, set by whoever owns one. Leaving a view has to stand it
+ * down *before* the flight rather than on arrival at the next one: a sweep
+ * writes the lighting date every few frames, so for the whole two and a half
+ * seconds of the flight it was overwriting the clock the new view had just
+ * set, and the scene relit on every frame of it. That is the lurch on the way
+ * out of the night view.
+ */
+let sweepOwner = () => {};
 
 let viewRef = null;
 
@@ -1012,10 +1149,17 @@ function buildTour(view, slides, captures) {
     tickClock(view);
   }
 
+  /** How long to hold a view before moving on, in the slideshow. */
+  function dwellFor(idx) {
+    const v = CONFIG.views?.[idx + 1];
+    if (!v) return CONFIG.slideDwellMs;
+    return v.dwellMs || CONFIG.slideDwellMs;
+  }
+
   function schedule() {
     clearTimeout(dwell);
     if (!playing) return;
-    dwell = setTimeout(() => { if (playing) go(current + 1); }, CONFIG.slideDwellMs);
+    dwell = setTimeout(() => { if (playing) go(current + 1); }, dwellFor(current));
   }
 
   function setPlaying(on) {
@@ -1039,6 +1183,7 @@ function buildTour(view, slides, captures) {
     current = idx;
     paint();
     releaseCamera();
+    sweepOwner();
     applyClock(idx);
     matchLighting(slides[idx]);
     const MAX_FLIGHT = 6000;
@@ -1613,6 +1758,8 @@ function buildTimeOfDay(view) {
     if (sweepRaf) cancelAnimationFrame(sweepRaf);
     sweepRaf = null;
   }
+  // So the rail can stand a sweep down as it leaves, before the next flight.
+  sweepOwner = stopSweep;
 
   function sweep(toHHMM, ms) {
     open();
@@ -1742,22 +1889,38 @@ function describe(text) {
 
 const PLAY_D = "M8 5.5v13l11-6.5z";
 const PAUSE_D = "M8 5.5h3.2v13H8zM12.8 5.5H16v13h-3.2z";
-const PHASES = {
-  gridiron: [
-    ["ball_snap", "Snap"],
-    ["pass_forward", "Throw"],
-    ["pass_outcome_caught", "Catch"],
-    ["touchdown", "Touchdown"],
-    ["celebration", "Celebration"]
-  ],
-  football: [
-    ["kick", "Goal kick"],
-    ["win", "Tackle"],
-    ["switch", "Switch"],
-    ["cross", "Cross"],
-    ["goal", "Goal"],
-    ["celebration", "Celebration"]
-  ]
+/**
+ * What each event in a play file is called on the timeline.
+ *
+ * Keyed by the event rather than by the sport, because plays of one sport do
+ * not share a shape: a pass has a throw and a catch, a run has a handoff, a
+ * field goal has neither and ends with a kick that is either good or not. The
+ * marks a play shows are simply whichever of these it happens to carry, in the
+ * order its own data puts them - so a new play needs an entry here only if it
+ * brings an event none of the others have.
+ */
+const PHASE_LABELS = {
+  // gridiron
+  ball_snap: "Snap",
+  pass_forward: "Throw",
+  pass_outcome_caught: "Catch",
+  handoff: "Handoff",
+  field_goal_attempt: "Kick",
+  field_goal: "Good",
+  touchdown: "Touchdown",
+  // football
+  kick: "Goal kick",
+  freekick: "Free kick",
+  win: "Tackle",
+  recover: "Won back",
+  intercept: "Intercept",
+  aerial: "Header",
+  switch: "Switch",
+  cross: "Cross",
+  goal: "Goal",
+  start: "Kick-off",
+  // both
+  celebration: "Celebration"
 };
 
 /**
@@ -1774,6 +1937,18 @@ function captionFor(m) {
       + `ball, from ${m.sourceShort}.`
     : "Reconstructed from footage — the order of events and the rhythm are "
       + "faithful, the positions are authored, not tracked.";
+  // A play may be measured and still have had something done to it. The kick
+  // is the case in point: every player is real and so is the strike, but no
+  // long field goal exists in the tracking, so the distance and the flight are
+  // computed. Saying "measured" and stopping there would be a half-truth, and
+  // the app claims provenance too loudly elsewhere to be careless here.
+  const mod = m.modelled;
+  const made = mod
+    ? `The ${mod.distanceYd} yard distance and the ball's flight are modelled: `
+      + `a measured ${mod.measuredDistanceYd} yard attempt moved ${mod.movedYd} yd `
+      + `downfield, struck at ${mod.launchMs} m/s and ${mod.launchDeg}°, `
+      + `peaking at ${mod.apexM} m.`
+    : "";
   // Nodes rather than a string of markup. Every value here comes out of a JSON
   // file, and a fork of this app will point it at its own; there is no reason
   // for a data file to be able to write HTML into the page.
@@ -1784,7 +1959,7 @@ function captionFor(m) {
   // shorthand - fine for a developer, less so for someone watching.
   lead.textContent = m.blurb || describe(m.description);
   // The occasion is optional: a play that does not name one just moves on.
-  const rest = [m.credit ? `${m.credit}.` : "", how, "Players and kit are generic."]
+  const rest = [m.credit ? `${m.credit}.` : "", how, made, "Players and kit are generic."]
     .filter(Boolean).join(" ");
   out.append(lead, ` ${rest}`);
   return out;
@@ -1796,7 +1971,15 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   let cam = null, scrubbing = false, restore = null, shown = false;
   let aim = null;                      // smoothed look-at point, local metres
 
-  function phases() { return PHASES[api?.data.meta.sport] ?? []; }
+  /** This play's events, in the order they happen, with their labels. */
+  function phases() {
+    const ev = api?.data.events;
+    if (!ev) return [];
+    return Object.entries(ev)
+      .filter(([key]) => PHASE_LABELS[key])
+      .sort((a, b) => a[1] - b[1])
+      .map(([key]) => [key, PHASE_LABELS[key]]);
+  }
 
   function drawMarks() {
     els.pmarks.textContent = "";
@@ -2014,7 +2197,45 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
    * posed - 15 to 33 Hz, whatever the machine can afford - but the aim is eased
    * towards it every frame, so a stepped target still produces a smooth pan.
    */
-  let camRaf = null, camLast = 0, blend = 1, from = null;
+  /**
+   * Player Highlight, and what happens when the viewer disagrees with it.
+   *
+   * The loop writes `view.camera` every frame, so a drag used to be undone
+   * before it finished - the viewer pushed the camera and it sprang back, over
+   * and over, which reads as the app fighting them. Now taking hold of the view
+   * hands the camera over: the loop stops, the mode stays selected, and a
+   * button offers the follow back. Nothing is forced.
+   *
+   * `released` is that state. It is not the same as switching the camera off -
+   * the mode is still Player Highlight, and the timeline and the ball carry on
+   * exactly as before; only who is holding the camera has changed.
+   */
+  let camRaf = null, camLast = 0, blend = 1, from = null, released = false;
+
+  function showRecenter(on) {
+    els.precenter.hidden = !on;
+  }
+
+  /** Hand the camera to the viewer, keeping the mode selected. */
+  function release() {
+    if (!camRaf || released) return;
+    released = true;
+    stopFollow();
+    showRecenter(true);
+  }
+
+  // `interacting` is the viewer's own input and nothing else - a camera written
+  // from script does not set it - so the follow loop cannot trip this itself.
+  reactiveUtils.watch(() => view.interacting, (busy) => { if (busy) release(); });
+
+  /** Take it back, easing in from wherever they left it. */
+  function recenter() {
+    if (cam !== "highlight") return;
+    released = false;
+    showRecenter(false);
+    startFollow();
+  }
+
   function followLoop(ts) {
     camRaf = requestAnimationFrame(followLoop);
     // Clamped: coming back to a backgrounded tab hands over one enormous frame,
@@ -2025,6 +2246,8 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   }
   function startFollow() {
     if (camRaf) return;
+    released = false;
+    showRecenter(false);
     camLast = 0;
     // Where the swing in starts from.
     const p = view.camera.position;
@@ -2038,6 +2261,13 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     camRaf = null;
   }
 
+  /** Out of the mode altogether: no loop, no button, no held state. */
+  function dropFollow() {
+    stopFollow();
+    released = false;
+    showRecenter(false);
+  }
+
   /**
    * From the stand. Only the slide's camera is taken, never the slide itself:
    * applying one rewrites layer visibility, which would undo the staging the
@@ -2046,7 +2276,15 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   function fanView() {
     // The stand view for a play is the saved view that starts it - one fact,
     // not two that have to be kept in step.
-    const n = Object.keys(CONFIG.views ?? {}).find((k) => CONFIG.views[k].opens === active);
+    // Only one play per sport has a saved view of its own, so a play without
+    // one borrows its sport's: the stand a viewer would watch from is a fact
+    // about the field, not about which passage is being replayed.
+    const sport = CONFIG.play.plays.find((p) => p.key === active)?.sport;
+    const opensOneOf = new Set(CONFIG.play.plays
+      .filter((p) => p.sport === sport).map((p) => p.key));
+    const views = CONFIG.views ?? {};
+    const n = Object.keys(views).find((k) => views[k].opens === active)
+           ?? Object.keys(views).find((k) => opensOneOf.has(views[k].opens));
     const camera = slides[Number(n) - 1]?.viewpoint?.camera;
     if (!camera) {
       console.warn(`[venue] no saved view opens "${active}"; framing the field instead`);
@@ -2070,13 +2308,13 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     const letGo = mode === "highlight" && cam === "highlight";
     cam = letGo ? null : mode;
     paintCams();
-    if (letGo) { stopFollow(); return handBack(); }
+    if (letGo) { dropFollow(); return handBack(); }
     if (cam === "highlight") {
       restore = restore || view.camera.clone();
       aim = null;
       return startFollow();
     }
-    stopFollow();
+    dropFollow();
     restore = null;
     return MOVE[cam]?.();
   }
@@ -2092,7 +2330,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   /** Stand down whichever camera is in charge, without stealing the view back. */
   cameraOwner = () => {
     if (!cam) return;
-    stopFollow();
+    dropFollow();
     cam = null;
     paintCams();
     restore = null;
@@ -2153,7 +2391,103 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     return pending;
   }
 
-  function button(key) { return key === "football" ? els.liveBall : els.liveGrid; }
+  /**
+   * Two chooser items, one per sport, built from the play list.
+   *
+   * Which passage of a sport is shown is not asked here. This menu answers
+   * "which game", and the three American Football plays hanging off it made it
+   * answer a question nobody had asked yet - you have to know what "Run right"
+   * is before the choice means anything, and you only know that once you are
+   * watching. So the passages live in the replay panel, next to the timeline
+   * that explains them.
+   */
+  const sports = [];
+  for (const spec of CONFIG.play.plays) {
+    const found = sports.find((g) => g.sport === spec.sport);
+    if (found) found.plays.push(spec);
+    else sports.push({ sport: spec.sport, icon: spec.icon, plays: [spec] });
+  }
+
+  const sportButtons = new Map();
+  function buildMenu() {
+    els.liveMenu.textContent = "";
+    for (const group of sports) {
+      const b = document.createElement("button");
+      b.className = "toolmenu__item";
+      b.type = "button";
+      b.setAttribute("role", "menuitem");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("aria-hidden", "true");
+      const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+      use.setAttribute("href", `#${group.icon}`);
+      svg.appendChild(use);
+      const name = document.createElement("span");
+      name.textContent = group.sport;
+      b.append(svg, name);
+      // Whichever of that sport's plays was last watched, so switching sports
+      // and back returns you to where you were rather than to the top of a list.
+      b.addEventListener("click", () => { onPick(); api2.toggle(lastOf(group)); });
+      els.liveMenu.appendChild(b);
+      sportButtons.set(group.sport, b);
+    }
+  }
+
+  /** The sport a play belongs to, and that sport's group. */
+  function groupOf(key) {
+    return sports.find((g) => g.plays.some((p) => p.key === key));
+  }
+
+  // Remembered per sport, so the chooser reopens what you were last watching.
+  const lastPlay = new Map();
+  function lastOf(group) {
+    return lastPlay.get(group.sport) ?? group.plays[0].key;
+  }
+
+  /**
+   * The passages of whichever sport is open, as a row of buttons under the
+   * transport. Hidden for a sport with only one, because a choice of one is
+   * not a choice.
+   */
+  function buildPicks(key) {
+    const group = groupOf(key);
+    els.ppicks.textContent = "";
+    els.ppicks.hidden = !group || group.plays.length < 2;
+    if (els.ppicks.hidden) return;
+    for (const spec of group.plays) {
+      const b = document.createElement("button");
+      b.className = "playseg__b";
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(spec.key === key));
+      b.classList.toggle("on", spec.key === key);
+      if (spec.note) b.title = `${spec.label} — ${spec.note}`;
+      const label = document.createElement("span");
+      label.className = "playseg__label";
+      label.textContent = spec.label;
+      b.appendChild(label);
+      if (spec.note) {
+        const note = document.createElement("span");
+        note.className = "playseg__note";
+        note.textContent = spec.note;
+        b.appendChild(note);
+      }
+      b.addEventListener("click", () => {
+        if (spec.key === key) return;
+        // Keep the camera: someone comparing two plays from the stand does not
+        // want to be flown back to the touchline between them.
+        api2.open({ key: spec.key, frame: false });
+      });
+      els.ppicks.appendChild(b);
+    }
+  }
+
+  /** The sport button that should read as active for a play. */
+  function button(key) { return sportButtons.get(groupOf(key)?.sport); }
+
+  /** The first play of a sport, for the keyboard shortcuts and the deep links. */
+  function firstOf(sport) {
+    return CONFIG.play.plays.find((p) => p.sport === sport)?.key;
+  }
 
   function menu(open) {
     els.liveMenu.hidden = !open;
@@ -2161,8 +2495,13 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     els.live.classList.toggle("open", !!open);
   }
 
-  return {
-    /** A code's own button toggles it; the other code's switches over to it. */
+  // Run just before a replay is chosen from the chooser, so whoever owns the
+  // other panels can shut them without this function having to know about them.
+  let onPick = () => {};
+
+  const api2 = {
+    onPick(fn) { onPick = fn; },
+    /** A play's own button closes it; any other switches over to it. */
     async toggle(key) {
       if (shown && active === key) { this.close(); return; }
       await this.open({ key });
@@ -2191,11 +2530,15 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       }
       api = p;
       active = key;
+      // So the chooser reopens this sport where it was left, and the row of
+      // passages under the transport marks the right one.
+      lastPlay.set(groupOf(key)?.sport, key);
+      buildPicks(key);
       // A debugging handle, and only that - nothing in the app reads it.
       window.__play = p;
 
-      for (const spec of CONFIG.play.plays) {
-        button(spec.key)?.classList.toggle("active", spec.key === key);
+      for (const [sport, b] of sportButtons) {
+        b.classList.toggle("active", sport === groupOf(key)?.sport);
       }
       els.live.classList.add("active");
       menu(false);
@@ -2223,14 +2566,14 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       shown = false;
       restoreLight();
       els.ppanel.hidden = true;
-      for (const spec of CONFIG.play.plays) button(spec.key)?.classList.remove("active");
+      for (const b of sportButtons.values()) b.classList.remove("active");
       els.live.classList.remove("active");
       menu(false);
       if (api) { api.pause(); api.show(false); }
       // Back to whatever the field is normally painted as.
       surfacesReady.then((s) => s?.use(CONFIG.field.default)).catch(() => {});
       handBack();
-      stopFollow();
+      dropFollow();
       cam = null;
       paintCams();
     },
@@ -2246,6 +2589,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
         api.pause();
         api.seek(parseFloat(els.pscrub.value) * api.duration);
       });
+      els.precenter.addEventListener("click", recenter);
       els.prestart.addEventListener("click", () => {
         if (!api) return;
         api.seek(0);
@@ -2263,13 +2607,17 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       });
       window.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
-      if (!els.liveMenu.hidden) menu(false);
+        if (!els.liveMenu.hidden) menu(false);
       });
     }
   };
+
+  buildMenu();
+  return api2;
 }
 
-function wireTools(view, surfacesReady, { captureDefaults, slides = [], tour } = {}) {
+function wireTools(view, surfacesReady,
+                   { captureDefaults, replayDefaults, slides = [], tour } = {}) {
   const start = view.camera.clone();
   els.home.addEventListener("click", () =>
     view.goTo(start, { duration: 1800, easing: "in-out-cubic" }).catch(() => {}));
@@ -2308,15 +2656,17 @@ function wireTools(view, surfacesReady, { captureDefaults, slides = [], tour } =
   const timeOfDay = buildTimeOfDay(view);
 
   // What a replay wants on screen: the capture list out of the way, and the
-  // scene back to the drone splat alone. The hand-held meshes cover a few square
-  // metres of concourse and nothing of the field, so during a replay they are
-  // only cost; the splat is what reads as a stadium from the broadcast camera.
+  // meshes rather than the splat. A replay is watched from inside the bowl -
+  // from a seat, from the touchline, from just above the ball - and at that
+  // range the splat is the weaker of the two reconstructions, so the saved fan
+  // views are authored with the meshes on and this matches them. It used to be
+  // the other way round, chosen from the wide drone shot where the splat wins.
   const stage = () => {
     // A running slideshow and a replay both want the camera; the replay wins,
     // because starting one is the more deliberate act of the two.
     tour?.stop();
     collapseCaptures();
-    captureDefaults?.();
+    replayDefaults?.();
   };
   const liveAction = buildLiveAction(view, surfacesReady, stage, slides);
   liveAction.wire();
@@ -2332,12 +2682,9 @@ function wireTools(view, surfacesReady, { captureDefaults, slides = [], tour } =
   els.live.addEventListener("click", () => {
     measure.close(); timeOfDay.close(); liveAction.group();
   });
-  for (const spec of CONFIG.play.plays) {
-    const btn = spec.key === "football" ? els.liveBall : els.liveGrid;
-    btn?.addEventListener("click", () => {
-      measure.close(); timeOfDay.close(); liveAction.toggle(spec.key);
-    });
-  }
+  // The chooser's own items are wired where they are built; they only need the
+  // other two panels shut on the way past.
+  liveAction.onPick(() => { measure.close(); timeOfDay.close(); });
 
   // How it was made. A sheet rather than a dock panel: four sections of prose
   // want a column, and the dock is a letterbox pinned to the bottom.
@@ -2371,8 +2718,11 @@ function wireKeys(view, tour) {
       case "t": case "T": els.timeOfDay.click(); break;
       case "i": case "I": els.info.click(); break;
       case "l": case "L": els.live.click(); break;
-      case "a": case "A": els.liveGrid.click(); break;
-      case "g": case "G": els.liveBall.click(); break;
+      // The first play of each sport. Which one that is follows CONFIG's
+      // order, so it stays the shortcut to "the American Football one" even
+      // once there are three of them.
+      case "a": case "A": tools.liveAction.toggle("gridiron"); break;
+      case "g": case "G": tools.liveAction.toggle("football"); break;
       case "h": case "H": els.home.click(); break;
       case "c": case "C": copyCamera(view); break;
     }

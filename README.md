@@ -13,8 +13,11 @@ replays driven by actual sports tracking data.
 
 - **Captures** — toggle each splat and mesh independently
 - **Views** — saved viewpoints from the scene, with a slideshow
-- **Live action** — two replays on the field: an NFL touchdown and a football goal,
-  each with fan, broadcast and follow-the-ball cameras
+- **Live action** — six replays on the field: pick a sport, then a passage.
+  American football gives a deep pass, a running touchdown and a record-distance
+  field goal; football gives a tackle worked to a finish, a cross headed in, and an
+  interception broken the length of the pitch. Each has fan, broadcast and
+  follow-the-ball cameras
 - **Analysis** — distance, area, volume and elevation profile against the captures
 - **Time of day** — scrub the sun; stadium lights come on after dark
 - **Conditions** — live weather at the venue drives the sky
