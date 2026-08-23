@@ -9,24 +9,54 @@ import WebScene from "https://js.arcgis.com/5.0/@arcgis/core/WebScene.js";
 import SceneView from "https://js.arcgis.com/5.0/@arcgis/core/views/SceneView.js";
 import * as reactiveUtils from "https://js.arcgis.com/5.0/@arcgis/core/core/reactiveUtils.js";
 import { manageNearPlane } from "./nearplane.js";
-import DirectLineMeasurement3D from "https://js.arcgis.com/5.0/@arcgis/core/widgets/DirectLineMeasurement3D.js";
-import AreaMeasurement3D from "https://js.arcgis.com/5.0/@arcgis/core/widgets/AreaMeasurement3D.js";
-import ElevationProfile from "https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile.js";
-import ElevationProfileLineGround from "https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile/ElevationProfileLineGround.js";
-import ElevationProfileLineView from "https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile/ElevationProfileLineView.js";
-import VolumeMeasurementAnalysis from "https://js.arcgis.com/5.0/@arcgis/core/analysis/VolumeMeasurementAnalysis.js";
-import SketchViewModel from "https://js.arcgis.com/5.0/@arcgis/core/widgets/Sketch/SketchViewModel.js";
-import GraphicsLayer from "https://js.arcgis.com/5.0/@arcgis/core/layers/GraphicsLayer.js";
 import SunnyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/SunnyWeather.js";
 import CloudyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/CloudyWeather.js";
 import RainyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/RainyWeather.js";
 import SnowyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/SnowyWeather.js";
 import FoggyWeather from "https://js.arcgis.com/5.0/@arcgis/core/views/3d/environment/FoggyWeather.js";
-import TimeSlider from "https://js.arcgis.com/5.0/@arcgis/core/widgets/TimeSlider.js";
-import TimeExtent from "https://js.arcgis.com/5.0/@arcgis/core/time/TimeExtent.js";
 import { addJumbotron, attachTuner } from "./jumbotron.js";
 import { addMilkyWay, sunAltitudeDeg } from "./milkyway.js";
 import { addSurfaces } from "./field.js";
+
+/**
+ * The tool widgets, fetched the first time somebody opens a tool.
+ *
+ * These are the deepest imports in the app by a distance - the measurement
+ * widgets alone drag in the symbol and unit graphs - and on a first load none
+ * of it is on screen or reachable: the panels start closed. Imported at the top
+ * of this file they sat on the critical path anyway, and because the CDN serves
+ * one HTTP request per module, the cost is not the 2.9 MB but the depth of the
+ * waterfall: several hundred round trips before the first frame.
+ *
+ * Kept as a promise so a second click while the first is still in flight waits
+ * on the same request instead of starting another.
+ */
+let measureKit = null;
+const loadMeasureKit = () => (measureKit ??= Promise.all([
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/DirectLineMeasurement3D.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/AreaMeasurement3D.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile/ElevationProfileLineGround.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/ElevationProfile/ElevationProfileLineView.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/analysis/VolumeMeasurementAnalysis.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/Sketch/SketchViewModel.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/layers/GraphicsLayer.js")
+]).then(([d, a, ep, epg, epv, vma, svm, gl]) => ({
+  DirectLineMeasurement3D: d.default,
+  AreaMeasurement3D: a.default,
+  ElevationProfile: ep.default,
+  ElevationProfileLineGround: epg.default,
+  ElevationProfileLineView: epv.default,
+  VolumeMeasurementAnalysis: vma.default,
+  SketchViewModel: svm.default,
+  GraphicsLayer: gl.default
+})));
+
+let timeKit = null;
+const loadTimeKit = () => (timeKit ??= Promise.all([
+  import("https://js.arcgis.com/5.0/@arcgis/core/widgets/TimeSlider.js"),
+  import("https://js.arcgis.com/5.0/@arcgis/core/time/TimeExtent.js")
+]).then(([ts, te]) => ({ TimeSlider: ts.default, TimeExtent: te.default })));
 import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
 import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import { styleLights } from "./lights.js";
@@ -61,6 +91,41 @@ const CONFIG = {
       ]
     }
   ],
+
+  // What has to be in the browser's cache before Explore unlocks.
+  //
+  // The hand-held meshes are far the slowest thing here: four integrated mesh
+  // services, and not one byte of them is touched until a viewer reaches view
+  // 5, because every mesh starts switched off. So the wait lands squarely on
+  // the views that show them off. Measured cold, views 5 to 8 pull 152 MB
+  // between them and each takes 5 to 11 seconds to settle on a fast desktop
+  // connection.
+  //
+  // Loading them behind the curtain moves that wait to where a viewer is
+  // already waiting, and it holds: a view that has been loaded once costs 6%
+  // of its first visit to come back to. Everything here is a ceiling rather
+  // than a target - whatever is warm when the budget runs out is what a viewer
+  // gets, and entry is never held up beyond hardCapMs.
+  preload: {
+    enabled: true,
+    views: [5, 7, 8],     // all three hand-held meshes, and the combined view
+    // How many of those must be warm before Explore opens. The rest are warmed
+    // behind a curtain that is only still up because nobody has clicked yet,
+    // and are abandoned the moment somebody does - warming means moving the
+    // camera, and after the click that would be on screen. 1 buys the view a
+    // viewer reaches first, which is also the dearest, for about seven seconds.
+    beforeUnlock: 1,
+    perViewMs: 11000,     // no single view may hold the curtain longer
+    budgetMs: 24000,      // nor all of them together
+    // Long enough for view 1 to look finished, and no longer. Measured from
+    // the moment the view is ready, which is about three seconds in: at six
+    // more the stadium is fully formed and the jumbotron lettering is legible,
+    // and the remaining thirty megabytes are the scene sharpening itself -
+    // which it does perfectly well with somebody already looking at it.
+    firstViewMs: 6000,
+    settleMs: 900,        // "loaded" is this long with nothing left in flight
+    hardCapMs: 60000      // whatever goes wrong, entry unlocks by here
+  },
 
   flyDuration: 2600,
   // How long a view is held before the tour moves on, once the flight to it
@@ -339,6 +404,101 @@ function progress(pct, message) {
   if (message) els.msg.textContent = message;
 }
 
+/**
+ * Wait for the view to stop fetching - properly stopped, not merely between
+ * requests.
+ *
+ * `view.updating` flickers false in the gaps between tiles, so `whenOnce` on it
+ * returns almost immediately and means nothing. This wants it quiet for a
+ * stretch before believing it, and gives up after `maxMs` either way: a
+ * Gaussian splat and four integrated meshes keep refining level of detail for
+ * as long as you let them, so "finished" is a judgement, not an event.
+ */
+function settle(view, maxMs, quietMs, aborted = () => false) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let quietSince = view.updating ? null : t0;
+    const handle = reactiveUtils.watch(
+      () => view.updating,
+      (busy) => { quietSince = busy ? null : performance.now(); }
+    );
+    const tick = setInterval(() => {
+      const now = performance.now();
+      const still = quietSince !== null && now - quietSince >= quietMs;
+      const stop = aborted();
+      if (!still && !stop && now - t0 < maxMs) return;
+      clearInterval(tick);
+      handle.remove();
+      resolve(stop ? "abandoned" : still ? "settled" : "capped");
+    }, 120);
+  });
+}
+
+/**
+ * Load the expensive views while the curtain is still up.
+ *
+ * The curtain is the opportunity: nothing behind it is on screen, so the camera
+ * can be put anywhere and the layers switched on without a viewer seeing any of
+ * it. Applying a slide is what does the work - it turns on exactly the layers
+ * that slide shows and puts the camera exactly where it wants it, which is
+ * precisely the state whose tiles we want fetched.
+ *
+ * `restore` puts the app back to how it opens, because applying a slide
+ * rewrites layer visibility and the lighting along with it.
+ */
+async function warmUp(view, slides, restore,
+                      { aborted = () => false, onStart, afterEach } = {}) {
+  const cfg = CONFIG.preload;
+  if (!cfg.enabled || !slides.length) return;
+
+  // Not on someone's phone plan. A viewer who never opens view 5 should not
+  // have paid for it, and on a slow link this would hold the curtain shut for
+  // the whole budget and warm almost nothing.
+  const net = navigator.connection;
+  if (net && (net.saveData || /^(slow-2g|2g|3g)$/.test(net.effectiveType || ""))) {
+    console.info("[venue] preload skipped:", net.saveData ? "data saver" : net.effectiveType);
+    return;
+  }
+
+  const home = view.camera.clone();
+  onStart?.(home);
+  const deadline = performance.now() + cfg.budgetMs;
+  const wanted = cfg.views.map((n) => slides[n - 1]).filter(Boolean);
+  let done = 0;
+
+  for (const slide of wanted) {
+    if (aborted()) break;
+    const left = deadline - performance.now();
+    if (left < 2000) {
+      console.info("[venue] preload out of budget after", done, "of", wanted.length);
+      break;
+    }
+    // The message only - never the bar. Once the bar reads 100% and the button
+    // is open, winding it back to 78% looks like the app has come undone. And
+    // while the button is still locked - which is what beforeUnlock is for -
+    // it must not claim to be ready.
+    els.msg.textContent = els.enter.disabled ? "Loading…" : "Ready — still caching…";
+    const t0 = performance.now();
+    // animate: false - this is a jump, not a flight. Nobody is watching, and a
+    // 2.6 s easing per view would be most of the budget spent on nothing.
+    await slide.applyTo(view, { animate: false }).catch(() => {});
+    const how = await settle(view, Math.min(left, cfg.perViewMs), cfg.settleMs, aborted);
+    console.info(`[venue] warmed "${slide.title?.text ?? "view"}" in `
+      + `${Math.round(performance.now() - t0)} ms (${how})`);
+    done++;
+    afterEach?.(done);
+  }
+
+  // If the viewer let themselves in mid-warm, reveal() has already put the
+  // camera and the layers back - touching either now would fight it.
+  if (aborted()) {
+    console.info("[venue] preload cut short:", done, "of", wanted.length, "views warmed");
+    return;
+  }
+  view.camera = home;
+  restore();
+}
+
 /** Flatten the scene's layer tree, including layers nested in group layers. */
 function flatten(collection, out = []) {
   collection.forEach((layer) => {
@@ -349,7 +509,7 @@ function flatten(collection, out = []) {
 }
 
 async function main() {
-  progress(8, "Loading scene…");
+  progress(8, "Loading…");
 
   // Fire the conditions request now, in parallel with the scene. It has nothing
   // to do with the scene loading, and queueing it behind the whole chain was
@@ -382,10 +542,10 @@ async function main() {
 
   try {
     await scene.load();
-    progress(38, "Reading layers…");
+    progress(38, "Loading…");
     await view.when();
     manageNearPlane(view, CONFIG.clip);
-    progress(62, "Preparing view…");
+    progress(62, "Loading…");
     // The web scene carries its own authored environment — a fixed
     // 2026-03-15 12:00 Denver, cloudy — and it is applied during load, which
     // overwrites what the SceneView constructor set. Re-assert ours here, the
@@ -401,13 +561,22 @@ async function main() {
     return;
   }
 
-  // The view is usable from here. Everything below is enhancement, so entry is
-  // unlocked first and the rest is guarded — a failure in any one feature must
-  // not leave the intro curtain stuck.
-  progress(78, "Streaming geometry…");
-  els.enter.disabled = false;
-  els.enter.classList.add("ready");
-  els.enter.focus({ preventScroll: true });
+  // The view exists from here, but existing is not the same as being worth
+  // looking at: at this point the scene has streamed almost nothing, and
+  // handing over now is what made Explore unlock into a half-built stadium.
+  // Entry is unlocked further down, once there is something behind the curtain.
+  // Everything below is enhancement and is guarded - a failure in any one
+  // feature must not leave the curtain stuck.
+  progress(78, "Loading…");
+  const unlock = () => {
+    if (!els.enter.disabled) return;
+    els.enter.disabled = false;
+    els.enter.classList.add("ready");
+    els.enter.focus({ preventScroll: true });
+  };
+  // The one promise that cannot be broken. Whatever fails, hangs or never
+  // settles below, the button opens by here.
+  setTimeout(unlock, CONFIG.preload.hardCapMs);
 
   // Set before the UI appears, so it is also what the Home button returns to.
   if (CONFIG.home) {
@@ -505,12 +674,64 @@ async function main() {
   // may never settle — the scene is meant to be flown while it sharpens.
   // Let the bar finish on its own if streaming happens to quieten down, but cap
   // the wait so the label never sits at "streaming" indefinitely.
-  Promise.race([
-    reactiveUtils.whenOnce(() => !view.updating),
-    new Promise((resolve) => setTimeout(resolve, 8000))
-  ]).catch(() => {}).then(() => progress(100, "Ready"));
+  // Hand over as soon as the first view is real, and go on filling the cache
+  // for as long as the curtain happens to stay up.
+  //
+  // The order matters. Warming first meant a viewer waited half a minute for
+  // views they had not asked for yet, which is the wrong way round: nobody
+  // reaches view 5 in the first few seconds. So view 1 is made good, the button
+  // opens, and the expensive views are warmed behind a curtain that is now only
+  // up because the viewer has not clicked yet. Whatever finishes, finishes.
+  //
+  // It cannot continue past the click. The SDK fetches what the camera can see
+  // and nothing else - switching the meshes on at view 1 fetches none of their
+  // detail, because at that height there is none to fetch - so warming means
+  // moving the camera, and once the curtain is up that would be on screen.
+  const deepLinked = ["view", "live", "goal"]
+    .some((k) => new URLSearchParams(location.search).has(k));
+
+  // Set while a warm-up has the camera parked somewhere else; reveal() reads it.
+  let warmHome = null;
+  const entered = () => els.intro.classList.contains("gone");
+
+  let opened = false;
+  const openTheDoor = () => {
+    if (opened) return;
+    opened = true;
+    progress(100, "Ready");
+    unlock();
+  };
+
+  (async () => {
+    if (deepLinked) return;
+    progress(88, "Loading…");
+    await settle(view, CONFIG.preload.firstViewMs, CONFIG.preload.settleMs, entered);
+    if (CONFIG.preload.beforeUnlock <= 0) openTheDoor();
+    await warmUp(view, slides, () => { openingState(); tickClock(view); }, {
+      // Nobody can be inside before the door opens, so until then the warm-up
+      // runs to completion; after it, the first click ends it.
+      aborted: () => opened && entered(),
+      onStart: (home) => { warmHome = home; },
+      afterEach: (done) => { if (done >= CONFIG.preload.beforeUnlock) openTheDoor(); }
+    });
+    warmHome = null;
+    openTheDoor();                       // fewer views than asked for, or none
+    if (!entered()) els.msg.textContent = "Ready";
+  })().catch((err) => {
+    console.warn("[venue] preload skipped:", err.message);
+    openTheDoor();
+  });
 
   const reveal = () => {
+    // A warm-up may have the camera at another view with its layers switched
+    // on. Put both back now, in the same frame the curtain starts lifting -
+    // a frame later and the viewer sees somebody else's view slide away.
+    if (warmHome) {
+      view.camera = warmHome;
+      warmHome = null;
+      openingState();
+      tickClock(view);
+    }
     els.intro.classList.add("gone");
     [els.masthead, els.tour, els.captures, els.tools, els.weather, els.credit]
       .forEach((el, i) => setTimeout(() => el.classList.remove("hidden"), 200 * i));
@@ -886,9 +1107,11 @@ function buildMeasure(view) {
   // Only one widget exists at a time and it is destroyed on switch or close.
   // Merely detaching the container would leave the measurement's analysis on
   // the view, so the drawn geometry would linger after the panel closed.
-  const make = {
-    distance: () => new DirectLineMeasurement3D({ view }),
-    area:     () => new AreaMeasurement3D({ view }),
+  // Takes the kit rather than closing over imports, because the widgets are
+  // not here yet when this file is parsed.
+  const make = (M) => ({
+    distance: () => new M.DirectLineMeasurement3D({ view }),
+    area:     () => new M.AreaMeasurement3D({ view }),
     // Volume has no widget in the SDK — it is an Analysis driven by a polygon.
     // Handled separately in startVolume(), so this entry is a placeholder.
     volume:   () => null,
@@ -897,15 +1120,17 @@ function buildMeasure(view) {
     // No visibleElements override: passing a partial object drops the members
     // left out of it, and omitting `sketchButton` leaves the widget with no way
     // to draw a profile at all. The defaults are what we want.
-    profile:  () => new ElevationProfile({
+    profile:  () => new M.ElevationProfile({
       view,
       profiles: [
-        new ElevationProfileLineView({ title: "Captures" }),
-        new ElevationProfileLineGround({ title: "Terrain" })
+        new M.ElevationProfileLineView({ title: "Captures" }),
+        new M.ElevationProfileLineGround({ title: "Terrain" })
       ]
     })
-  };
+  });
   let active = null;     // mode key
+  let M = null;          // the widgets, once fetched
+  let modeToken = 0;     // so a second click cannot be overtaken by the first
   let widget = null;
   let sketch = null;
   let sketchLayer = null;
@@ -958,7 +1183,7 @@ function buildMeasure(view) {
     els.mhost.replaceChildren();   // clear anything destroy() left behind
   }
 
-  function setMode(key) {
+  async function setMode(key) {
     if (active === key && (widget || key === "volume")) return;
     teardown();
     active = key;
@@ -969,8 +1194,13 @@ function buildMeasure(view) {
     hint.textContent = key === "volume"
       ? "Draw a polygon over the area of interest."
       : "Points snap to the splat and mesh surfaces.";
+    // Everything above is instant, so the panel responds to the click; only
+    // the widget itself waits on the fetch, and only the first time.
+    const token = ++modeToken;
+    M = await loadMeasureKit();
+    if (token !== modeToken) return;      // overtaken by a later click
     if (key === "volume") { startVolume(); return; }
-    widget = make[key]();
+    widget = make(M)[key]();
     widget.container = mountPoint();
     arm();
   }
@@ -982,11 +1212,11 @@ function buildMeasure(view) {
    */
   function startVolume() {
     if (!sketchLayer) {
-      sketchLayer = new GraphicsLayer({ listMode: "hide", elevationInfo: { mode: "absolute-height" } });
+      sketchLayer = new M.GraphicsLayer({ listMode: "hide", elevationInfo: { mode: "absolute-height" } });
       view.map.add(sketchLayer);
     }
     sketch?.destroy();
-    sketch = new SketchViewModel({
+    sketch = new M.SketchViewModel({
       view,
       layer: sketchLayer,
       polygonSymbol: {
@@ -1000,7 +1230,7 @@ function buildMeasure(view) {
 
     sketch.on("create", (e) => {
       if (e.state !== "complete") return;
-      const analysis = new VolumeMeasurementAnalysis({ geometry: e.graphic.geometry });
+      const analysis = new M.VolumeMeasurementAnalysis({ geometry: e.graphic.geometry });
       view.analyses.add(analysis);
       volumes.push(analysis);
       sketchLayer.remove(e.graphic);       // the analysis draws its own footprint
@@ -1338,15 +1568,19 @@ function buildTimeOfDay(view) {
   // programmatic update apart from a user drag. reactiveUtils.watch fires
   // asynchronously, so a plain flag cleared on the next line would not work.
   let programmatic = null;
+  let T = null;          // TimeSlider and TimeExtent, once fetched
+  let making = null;     // the in-flight build, so open() cannot start two
 
-  function make() {
+  async function make() {
+    T = await loadTimeKit();
+    if (slider) return;
     const [start, end] = dayBounds();
-    slider = new TimeSlider({
+    slider = new T.TimeSlider({
       container: els.thost,
       mode: "instant",
-      fullTimeExtent: new TimeExtent({ start, end }),
+      fullTimeExtent: new T.TimeExtent({ start, end }),
       stops: { interval: { value: 10, unit: "minutes" } },
-      timeExtent: new TimeExtent({
+      timeExtent: new T.TimeExtent({
         start: view.environment.lighting.date, end: view.environment.lighting.date
       }),
       playRate: 90,
@@ -1398,7 +1632,7 @@ function buildTimeOfDay(view) {
         view.environment.lighting.date = when;
         if (slider) {
           programmatic = when;
-          slider.timeExtent = new TimeExtent({ start: when, end: when });
+          slider.timeExtent = new T.TimeExtent({ start: when, end: when });
         }
         tickClock(view);
       }
@@ -1412,7 +1646,7 @@ function buildTimeOfDay(view) {
   function open() {
     els.tpanel.hidden = false;
     els.timeOfDay.classList.add("active");
-    if (!slider) make();
+    if (!slider) (making ??= make());
   }
   function close() {
     stopSweep();
@@ -1426,9 +1660,9 @@ function buildTimeOfDay(view) {
     if (slider) {
       slider.viewModel?.stop?.();
       const [start, end] = dayBounds();
-      slider.fullTimeExtent = new TimeExtent({ start, end });
+      slider.fullTimeExtent = new T.TimeExtent({ start, end });
       programmatic = now;
-      slider.timeExtent = new TimeExtent({ start: now, end: now });
+      slider.timeExtent = new T.TimeExtent({ start: now, end: now });
     }
     tickClock(view);
   }

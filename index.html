@@ -9,7 +9,17 @@
 <title>Sports Venue Digital Twin — Empower Field at Mile High</title>
 <meta name="description" content="A digital twin of Empower Field at Mile High: drone and hand-held reality capture as Gaussian splats and meshes, with live action animations." />
 
-<link rel="preconnect" href="https://js.arcgis.com" />
+<!-- Every origin the first load touches, so the DNS lookup and the TLS
+     handshake happen while the HTML is still being parsed rather than in front
+     of the first byte from each. crossorigin because these are all fetched in
+     CORS mode - ES modules always are - and a preconnect made without it is
+     not reused for one that is. -->
+<link rel="preconnect" href="https://js.arcgis.com" crossorigin />
+<link rel="preconnect" href="https://tiles.arcgis.com" crossorigin />
+<link rel="preconnect" href="https://www.arcgis.com" crossorigin />
+<link rel="preconnect" href="https://services.arcgisonline.com" crossorigin />
+<link rel="preconnect" href="https://server.arcgisonline.com" crossorigin />
+<link rel="preconnect" href="https://elevation3d.arcgis.com" crossorigin />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -35,7 +45,7 @@
     <div class="loadbar" role="progressbar" aria-label="Loading scene">
       <span id="loadfill" class="loadbar__fill"></span>
     </div>
-    <p id="loadmsg" class="loadmsg">Loading scene&hellip;</p>
+    <p id="loadmsg" class="loadmsg">Loading&hellip;</p>
     <button id="enter" class="enter" disabled>Explore</button>
   </div>
   <p class="intro__foot">Powered by Esri</p>
