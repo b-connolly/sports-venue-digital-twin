@@ -793,7 +793,12 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 .rotate { display: none; }
 .noscript { position: fixed; inset: 0; display: grid; place-items: center; z-index: 99; }
 
-@media (max-width: 780px) {
+/* Phone layout. Keyed on either dimension, because a phone on its side is
+   still a phone: turn one and the viewport becomes something like 852x393,
+   which sails over any width breakpoint while leaving less room top to bottom
+   than it had before. Height is what these rules are really about - what gets
+   dropped here is dropped for being tall. */
+@media (max-width: 780px), (max-height: 500px) {
   .rail { width: min(258px, 66vw); }
   /* 20px puts the title at 225px, inside even a 66vw rail on a small phone. */
   .masthead__title { font-size: 1.25rem; }
@@ -1154,7 +1159,7 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 }
 .playseg__b.on .playseg__note { opacity: 0.85; }
 
-@media (max-width: 780px) {
+@media (max-width: 780px), (max-height: 500px) {
   .playseg__b { padding: 0.34rem 0.4rem; }
   .playseg__label { font-size: 0.66rem; }
   .playseg__note { display: none; }   /* the row is the width of a phone */
@@ -1189,6 +1194,6 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-@media (max-width: 780px) {
+@media (max-width: 780px), (max-height: 500px) {
   .recenter { bottom: calc(var(--pad) + 15rem); font-size: 0.62rem; padding: 0.45rem 0.8rem; }
 }
