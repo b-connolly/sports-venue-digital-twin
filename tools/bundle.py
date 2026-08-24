@@ -132,7 +132,11 @@ def main():
                     r'\s*<link rel="preconnect" href="https://js\.arcgis\.com"[^>]*>',
                     "", after)
                 tag = '<meta name="venue-build" content="%s" />' % stamp()
-                after = after.replace("</head>", tag + os.linesep + "</head>")
+                # A bare newline, not os.linesep: these files are opened in
+                # text mode, so the write translates it to the platform
+                # ending itself. Handed the Windows pair it wrote both, and
+                # the head carried a doubled carriage return.
+                after = after.replace("</head>", tag + "\n</head>")
             if after != before:
                 open(p, "w", encoding="utf-8").write(after)
                 rewritten += 1
