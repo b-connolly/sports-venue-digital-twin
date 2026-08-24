@@ -18,6 +18,11 @@ replays driven by actual sports tracking data.
   field goal; football gives a tackle worked to a finish, a cross headed in, and an
   interception broken the length of the pitch. Each has fan, broadcast and
   follow-the-ball cameras
+- **Draw Play** — the play chalked onto the field as it develops, playbook style.
+  American football draws every route from the snap; the moment the ball is
+  caught, the route that worked turns orange along its whole length and the rest
+  stay where they are. Football draws only the goal: the delivery in, the finish,
+  and a ring on the man at each end of them
 - **Analysis** — distance, area, volume and elevation profile against the captures
 - **Time of day** — scrub the sun; stadium lights come on after dark
 - **Conditions** — live weather at the venue drives the sky, or pick your own:
@@ -35,6 +40,7 @@ loaded as ES modules from the CDN. No build step and no dependencies to install.
 | [RenderNode](https://developers.arcgis.com/javascript/latest/api-reference/esri-views-3d-webgl-RenderNode.html) | custom render pass for the night sky |
 | [Measurement widgets](https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets-DirectLineMeasurement3D.html) + [VolumeMeasurementAnalysis](https://developers.arcgis.com/javascript/latest/api-reference/esri-analysis-VolumeMeasurementAnalysis.html) | distance, area, volume, profile |
 | [TimeSlider](https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets-TimeSlider.html) | time of day |
+| [GraphicsLayer](https://developers.arcgis.com/javascript/latest/api-reference/esri-layers-GraphicsLayer.html) + [LineSymbol3D](https://developers.arcgis.com/javascript/latest/api-reference/esri-symbols-LineSymbol3D.html) | the play diagram, redrawn each frame |
 
 The captures were processed with
 [ArcGIS Reality](https://www.esri.com/en-us/arcgis/products/arcgis-reality/overview)

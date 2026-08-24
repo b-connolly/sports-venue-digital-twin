@@ -574,6 +574,71 @@ if "celebration" not in raw_events:
     raw_events["celebration"] = min(T_GOAL + 4.1, T_END - 0.6)
 events = {k: int(round((t - T_START) * OUT_HZ)) for k, t in raw_events.items()}
 
+
+# --- who scored it, and who made it ----------------------------------------
+# Read out of the event file, which names both: a SHOT carries the man who took
+# it, and the delivery before it carries who played it and who to. Nothing here
+# is inferred from the tracking, and it could not honestly be. The ball's flight
+# from the delivery to the goal is *modelled* - the source is 2D and a ball in
+# the air is a straight line between two measured points at a constant speed -
+# so there is no touch in its record to find. Watch the numbers and the header
+# looks like a cross that flew past its scorer and went in on its own.
+#
+# The frames are the delivery leaving and the delivery arriving, which the
+# source gives as the event's start and end.
+def authorship():
+    shot = None
+    for st, team, ty, sub, frm, _to in events_in(T_GOAL - 0.6, T_GOAL + 0.6):
+        if ty == "SHOT" and "GOAL" in sub and (team == "Home") == SCORER_IS_HOME:
+            shot = (st, frm)
+    if not shot:
+        return None
+    # The last delivery of the scoring side before the shot. A cross where
+    # there is one, an ordinary pass where there is not: the counter is
+    # finished off a square ball and never leaves the floor.
+    feed = None
+    for st, team, ty, sub, frm, to in events_in(T_GOAL - 12.0, shot[0] + 0.05):
+        if ty == "PASS" and (team == "Home") == SCORER_IS_HOME and st <= shot[0]:
+            feed = (st, frm, to, ty)
+    if not feed:
+        return None
+    # Keyed by more than the time. Three events share the instant the header is
+    # scored - the aerial won, the shot, and the aerial lost by the man who was
+    # beaten to it - and a lookup by time alone answers with whichever was
+    # written last. That was the defender's challenge, which ends the moment it
+    # begins, so the goal was recorded as being over the line before it had been
+    # struck and the finish had nothing to draw.
+    ends = {}
+    with open(os.path.join(HERE, "ev2.csv"), encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r["Period"] != PERIOD:
+                continue
+            try:
+                key = (round(float(r["Start Time [s]"]), 2), r["Type"], r["From"])
+                ends[key] = float(r["End Time [s]"])
+            except ValueError:
+                continue
+    met = ends.get((round(feed[0], 2), feed[3], feed[1]), shot[0])
+    # When the ball is actually over the line, which is not the frame the goal
+    # is marked at. The source stamps a shot at the moment it is struck and
+    # carries the moment it finishes separately, and both of these are finished
+    # first time - the delivery arrives and the shot is taken on the same frame.
+    # Taking the goal frame as the end would leave the finish nothing to draw.
+    scored = ends.get((round(shot[0], 2), "SHOT", shot[1]), shot[0])
+    order = {k.lower(): i for i, k in enumerate(att_keys)}
+    frm, to = feed[1].lower(), (feed[2] or shot[1]).lower()
+    if frm not in order or to not in order:
+        return None
+    fr = lambda t: int(round((t - T_START) * OUT_HZ))
+    return {"from": order[frm], "to": order[to],
+            "at": fr(feed[0]), "met": fr(met), "scored": fr(scored)}
+
+
+ASSIST = authorship()
+assert ASSIST, "no shot and delivery found around the goal at %.1f s" % T_GOAL
+print("goal: player %d fed player %d, delivered f%d, met f%d"
+      % (ASSIST["from"], ASSIST["to"], ASSIST["at"], ASSIST["met"]))
+
 out = {
     "meta": {
         "hz": OUT_HZ, "frames": N,
@@ -584,7 +649,11 @@ out = {
         "source": "Metrica Sports open sample data, 25 Hz resampled to 10",
         "sourceShort": "Metrica Sports’ open sample data",
         "measured": True,
-        "carrier": None,
+        # The man who scored it. Named "carrier" because the renderer asks every
+        # play the same question - who ended up with the ball - and the answer
+        # is drawn the same way in both sports.
+        "carrier": ASSIST["to"],
+        "assist": ASSIST,
         # Where the tracker lost the ball and the file draws a straight line.
         # Absent when it did not; see bridge_ball().
         **({"bridged": BRIDGED} if BRIDGED else {}),

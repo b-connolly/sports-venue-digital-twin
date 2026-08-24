@@ -12,7 +12,7 @@ Run them with the Python that has Pillow, from this folder.
 | `celebrate.py` | the tail of each gridiron play | The celebration. A touchdown is celebrated in whichever end zone it was scored in; a kick around the kicker, where he stands. Imported by `build_play.py`, and runnable alone against an existing file. |
 | `fieldgoal.py` | the ball in `play_fieldgoal.json` | Moves a measured field goal back to the 68 yard record and flies the ball there. Imported by `build_play.py`. |
 | `build_soccer.py` | `data/soccer.json`, `data/soccer_header.json`, `data/soccer_counter.json` | One passage of football from 25 Hz tracking, resampled to 10. Takes the passage as an argument — `turnover` (the default), `header` or `counter`. The `PASSAGES` table at the top is the list. |
-| `kickoff.py` | the head of `soccer.json` | Three staged seconds in front of the tackle. Imported by `build_soccer.py`, and runnable alone. |
+| `kickoff.py` | the head of `soccer.json` | Three staged seconds in front of the tackle. Imported by `build_soccer.py`, and runnable alone. Moves the event frames and `meta.assist` to match. |
 | `anonymise.py` | the last step of every play file | Drops `name` and `jersey` from every player and the names from the play description; `meta.carrier` becomes an index. The renderer never reads any of it. |
 | `make_field.py` | `assets/field.jpg` | The painted gridiron. The midfield mark is two constants at the top (`LOGO_LEN_YD`, `LOGO_HGT_YD`). |
 | `make_pitch.py` | `assets/pitch.jpg` | The football pitch: regulation markings, no club marks, with an apron of grass around them. |
@@ -84,6 +84,24 @@ for r in csv.DictReader(open("ev2.csv", encoding="utf-8")):
     if r["Type"] == "SHOT" and "GOAL" in (r["Subtype"] or ""):
         print(r["Period"], r["Start Time [s]"], r["Subtype"], r["Team"])
 ```
+
+Each passage also records who the goal belongs to, in `meta.assist`: the player
+who played the final delivery, the player who scored, and three frames — the
+delivery leaving, the delivery arriving, and the ball crossing the line. The app
+draws exactly that span and nothing else of the passage.
+
+All of it is read out of the event file, which names both players, because none
+of it can be recovered from the tracking afterwards. The source is 2D, so a ball
+in the air is modelled as a straight line at constant speed between two measured
+points, and a touch in the middle of that flight leaves no trace in it — by the
+numbers alone the header looks like a cross that flew past its scorer and went
+in on its own. Two details of the event file matter here. The frame a goal is
+stamped at is the moment the shot is *struck*, and both crosses are finished
+first time, so the delivery arriving and the goal are the same frame and the
+finish is drawn from the shot's own end time instead. And three events share the
+instant of the header — the aerial won, the shot, and the aerial lost by the man
+who was beaten to it — so an end time looked up by time alone answers with the
+defender's challenge, which ends the moment it begins.
 
 Only `turnover` needs `kickoff.py`'s staged lead-in — it opens on the tackle
 itself, because that is where its ball tracking starts. The other two begin on a

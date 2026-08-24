@@ -36,6 +36,7 @@ import MeshSymbol3D from "https://js.arcgis.com/5.0/@arcgis/core/symbols/MeshSym
 import FillSymbol3DLayer from "https://js.arcgis.com/5.0/@arcgis/core/symbols/FillSymbol3DLayer.js";
 import { Builder, block, spheroid, finish, DEG } from "./meshkit.js";
 import { addGoals } from "./goals.js";
+import { addChalk } from "./chalk.js";
 
 /* --------------------------------------------------------------- the figure
  * 1.85 m tall, caught mid-stride: lead leg driving forward, trail leg extended
@@ -305,6 +306,11 @@ export async function addPlay(view, cfg, spec) {
     symbol: new MeshSymbol3D({ symbolLayers: [new FillSymbol3DLayer()] })
   }));
 
+  // The play drawn on the field. Its own layer rather than the play's, so it
+  // can be switched off without taking the players with it.
+  const chalk = addChalk(data, map, surface);
+  view.map.add(chalk.layer);
+
   // Goals belong to the pitch, not to the play, but they only ever need to
   // exist while a pitch play is on screen — so they ride in the same layer.
   if (surfaceKey === "pitch") {
@@ -325,6 +331,9 @@ export async function addPlay(view, cfg, spec) {
   const DUR = (N - 1) / HZ;
   const listeners = new Set();
   let t = 0, running = false, raf = null, last = 0, ballEN = [0, 0, 0], spin = 0;
+  // Whether the viewer wants the diagram; separate from whether it is on screen
+  // this instant, which also depends on the replay being shown at all.
+  let chalkWanted = false;
   const rate = cfg.play.speed || 1;
   const emit = () => listeners.forEach((fn) => fn({ t, dur: DUR, running }));
 
@@ -370,6 +379,8 @@ export async function addPlay(view, cfg, spec) {
     ballEN = [b[0], b[1], bz];
     const bt = ballMesh.transform;
     bt.translation = [b[0], b[1], bz];
+
+    if (chalk.visible) chalk.update(time);
 
     if (code === "football") {
       // A football rolls: it turns about the horizontal axis square to its
@@ -446,8 +457,27 @@ export async function addPlay(view, cfg, spec) {
     },
     halfWidth: marked.width / 2,
     depth: marked.depth,
-    show(on) { layer.visible = !!on; if (on) poseAt(t); },
-    seek(time) { t = Math.max(0, Math.min(DUR, time)); poseAt(t); emit(); },
+    chalk,
+    show(on) {
+      layer.visible = !!on;
+      // The chalk follows the play on screen, but only if it was asked for.
+      chalk.layer.visible = !!on && chalkWanted;
+      if (on) poseAt(t);
+    },
+    /** Drawn or not. Remembered, so it survives the play being hidden. */
+    setChalk(on) {
+      chalkWanted = !!on;
+      chalk.layer.visible = !!on && layer.visible;
+      if (on) chalk.update(t);
+    },
+    get chalkOn() { return chalkWanted; },
+    seek(time) {
+      t = Math.max(0, Math.min(DUR, time));
+      // Scrubbing backwards has to rub the diagram out, not leave the old one.
+      if (chalk.visible) chalk.reset();
+      poseAt(t);
+      emit();
+    },
     start() {
       if (running) return;
       if (t >= DUR) t = 0;
@@ -464,7 +494,7 @@ export async function addPlay(view, cfg, spec) {
       emit();
     },
     stop() { api.pause(); t = 0; poseAt(0); emit(); },
-    remove() { api.pause(); view.map.remove(layer); }
+    remove() { api.pause(); view.map.remove(layer); view.map.remove(chalk.layer); }
   };
 
   poseAt(0);

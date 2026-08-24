@@ -450,7 +450,7 @@ const els = {
   ppanel: $("playPanel"), ptoggle: $("playToggle"),
   picon: $("playIcon"), pscrub: $("playScrub"), pmarks: $("playMarks"),
   pphase: $("playPhase"), pclock: $("playClock"), pcap: $("playCaption"),
-  ppicks: $("playPicks"),
+  ppicks: $("playPicks"), pchalk: $("playChalk"),
   pcams: [...document.querySelectorAll("#playCams .camseg__b")],
   pclose: $("playClose"), prestart: $("playRestart"),
   precenter: $("playRecenter"),
@@ -967,7 +967,7 @@ async function main() {
     else if (opens === "measure") { tools.timeOfDay.close(); tools.measure.open(); autoOpened = "measure"; }
     else console.warn(`[venue] view ${n} opens "${opens}", which is nothing`);
   });
-  wireKeys(view, tour);
+  wireKeys(view, tour, tools);
 
   // Deep link. ?live opens the replay straight away and plays it; ?live=7.1
   // opens it paused at that second, so a particular moment - the catch, the
@@ -2267,6 +2267,12 @@ function captionFor(m) {
 function buildLiveAction(view, surfacesReady, stage, slides = []) {
   const loaded = new Map();          // key -> play
   let api = null, pending = null, active = null;
+  // The viewer's answer about the diagram, kept across plays so it does not
+  // have to be given again every time one is opened. Off to begin with: the
+  // replay is the thing, and a diagram drawn over it on arrival is an answer to
+  // a question nobody has asked yet - it reads as chrome the first time and as
+  // clutter every time after. Asked for once, it stays on for the session.
+  let chalkOn = false;
   let cam = null, scrubbing = false, restore = null, shown = false;
   let aim = null;                      // smoothed look-at point, local metres
 
@@ -2833,6 +2839,26 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       // passages under the transport marks the right one.
       lastPlay.set(groupOf(key)?.sport, key);
       buildPicks(key);
+      // A route diagram is how American football is taught and drawn; football
+      // is not, and eleven trails across a pitch would be noise rather than
+      // notation. So the control only appears where it means something.
+      // Offered where there is a play to draw, which is not the same as
+      // "gridiron". A field goal is eleven men holding a line and one kicking:
+      // nobody runs a route, so the diagram is twenty-two marks in a heap
+      // around a snap and a hold, and it says less than the picture underneath
+      // it does. The ball committing to somebody - a throw or a handoff - is
+      // what makes a play worth drawing, so that is what is asked. Football
+      // asks a different question, because it draws a different thing: not the
+      // play but the goal, which needs the two men the file names for it.
+      const ev = p.data.events ?? {};
+      const drawable = p.data.meta.sport === "gridiron"
+        ? (ev.pass_forward != null || ev.handoff != null)
+        : p.data.meta.assist != null;
+      els.pchalk.hidden = !drawable;
+      const draw = drawable && chalkOn;
+      p.setChalk(draw);
+      els.pchalk.setAttribute("aria-pressed", String(draw));
+      els.pchalk.classList.toggle("on", draw);
       // A debugging handle, and only that - nothing in the app reads it.
       window.__play = p;
 
@@ -2887,6 +2913,12 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
         if (!api) return;
         api.pause();
         api.seek(parseFloat(els.pscrub.value) * api.duration);
+      });
+      els.pchalk.addEventListener("click", () => {
+        chalkOn = !chalkOn;
+        els.pchalk.setAttribute("aria-pressed", String(chalkOn));
+        els.pchalk.classList.toggle("on", chalkOn);
+        api?.setChalk(chalkOn);
       });
       els.precenter.addEventListener("click", recenter);
       els.prestart.addEventListener("click", () => {
@@ -3006,7 +3038,18 @@ function wireTools(view, surfacesReady,
   return { measure, timeOfDay, liveAction };
 }
 
-function wireKeys(view, tour) {
+/**
+ * The keyboard shortcuts.
+ *
+ * `tools` is passed in rather than reached for. It used to be neither: the two
+ * shortcuts that open a sport read a bare `tools`, which is not a variable in
+ * this scope and so resolved to the toolbar div - because an element with an id
+ * is also a property of window, and a lookup that should have failed loudly
+ * found an HTMLDivElement instead. Every press of A or G threw on the missing
+ * method, silently, and the tooltip on the rail button went on advertising
+ * both.
+ */
+function wireKeys(view, tour, tools) {
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement) return;
     switch (e.key) {

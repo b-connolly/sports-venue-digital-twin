@@ -169,7 +169,15 @@
   </div>
   <!-- The plays of whichever sport is open. Filled from CONFIG.play.plays;
        a sport with only one play leaves it empty and it hides itself. -->
-  <div id="playPicks" class="playseg" role="group" aria-label="Play"></div>
+  <div class="playfoot">
+    <div id="playPicks" class="playseg" role="group" aria-label="Play"></div>
+    <!-- Only offered for the gridiron plays, where a route diagram is the
+         language the sport is already taught in. -->
+    <button id="playChalk" class="playchk" type="button" aria-pressed="false" hidden>
+      <span class="playchk__box" aria-hidden="true"></span>
+      <span class="playchk__label">Draw Play</span>
+    </button>
+  </div>
   <p id="playCaption" class="playcap"></p>
 </section>
 

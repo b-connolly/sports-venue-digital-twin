@@ -642,31 +642,6 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
 }
 
-/* shadows switch in the time dock */
-.optsw {
-  display: flex; align-items: center; gap: 0.55rem;
-  padding: 0.3rem 0; border: 0; background: none;
-  color: var(--paper); font: inherit; cursor: pointer;
-}
-.optsw__label {
-  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-  color: var(--paper-faint); transition: color .2s;
-}
-.optsw:hover .optsw__label, .optsw.on .optsw__label { color: var(--paper-dim); }
-.optsw__sw {
-  position: relative; flex: 0 0 auto;
-  width: var(--sw-w); height: 14px; border-radius: 999px;
-  background: rgba(244,241,234,0.14); border: 1px solid var(--line);
-  transition: background .3s, border-color .3s;
-}
-.optsw__sw::after {
-  content: ""; position: absolute; top: 1px; left: 1px;
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--paper-faint);
-  transition: transform .3s var(--ease), background .3s;
-}
-.optsw.on .optsw__sw { background: rgba(251,79,20,0.85); border-color: transparent; }
-.optsw.on .optsw__sw::after { transform: translateX(10px); background: #fff; }
 
 /* The profile widget is built for a full side panel; in a bottom dock it has to
    earn its height. Chart kept readable, everything around it compressed. */
@@ -1278,4 +1253,57 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
 
 @media (max-width: 780px), (max-height: 500px) {
   #timePanel { width: calc(100vw - 2 * var(--pad)); }
+}
+
+/* The play-picker row and the chalk checkbox share a line: the checkbox is one
+   short control and a row of its own for it would cost more height than it is
+   worth on a panel that has to fit a phone. */
+.playfoot { display: flex; align-items: stretch; gap: 0.5rem; }
+.playfoot .playseg { flex: 1 1 auto; min-width: 0; }
+/* A checkbox and two words. It was a bordered pill with a sliding switch in it,
+   which at this size read as a second control of the same rank as the play
+   chooser beside it and set the height of the whole row - a lot of panel for
+   something that only decides whether a diagram is drawn over the play you are
+   already watching. Nothing here has a box or a background: it is a mark and a
+   label sitting in the corner, and the panel is the same height without it. */
+#playChalk {
+  flex: 0 0 auto; align-self: center;
+  display: inline-flex; align-items: center; gap: 0.42rem;
+  padding: 0.2rem 0.15rem; border: 0; background: none;
+  color: var(--paper-faint); font: inherit; cursor: pointer;
+  transition: color .16s;
+}
+#playChalk[hidden] { display: none; }
+#playChalk:hover, #playChalk.on { color: var(--paper-dim); }
+#playChalk:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+
+#playChalk .playchk__box {
+  position: relative; flex: 0 0 auto;
+  width: 12px; height: 12px; border-radius: 3px;
+  border: 1px solid var(--line); background: rgba(20,20,22,0.35);
+  transition: background .16s, border-color .16s;
+}
+/* The tick is drawn rather than typed. A check glyph at twelve pixels is at the
+   mercy of whichever font answers for it, and they do not agree on where in the
+   line box it sits; two borders on a rotated box are the same everywhere. */
+#playChalk .playchk__box::after {
+  content: ""; position: absolute; left: 3.5px; top: 0.5px;
+  width: 3px; height: 6.5px;
+  border: solid #fff; border-width: 0 1.6px 1.6px 0;
+  transform: rotate(42deg) scale(0.5); transform-origin: center;
+  opacity: 0; transition: opacity .14s, transform .14s var(--ease);
+}
+#playChalk.on .playchk__box { background: var(--accent); border-color: transparent; }
+#playChalk.on .playchk__box::after { opacity: 1; transform: rotate(42deg) scale(1); }
+
+#playChalk .playchk__label {
+  font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
+
+@media (max-width: 780px), (max-height: 500px) {
+  .playfoot { flex-direction: column; gap: 0.35rem; }
+  /* Left with the plays rather than stretched across the panel: stretching a
+     checkbox only puts its tick and its label at opposite ends of a phone. */
+  #playChalk { align-self: flex-start; }
 }

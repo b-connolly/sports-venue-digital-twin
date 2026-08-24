@@ -35,6 +35,23 @@ def out_path(*parts):
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     return dst
 
+def shift_assist(out, by):
+    """Move meta.assist's frames with the events.
+
+    It carries two frame numbers - the delivery leaving and the delivery
+    arriving - and they mean the same thing the event frames do, so anything
+    that moves one has to move the other. Left behind, they pointed thirty
+    frames upfield of the cross they describe, which is three seconds earlier
+    in a passage whose whole subject is the last nine.
+    """
+    a = out["meta"].get("assist")
+    if not a:
+        return
+    for k in ("at", "met", "scored"):
+        if k in a:
+            a[k] += by
+
+
 LEAD_S = 3.0          # seconds of lead-in
 REST = 0.30           # ball sits at the keeper's feet this long
 FLIGHT = 1.90         # then this long in the air
@@ -74,6 +91,7 @@ def add_kickoff(out):
         events.pop("kick", None)
         for k in list(events):
             events[k] -= had
+        shift_assist(out, -had)
 
     def vel(p):
         """Velocity on the first measured frame, over 0.3 s so one noisy sample
@@ -155,6 +173,7 @@ def add_kickoff(out):
 
     for k in list(events):
         events[k] += lead
+    shift_assist(out, lead)
     events["kick"] = int(round(REST * hz))
     out["meta"]["measuredFrom"] = lead
     # Set, never incremented. The trim above shortens the arrays but cannot know
