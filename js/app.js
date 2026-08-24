@@ -653,7 +653,22 @@ function modestDevice() {
   return small || lean;
 }
 
+/**
+ * Say which build this is, once, in the console.
+ *
+ * There are two of these hosted: this source served as it stands, and a bundled
+ * copy built by tools/bundle.py. They are generated from the same files so they
+ * cannot disagree about behaviour, but they are deployed separately and either
+ * can be left behind. The bundler stamps the commit it built from into a meta
+ * tag; served from source there is no tag, and that is the answer too.
+ */
+function announceBuild() {
+  const stamp = document.querySelector('meta[name="venue-build"]')?.content;
+  console.info(`[venue] ${stamp ? `bundled build ${stamp}` : "served from source, SDK from the CDN"}`);
+}
+
 async function main() {
+  announceBuild();
   progress(3, "Loading…");
   // The SDK is a thousand module requests deep and cannot report on itself, so
   // this stretch is the one that is invented - a slow drift that runs out of
@@ -1201,6 +1216,22 @@ let sweepOwner = () => {};
  */
 let liveOwner = () => {};
 
+/**
+ * Move the time slider to an instant without taking the clock over.
+ *
+ * The slider and the lighting have to agree. A view that sets the clock, or
+ * hands it back, changes the lighting directly and the slider knew nothing
+ * about it - so after the sun sweep on the night view the panel read the live
+ * time while its handle still sat at midnight where the sweep left it.
+ *
+ * That is not only untidy. The slider's own watch fires asynchronously and
+ * treats any value it did not set itself as a hand on the control: it latches
+ * `sky.manual` and writes its instant onto the lighting. A stale handle is
+ * therefore a loaded gun - one late callback and the scene goes back to
+ * midnight and stays there, because manual mode stops the clock correcting it.
+ */
+let sliderOwner = () => {};
+
 let viewRef = null;
 
 function buildTour(view, slides, captures) {
@@ -1256,6 +1287,8 @@ function buildTour(view, slides, captures) {
     // Puts the stadium lights on or off with it: tickClock decides that from
     // the sun's actual altitude, not from a stored sunset time.
     tickClock(view);
+    // Last, once the date has settled either way: the handle follows the sun.
+    sliderOwner(view.environment.lighting.date);
   }
 
   /** How long to hold a view before moving on, in the slideshow. */
@@ -2071,6 +2104,14 @@ function buildTimeOfDay(view) {
   }
   // The weather chip's Live control has to put the clock back too.
   liveOwner = () => { stopSweep(); live(); };
+  // And the rail has to be able to move the handle without this reading it as
+  // somebody grabbing the slider - hence `programmatic`, the same way live()
+  // and the sweep do it.
+  sliderOwner = (when) => {
+    if (!slider || !when) return;
+    programmatic = when;
+    slider.timeExtent = new T.TimeExtent({ start: when, end: when });
+  };
 
   // Direct shadows are part of the sun model, so this reads as a lighting
   // control and belongs beside the time scrubber rather than in a settings menu.
