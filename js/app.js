@@ -153,8 +153,29 @@ const CONFIG = {
 
   flyDuration: 2600,
   // How long a view is held before the tour moves on, once the flight to it
-  // has finished. The flight itself is flyDuration on top of this.
-  slideDwellMs: 5200,
+  // has finished, and once it has finished loading - see slideSettle. The
+  // flight itself is flyDuration on top of this.
+  //
+  // This is what the capture views get. The two replays and the night sky
+  // name their own in CONFIG.views, because they are each holding for
+  // something specific to finish.
+  slideDwellMs: 6500,
+
+  // When the dwell above starts counting.
+  //
+  // It used to start the moment the flight landed, which is right only if
+  // the view has arrived as well as the camera. On a fast connection it very
+  // nearly has. On a slow one it has not: the integrated meshes are still
+  // streaming, and the slideshow was walking past a capture while the thing
+  // it was captured to show was still drawing itself - so the viewer who
+  // most needed the pause was the one who did not get it.
+  //
+  // So the dwell waits for the scene to stop fetching first. A fast
+  // connection pays quietMs for the privilege and is otherwise unchanged;
+  // a slow one is given exactly as long as it turns out to need. The cap is
+  // there so a connection that never goes quiet cannot park the show
+  // indefinitely - reaching it moves on regardless.
+  slideSettle: { quietMs: 700, maxMs: 12000 },
 
   // What a view does when you arrive at it.
   //
@@ -1298,10 +1319,41 @@ function buildTour(view, slides, captures) {
     return v.dwellMs || CONFIG.slideDwellMs;
   }
 
+  /**
+   * A view that names its own dwell has already been told how long to hold,
+   * and for a reason that has nothing to do with loading: the two replays are
+   * sized to the passage they play, and the night sky to how far the stars
+   * should travel before the show moves on.
+   *
+   * Those three must not wait for quiet, and not merely because it would be
+   * redundant. Each of them keeps the view busy for as long as it runs - a
+   * replay moves twenty-two people every frame, a sun sweep rewrites the
+   * lighting every few - so the wait would never latch, would run to the cap
+   * every time, and would add it to a duration somebody had already chosen.
+   * The night sky was cut to seven and a half seconds deliberately; this
+   * would quietly have put it back to twenty.
+   */
+  const drivesItsOwnShow = (v) => typeof v?.dwellMs === "number";
+
+  // Each hold takes a ticket, because waiting for the scene to go quiet is
+  // asynchronous and a viewer can press an arrow in the middle of it. Without
+  // one, the old view's timer would land on the new view and march the show
+  // on early.
+  let dwellTicket = 0;
+
   function schedule() {
     clearTimeout(dwell);
     if (!playing) return;
-    dwell = setTimeout(() => { if (playing) go(current + 1); }, dwellFor(current));
+    const mine = ++dwellTicket;
+    const hold = dwellFor(current);
+    const stale = () => !playing || dwellTicket !== mine;
+    const start = () => {
+      if (stale()) return;
+      dwell = setTimeout(() => { if (!stale()) go(current + 1); }, hold);
+    };
+    if (drivesItsOwnShow(viewAt(current + 1))) { start(); return; }
+    settle(view, CONFIG.slideSettle.maxMs, CONFIG.slideSettle.quietMs, stale)
+      .then(start);
   }
 
   function setPlaying(on) {
