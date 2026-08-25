@@ -81,7 +81,7 @@
     <span id="tourTitle" class="tour__title">&nbsp;</span>
   </nav>
 
-  <aside id="captures" class="captures hidden" aria-label="Captures">
+  <aside id="captures" class="captures hidden stowed" aria-label="Captures">
     <h2 class="rail__h">
       <button id="capturesToggle" class="rail__toggle" type="button"
               aria-expanded="true" aria-controls="captureGroups"
@@ -100,6 +100,7 @@
 <!-- Utility -->
 <div id="tools" class="tools hidden">
   <button id="home"    class="tool" title="Reset view (H)" aria-label="Reset view">&#8962;</button>
+  <button id="capturesBtn" class="tool" title="Captures" aria-label="Captures" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 21 8l-9 4.8L3 8z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M3.4 12 12 16.6 20.6 12M3.4 16 12 20.6 20.6 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <button id="measure"  class="tool" title="Analysis (M)" aria-label="Analysis"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-45 12 12)"><rect x="2" y="9" width="20" height="6" rx="1.2"/><path d="M6.5 9v2.6M10.5 9v3.6M14.5 9v2.6M18.5 9v3.6"/></g></svg></button>
   <button id="timeOfDay" class="tool" title="Time of day (T)" aria-label="Time of day">&#9728;</button>
   <div class="toolgroup">

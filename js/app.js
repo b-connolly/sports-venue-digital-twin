@@ -455,6 +455,7 @@ const $ = (id) => document.getElementById(id);
 const els = {
   intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
   masthead: $("masthead"), captures: $("captures"),
+  capturesBtn: $("capturesBtn"),
   captureGroups: $("captureGroups"),
   capturesToggle: $("capturesToggle"),
   rail: $("rail"), tour: $("tour"), prev: $("prev"), next: $("next"),
@@ -3022,6 +3023,44 @@ function wireTools(view, surfacesReady,
     collapsed = !collapsed;
     setCollapsed(collapsed);
     try { localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
+  });
+
+  // Whether the panel is on screen at all, which is a different question
+  // from whether its list is folded away - see the CSS for .stowed.
+  //
+  // Every switch in it controls a layer that the saved views already turn on
+  // and off correctly as they arrive, so for a viewer following the tour it
+  // can only disagree with the tour - and the way that disagreement showed
+  // up in practice was somebody switching off a capture, not recognising
+  // what had gone, and carrying on through a scene missing half of what it
+  // was built to show.
+  //
+  // So it starts stowed on every load, and deliberately remembers nothing.
+  // Remembering was tried and is wrong here: one curious click became a
+  // panel that reopened itself for good, which is the state this was meant
+  // to get rid of. The collapse above still remembers, because that is a
+  // preference about a panel somebody has asked for; this is not a
+  // preference, it is a door.
+  const setStowed = (off) => {
+    els.captures.classList.toggle("stowed", off);
+    els.capturesBtn.classList.toggle("active", !off);
+    els.capturesBtn.setAttribute("aria-pressed", String(!off));
+    els.capturesBtn.title = off ? "Captures" : "Hide the captures";
+  };
+  let stowed = true;
+  setStowed(true);
+  els.capturesBtn.addEventListener("click", () => {
+    stowed = !stowed;
+    // Asking for the panel means asking to see the list. Anyone who left it
+    // collapsed a session ago, or who had it folded away by a replay, would
+    // otherwise get back a bare header and a panel that appeared to have
+    // nothing in it.
+    if (!stowed && collapsed) {
+      collapsed = false;
+      setCollapsed(false);
+      try { localStorage.setItem(COLLAPSE_KEY, "0"); } catch { /* ignore */ }
+    }
+    setStowed(stowed);
   });
 
   // Starting a replay folds the list away, because it sits directly over the

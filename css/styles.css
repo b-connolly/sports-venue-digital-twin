@@ -826,6 +826,9 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
      stages itself. It is hidden rather than removed, so everything that mirrors
      a layer's visibility onto it goes on working. */
   .captures { display: none; }
+  /* And with it the button that opens it: a control that cannot do
+     anything is worse than no control. */
+  #capturesBtn { display: none; }
 
   .dock   { width: calc(100vw - 2 * var(--pad)); }
 
@@ -1012,6 +1015,14 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 .captures { transition: padding 0.3s var(--ease); }
 .captures.collapsed { padding-bottom: 0.62rem; }
 .captures.collapsed .rail__h { margin-bottom: 0; }
+
+/* Stowed is not collapsed. Collapsed is a panel with its list folded
+   away and its header still there; stowed is the panel not being on
+   screen at all, which is how it now starts. The two are separate
+   because they answer different questions - "I am not using this right
+   now" and "I never asked for this" - and because a viewer who opens
+   the panel from the rail should not be handed one that looks empty. */
+.captures.stowed { display: none; }
 
 /* --------------------------------------------------------------- info sheet
    Prose wants a column and a scrim, not a dock panel: the dock is 740px of
