@@ -61,6 +61,7 @@ import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
 import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import { styleLights } from "./lights.js";
 import { addPlay } from "./play.js";
+import { flyLap } from "./flyin.js";
 import { dressSelects } from "./selectmenu.js";
 
 // Widget icons, workers and localisation are fetched relative to this path.
@@ -152,6 +153,66 @@ const CONFIG = {
   arrival: { quietMs: 500, maxMs: 3000 },
 
   flyDuration: 2600,
+
+  // One lap of the ground before the first replay.
+  //
+  // Named by the view it lands on, not by a number, for the reason CONFIG.views
+  // is. It runs only when the slideshow is running and only when arriving there
+  // from the view immediately before, so stepping through by hand still cuts
+  // straight to the seat.
+  //
+  // `legs` are waypoints, not a path: a single flight between two distant
+  // cameras interpolates the route as well as the ends, and the arc it picked
+  // sagged through the terrain. Each leg is somewhere the camera is known to be
+  // able to stand - a bearing clockwise from north, a distance from the middle
+  // of the field, a height above the playing surface - so nothing between them
+  // can end up underground. Everything stays outside 260 m, which is clear of
+  // the roof.
+  //
+  // `swap` is the useful half. The mesh the replay needs is switched on as the
+  // lap begins with its opacity at nothing, so it streams for the whole turn
+  // without anybody watching it arrive, and is faded up over the splat on the
+  // last leg. The cut from splat to mesh at the seat becomes a dissolve, and
+  // the seat is reached with the mesh already there.
+  flyIn: {
+    enabled: true,
+    to: "Fan Perspective (American Football)",
+    // Only the first time round. A lap is worth fifteen seconds once; on every
+    // loop of a slideshow it is fifteen seconds of the same thing.
+    once: true,
+    // Waypoints on one path, not a list of flights.
+    //
+    // The camera is driven frame by frame through these - see flyin.js for why
+    // - so they are shaping a single move rather than being places it stops.
+    // Each is a bearing round the ground, a distance from the middle of it and
+    // a height above the playing surface; the sweep runs the short way from
+    // wherever the opening view left the camera round to the seat.
+    //
+    // It starts on the camera already in place and ends on the slide's own, so
+    // neither end of the move needs a number here. It flies in through the side
+    // of the building on the way to the seat, which is a thing a camera cannot
+    // do and a drone shot does all the time.
+    path: [
+      { bearing: 30, out: 340, up: 76, tilt: 80 },
+      { bearing: 352, out: 290, up: 72, tilt: 76 },
+      { bearing: 338, out: 185, up: 78, tilt: 62 }
+    ],
+    ms: 16000,
+    // The mesh is held back until the camera is through the roof.
+    //
+    // Warming it from the start of the move was the obvious thing and it looks
+    // wrong: the mesh is opaque geometry and the splat is not, so while both are
+    // on the mesh simply occludes it - and the stretch where that matters most
+    // is the crossing, where the camera is inside the building and the mesh is
+    // the weaker reconstruction of the two by some distance.
+    //
+    // So it comes on once the camera is inside, which is also the first moment
+    // it would be fetching anything useful: the tiles it needs are the ones for
+    // the seat, and those are only worth asking for from somewhere near it. It
+    // then has the rest of the move, and the arrival wait after it, to arrive.
+    swap: { on: "3D Mesh", onAtT: 0.82, off: "Gaussian Splat", offAtT: 0.94 }
+  },
+
   // How long a view is held before the tour moves on, once the flight to it
   // has finished, and once it has finished loading - see slideSettle. The
   // flight itself is flyDuration on top of this.
@@ -200,7 +261,7 @@ const CONFIG = {
     // Both night views want their stars. An overcast ceiling hides them, and
     // whether it happens to be cloudy in Denver tonight should not decide
     // whether these two work.
-    { title: "Stadium at Night", clock: "22:30", sky: "sunny" },
+{ title: "Stadium at Night", clock: "22:30", sky: "sunny" },
     // Arrives at half ten, then walks the sun down towards midnight. "24:00" is
     // the end of the local day, not the start of it. The stop is deliberately
     // shorter than the sweep - a viewer watches the stars travel a stretch of
@@ -1261,6 +1322,17 @@ function buildTour(view, slides, captures) {
   const count = slides.length;
   let current = -1;
   let moving = false;
+  // Set while the opening lap is in the air; calling it cuts the lap short.
+  let cutTheLap = null;
+  let lapFlown = false;
+  // Every move takes a ticket. A lap is long enough that a viewer will reach
+  // for an arrow during it, and the move they interrupt has to know it no
+  // longer owns the view - otherwise it lands, re-arms the dwell and announces
+  // its arrival on top of the move that replaced it.
+  let goTicket = 0;
+  const lapTarget = CONFIG.flyIn?.enabled
+    ? slides.indexOf(slideNamed(slides, CONFIG.flyIn.to))
+    : -1;
 
   if (!count) {
     els.tour.style.display = "none";
@@ -1372,8 +1444,15 @@ function buildTour(view, slides, captures) {
   }
 
   async function go(i) {
-    if (moving || !count) return;
+    if (!count) return;
+    // An ordinary flight is 2.6 s and interrupting one buys nothing but a
+    // stutter, so those still latch. A lap is fifteen, and a viewer who reaches
+    // for an arrow in the middle of one means it.
+    if (cutTheLap) { cutTheLap(); cutTheLap = null; }
+    else if (moving) return;
     const idx = (i + count) % count;
+    const from = current;
+    const mine = ++goTicket;
     moving = true;
     current = idx;
     paint();
@@ -1381,8 +1460,28 @@ function buildTour(view, slides, captures) {
     sweepOwner();
     applyClock(idx);
     matchLighting(slides[idx]);
+    // The lap, where this is the move it was written for: the slideshow is
+    // running, we are arriving at the view it names, and we are coming from the
+    // one before it rather than jumping in from somewhere else.
+    const lap = CONFIG.flyIn?.enabled && playing && idx === lapTarget
+      && from === (idx - 1 + count) % count
+      && !(CONFIG.flyIn.once && lapFlown);
+
     const MAX_FLIGHT = 6000;
     try {
+      if (lap) {
+        lapFlown = true;
+        let cut = false;
+        cutTheLap = () => { cut = true; };
+        await flyLap(
+          view, CONFIG.flyIn,
+          { lat: CONFIG.field.lat, lon: CONFIG.field.lon, z: CONFIG.field.z },
+          (title) => view.map.allLayers.find((l) => l.title === title),
+          () => cut || goTicket !== mine,
+          slides[idx].viewpoint?.camera
+        );
+        cutTheLap = null;
+      }
       // Bounded, because `moving` is a latch: if applyTo ever fails to settle -
       // a flight interrupted at the wrong moment, a tab backgrounded mid-
       // animation - the rail would be dead for the rest of the session, arrows
@@ -1390,7 +1489,10 @@ function buildTour(view, slides, captures) {
       // something is genuinely stuck.
       await Promise.race([
         slides[idx].applyTo(view, {
-          animate: true,
+          // The lap has already landed on this slide's camera, so there is
+          // nothing left to fly; applyTo is only here to set the layers and the
+          // environment the slide asks for.
+          animate: !lap,
           duration: CONFIG.flyDuration,
           easing: "in-out-cubic",
           maxDuration: MAX_FLIGHT
@@ -1398,6 +1500,9 @@ function buildTour(view, slides, captures) {
         new Promise((done) => setTimeout(done, MAX_FLIGHT + 500))
       ]);
     } catch { /* interrupted by user navigation — harmless */ }
+    // Superseded while in the air: the move that replaced this one owns the
+    // view, the latch and the dwell, and this one must not touch any of them.
+    if (goTicket !== mine) return;
     // Insurance only: slide environments are nulled at load, so applyTo should
     // not have touched the sky. The slide's visibleLayers list predates the
     // lights layer though, so applying one switches it off - tickClock puts it
