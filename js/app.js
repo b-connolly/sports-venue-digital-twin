@@ -261,7 +261,17 @@ const CONFIG = {
     // Both night views want their stars. An overcast ceiling hides them, and
     // whether it happens to be cloudy in Denver tonight should not decide
     // whether these two work.
-{ title: "Stadium at Night", clock: "22:30", sky: "sunny" },
+    // `clockMs` walks the sun down instead of cutting to half ten. Arriving
+    // here from the football, which runs on real time, the cut was the whole of
+    // the afternoon in one frame - the flight starts and the world is already
+    // dark. Walked instead, it reads as dusk falling while the camera moves.
+    //
+    // How far it has to walk depends entirely on when somebody opens the app,
+    // which is the one thing here that is not fixed: at two in the afternoon it
+    // is eight hours of sun in four seconds, and at nine in the evening it is
+    // barely one. The duration is held constant rather than the rate, because a
+    // constant rate would mean a thirty-second sunset at midday.
+    { title: "Stadium at Night", clock: "22:30", clockMs: 4200, sky: "sunny" },
     // Arrives at half ten, then walks the sun down towards midnight. "24:00" is
     // the end of the local day, not the start of it. The stop is deliberately
     // shorter than the sweep - a viewer watches the stars travel a stretch of
@@ -1354,7 +1364,7 @@ function buildTour(view, slides, captures) {
    * than after it, so the sky is already right when the camera arrives instead
    * of changing under it once it lands.
    */
-  function applyClock(idx) {
+  function applyClock(idx, slide) {
     // The sky a view insists on, if any. Nothing to save and restore: `imposed`
     // is only ever set from here, so clearing it is enough to hand the weather
     // back to whatever the viewer or the feed had decided.
@@ -1363,14 +1373,35 @@ function buildTour(view, slides, captures) {
       sky.imposed = wantSky;
       paintSky(view);
     }
-    const want = viewAt(idx + 1)?.clock;
+    const spec = viewAt(idx + 1);
+    const want = spec?.clock;
+    stopFollowingLight();
     if (want) {
       const [hh, mm] = want.split(":").map(Number);
       if (!clockWas) {
         clockWas = { date: view.environment.lighting.date ?? new Date(), manual: sky.manual };
       }
       sky.manual = true;                        // stop the live clock overwriting it
-      view.environment.lighting.date = localInstant(sky.tz, hh, mm);
+      const to = localInstant(sky.tz, hh, mm);
+      // A view that wants the light walked rather than cut hands the time to
+      // the slide and lets the flight carry it.
+      //
+      // applyTo animates the view's lighting towards the slide's - that is the
+      // behaviour matchLighting exists to cancel, because normally it drags the
+      // live sky back to the scene's authored midday. Here it is exactly what
+      // is wanted, so the slide is stamped with the destination instead of with
+      // the present and the animation is left to run. Camera and sun then move
+      // on the same clock, which is the only way they stay in step: writing the
+      // date from here at the same time means two animations driving one value,
+      // and the flight's wins in bursts.
+      const own = slide?.environment?.lighting;
+      if (spec.clockMs > 0 && own) {
+        own.date = to;
+        if (sky.offsetHours != null) own.displayUTCOffset = sky.offsetHours;
+        followLight(spec.clockMs);
+        return;
+      }
+      view.environment.lighting.date = to;
     } else if (clockWas) {
       sky.manual = clockWas.manual;
       view.environment.lighting.date = clockWas.date;
@@ -1383,6 +1414,38 @@ function buildTour(view, slides, captures) {
     tickClock(view);
     // Last, once the date has settled either way: the handle follows the sun.
     sliderOwner(view.environment.lighting.date);
+  }
+
+  /**
+   * Re-decide the stadium lights while the sun is being walked down.
+   *
+   * tickClock is what turns them on and off, from the sun's actual altitude,
+   * and it normally runs on a thirty-second timer - which is the right interval
+   * for a clock that advances a second at a time and far too slow for one
+   * crossing eight hours in four. Applying the night slide switches the lights
+   * on at the start of the flight, from the layer list the slide was saved
+   * with, and without this nothing would disagree until the flight had landed:
+   * floodlights on over an afternoon sky for the whole of the transition.
+   *
+   * Runs a little past the end so the last frame of the walk is judged too.
+   */
+  const LIGHT_STEP_MS = 150;
+  let lightRaf = null;
+  function stopFollowingLight() {
+    if (lightRaf) cancelAnimationFrame(lightRaf);
+    lightRaf = null;
+  }
+  function followLight(ms) {
+    stopFollowingLight();
+    const t0 = performance.now();
+    let last = 0;
+    const step = (now) => {
+      if (now - last >= LIGHT_STEP_MS) { last = now; tickClock(view); }
+      if (now - t0 < ms + 400) { lightRaf = requestAnimationFrame(step); return; }
+      lightRaf = null;
+      tickClock(view);
+    };
+    lightRaf = requestAnimationFrame(step);
   }
 
   /** How long to hold a view before moving on, in the slideshow. */
@@ -1458,8 +1521,11 @@ function buildTour(view, slides, captures) {
     paint();
     releaseCamera();
     sweepOwner();
-    applyClock(idx);
     matchLighting(slides[idx]);
+    // After matchLighting, not before: a walking clock has to keep stamping the
+    // slide as it goes, and matchLighting would otherwise overwrite the first
+    // stamp with the time the walk started from.
+    applyClock(idx, slides[idx]);
     // The lap, where this is the move it was written for: the slideshow is
     // running, we are arriving at the view it names, and we are coming from the
     // one before it rather than jumping in from somewhere else.
@@ -1493,7 +1559,10 @@ function buildTour(view, slides, captures) {
           // nothing left to fly; applyTo is only here to set the layers and the
           // environment the slide asks for.
           animate: !lap,
-          duration: CONFIG.flyDuration,
+          // A view that walks its clock flies for as long as the walk takes -
+          // the lighting animation is part of the flight, so the flight sets
+          // its pace.
+          duration: viewAt(idx + 1)?.clockMs || CONFIG.flyDuration,
           easing: "in-out-cubic",
           maxDuration: MAX_FLIGHT
         }),
