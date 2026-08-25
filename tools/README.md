@@ -16,6 +16,8 @@ Run them with the Python that has Pillow, from this folder.
 | `anonymise.py` | the last step of every play file | Drops `name` and `jersey` from every player and the names from the play description; `meta.carrier` becomes an index. The renderer never reads any of it. |
 | `make_field.py` | `assets/field.jpg` | The painted gridiron. The midfield mark is two constants at the top (`LOGO_LEN_YD`, `LOGO_HGT_YD`). |
 | `make_pitch.py` | `assets/pitch.jpg` | The football pitch: regulation markings, no club marks, with an apron of grass around them. |
+| `bundle.py` | `../build/dist` | A bundled copy of the app, generated from these same files, for the hosted comparison. Not needed to run anything. |
+| `smoke.py` | nothing | Drives the app in headless Chrome and checks all six replays still work. Run before a deploy and again after one. |
 
 ## Getting the source data
 
@@ -190,6 +192,30 @@ propy kickoff.py      # reads and writes soccer.json
 Every committed file under `data/` and the two textures rebuild byte-identically
 from these scripts, so a rebuild that produces a diff means something actually
 changed.
+
+## Checking it still works
+
+```bash
+propy smoke.py                                    # a local server
+propy smoke.py https://b-connolly.github.io/sports-venue-digital-twin/
+```
+
+Opens the app in headless Chrome, clicks through all six passages, and
+asserts what should be on screen: each play loads with frames, the Draw Play
+checkbox is offered where a play has a route to draw and hidden where it has
+not, the diagram draws both its lines, a football passage is blank before its
+delivery, and the A and G shortcuts change sport. Exits non-zero if anything
+failed, so it can gate a deploy.
+
+It exists because everything that has gone wrong here has been visual and
+timed rather than syntactic - a diagram that drew nothing at all while its
+geometry read back perfectly, a keyboard shortcut that had never once worked,
+a bundled build whose sky was missing because a caret let npm install a
+different SDK. None of those fail a linter. All of them fail this.
+
+Needs `websocket-client` and Chrome. Nothing is installed into the app: the
+browser is driven over the DevTools protocol in a throwaway profile.
+
 
 ## The painted surfaces
 
