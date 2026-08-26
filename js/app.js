@@ -859,6 +859,14 @@ async function main() {
     // A debugging handle, and only that - nothing in the app reads it, the same
     // way __play and __field are only there to be poked at from a console.
     window.__view = view;
+    // The same, for the clock. Setting the scene's date is not enough to move
+    // the sun on its own: tickClock writes the live time back every second
+    // unless something has claimed manual control, so anything trying to ask
+    // "what happens at ten at night" needs to say so first. Without this the
+    // lighting rules cannot be tested from outside at all - a test that set
+    // the date and looked a moment later was reading the live clock again and
+    // reporting the app broken when it was the test that was.
+    window.__sky = sky;
     bar.over(56, 2000);
     // The web scene carries its own authored environment — a fixed
     // 2026-03-15 12:00 Denver, cloudy — and it is applied during load, which
@@ -2409,13 +2417,27 @@ function tickClock(view) {
   // The floodlights follow the light, not just the switch: a replay left open
   // across sunrise should not still be lit from the camera at nine in the
   // morning, and the control should not still be offering it.
-  if (els.lightsBtn && !els.lightsBtn.hidden) {
-    const dark = sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon)
-      < CONFIG.nightLayers.litBelowDeg;
-    if (!dark) {
-      els.lightsBtn.hidden = true;
-      if (sky.lit) setLights(view, false);
-    }
+  // The sun decides what the lights *default* to, and nothing more. It used to
+  // decide whether they could be had at all - the switch appeared below six
+  // degrees of altitude and was withdrawn above it - and that is the wrong
+  // call: a stadium bowl is its own shade, and a low morning sun leaves the
+  // ground dim enough to want lighting at half past eight. Whether it looks
+  // dark from inside is the viewer's judgement, not the sun's.
+  //
+  // So both of these are edges, never states. Asserting either every tick
+  // would take the switch away from whoever pressed it: on all night would
+  // undo a deliberate blackout a second later, and off all day would undo
+  // exactly the morning case above.
+  const dark = sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon)
+    < CONFIG.nightLayers.litBelowDeg;
+  const dusk = dark && sky.wasDark === false;
+  const dawn = !dark && sky.wasDark === true;
+  sky.wasDark = dark;
+
+  if (els.lightsBtn && els.ppanel && !els.ppanel.hidden) {
+    els.lightsBtn.hidden = false;
+    if (dusk) setLights(view, true);
+    else if (dawn && sky.lit) setLights(view, false);
   }
   if (sky.nightLayers) {
     sky.nightLayers.forEach((l) => { l.visible = night; });
@@ -3412,15 +3434,19 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       // where it is kicked, a delivery and a finish where it is a goal.
       // The floodlights belong to the replay: it is the one part of the app
       // that is about watching something happen on the field, and the only one
-      // that suffers for the field being dark. Switched on for you when it is
-      // dark enough to matter, and yours to switch off.
-      // Only after dark, and that is not a nicety. Virtual lighting replaces
-      // the sun for the whole scene rather than for the ground - there is no
-      // bounded light source in the SDK to put inside a stadium - so in
-      // daylight it flattens the car parks, the trees and the interstate along
-      // with the field, and lights a field that is already lit. Offered when it
-      // is dark enough to be worth having and withdrawn when it is not.
-      els.lightsBtn.hidden = !afterDark(view);
+      // that suffers for the field being dark. Switched on for you after dark,
+      // offered at every other hour, and yours either way.
+      //
+      // It used to be offered only after dark, on the grounds that virtual
+      // lighting replaces the sun for the whole scene rather than for the
+      // ground - there is no bounded light source in the SDK to put inside a
+      // stadium - so in daylight it flattens the car parks, the trees and the
+      // interstate along with the field. That cost is real and it is still
+      // paid. What was wrong was deciding on the viewer's behalf that it was
+      // never worth paying: a bowl is its own shade, and a low sun at half
+      // past eight leaves the ground dim while the sky says broad daylight.
+      // The sun is a good guess at the default and a bad judge of the answer.
+      els.lightsBtn.hidden = false;
       if (afterDark(view) && !sky.lit) setLights(view, true);
       paintFixtures();
       canDraw = p.data.meta.sport === "gridiron"
