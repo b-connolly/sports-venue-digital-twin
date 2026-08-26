@@ -271,9 +271,12 @@ const CONFIG = {
   //
   // `dwellMs` matters for a view that exists to show something happening: hold
   // it for less than that thing takes and the show cuts away mid-way, which is
-  // what it did to the sun walking down to midnight. A view whose `opens` names
-  // a play is also that play's stand camera, which is what Fan Perspective
-  // flies to.
+  // what it did to the sun walking down to midnight.
+  //
+  // A view whose `opens` names a play is flown to on the broadcast camera,
+  // which is computed from the playing surface rather than saved on the slide -
+  // see broadcastCamera in play.js. The slide's own camera is not used, so
+  // renaming or re-saving these views cannot move where the replay begins.
   views: [
     // Both night views want their stars. An overcast ceiling hides them, and
     // whether it happens to be cloudy in Denver tonight should not decide
@@ -305,7 +308,10 @@ const CONFIG = {
     // and the dwell with it.
     { title: ["Gameday Experience (American Football)",
               "Fan Perspective (American Football)"],
-      opens: "gridiron", dwellMs: 26000 },
+      // Sized for the replay alone. The opening pass runs before this one and
+      // takes twelve seconds of its own, so the two together were holding this
+      // view for the better part of a minute.
+      opens: "gridiron", dwellMs: 16000 },
     { title: ["Gameday Experience (Football)", "Fan Perspective (Football)"],
       opens: "football", dwellMs: 44000 }
   ],
@@ -1418,9 +1424,14 @@ const viewAt = (n) => viewSpecs.get(n);
 let sweepOwner = () => {};
 
 /**
- * Hands the clock back to real time. Set by the time tool, called by the Live
- * control - which has to stand down a running sweep and the slider's own idea
- * of the time as well as the weather, or the sun springs back a moment later.
+ * Stands down whatever is currently driving the clock - a running sweep, and
+ * the slider's own idea of the time - so that something else may set it.
+ *
+ * It stands them down and stops there. It used to go live as well, which read
+ * naturally until goLive itself began calling it: goLive stood the drivers
+ * down, the driver went live, going live stood the drivers down, and the stack
+ * ran out. Standing down is the part every caller needs; deciding what the time
+ * should be afterwards is the caller's business.
  */
 let liveOwner = () => {};
 
@@ -1500,7 +1511,7 @@ function buildTour(view, slides, captures) {
     if (want) {
       const [hh, mm] = want.split(":").map(Number);
       if (!clockWas) {
-        clockWas = { date: view.environment.lighting.date ?? new Date(), manual: sky.manual };
+        clockWas = { date: nowDate(view), manual: sky.manual };
       }
       sky.manual = true;                        // stop the live clock overwriting it
       const to = localInstant(sky.tz, hh, mm);
@@ -2241,9 +2252,18 @@ function paintSky(view) {
   paintLive();
 }
 
-/** The Live control reads as pressed only when nothing has been overridden. */
+/**
+ * The Live control reads as pressed only when nothing has been overridden.
+ *
+ * The floodlights count as an override. They are not a time and not a weather,
+ * but the chip's promise is "the conditions at the venue right now", and a
+ * ground lit from the camera is not that. Left out of this the chip sat there
+ * reading LIVE over an artificially lit scene - and, because the pill disables
+ * itself when nothing is overridden, the one control that would have put the
+ * sun back was the one control that could not be pressed.
+ */
 function paintLive() {
-  const off = sky.manual || !!sky.picked || !!sky.imposed;
+  const off = sky.manual || !!sky.picked || !!sky.imposed || sky.lit;
   els.wxLive.textContent = off ? "Live" : "Live";
   els.wxLive.classList.toggle("on", !off);
   els.weather.classList.toggle("manual", off);
@@ -2311,12 +2331,50 @@ function paintFixtures() {
   }
 }
 
-/** Is it dark enough at the venue for the floodlights to be worth having? */
-function afterDark(view) {
-  const when = sky.lit
+/**
+ * What time the app thinks it is.
+ *
+ * Not always what the sun thinks. With the floodlights on the view carries
+ * virtual lighting, which has no date at all, and reading one off it gives
+ * null - so every caller that wanted "now" got the wall clock instead and
+ * quietly lost whatever the viewer had set. One reader, so that cannot happen
+ * in a place nobody thought to check.
+ */
+function nowDate(view) {
+  return sky.lit
     ? (sky.date ?? new Date())
     : (view.environment.lighting.date ?? new Date());
-  return sunAltitudeDeg(when, CONFIG.site.lat, CONFIG.site.lon)
+}
+
+/**
+ * Hand the sky, the clock and the light back to the venue as it is right now.
+ *
+ * There were two of these - the weather chip's LIVE pill and the time panel's
+ * own button - and they did different things. The panel's stood the floodlights
+ * down and reset the slider; the chip's did neither, so pressing it left the
+ * scene lit from the camera while claiming to show live conditions, and its
+ * write to the sun's date landed on a lighting object that has none.
+ *
+ * They still differ, and should: the two buttons promise different things. The
+ * chip offers "the conditions and the time at the venue right now" and hands
+ * back the weather with the clock; the panel offers only to "resume tracking
+ * the real clock", and a viewer who picked snow while scrubbing the afternoon
+ * should keep their snow. That is what the weather option is for - the shared
+ * part is the clock, the sun and the lights, which is where the bug was.
+ */
+function goLive(view, { weather = true } = {}) {
+  setLights(view, false);
+  if (weather) { sky.picked = null; sky.imposed = null; }
+  sky.manual = false;
+  liveOwner();                      // stand down a sweep, and the slider with it
+  view.environment.lighting.date = new Date();
+  if (weather) paintSky(view);
+  tickClock(view);
+}
+
+/** Is it dark enough at the venue for the floodlights to be worth having? */
+function afterDark(view) {
+  return sunAltitudeDeg(nowDate(view), CONFIG.site.lat, CONFIG.site.lon)
     < CONFIG.nightLayers.litBelowDeg;
 }
 
@@ -2326,9 +2384,7 @@ function tickClock(view) {
   // what advances and what everything below reads.
   if (!sky.manual && !sky.lit) view.environment.lighting.date = new Date();
   if (sky.lit && !sky.manual) sky.date = new Date();
-  const now = sky.lit
-    ? (sky.date ?? new Date())
-    : (view.environment.lighting.date ?? new Date());
+  const now = nowDate(view);
 
   if (!sky.tz) return;
   const hhmm = clockAt(sky.tz, { hour: "numeric", minute: "2-digit" });
@@ -2423,16 +2479,7 @@ function wireWeather(view) {
     if (e.key === "Escape" && !els.wxMenu.hidden) menu(false);
   });
 
-  els.wxLive.addEventListener("click", () => {
-    // Everything back: the viewer's sky, a view's insistence, and the clock.
-    sky.picked = null;
-    sky.imposed = null;
-    sky.manual = false;
-    liveOwner();                      // stand down a sweep, and the slider with it
-    view.environment.lighting.date = new Date();
-    paintSky(view);
-    tickClock(view);
-  });
+  els.wxLive.addEventListener("click", () => { goLive(view); sliderOwner(new Date()); });
   paintLive();
 }
 
@@ -2466,7 +2513,7 @@ function buildTimeOfDay(view) {
 
   const dayBounds = () => {
     // Midnight-to-midnight of the day currently being shown, in site local time.
-    const cur = view.environment.lighting.date ?? new Date();
+    const cur = nowDate(view);
     const p = Object.fromEntries(clockAt(sky.tz, {
       year: "numeric", month: "2-digit", day: "2-digit"
     }).formatToParts(cur).map((x) => [x.type, x.value]));
@@ -2542,7 +2589,7 @@ function buildTimeOfDay(view) {
     open();
     stopSweep();
     const [hh, mm] = String(toHHMM).split(":").map(Number);
-    const from = new Date(view.environment.lighting.date ?? Date.now()).getTime();
+    const from = new Date(nowDate(view)).getTime();
     const to = localInstant(sky.tz, hh, mm, new Date(from)).getTime();
     if (!(to > from)) return;                 // already past it; nothing to do
     sky.manual = true;
@@ -2582,12 +2629,12 @@ function buildTimeOfDay(view) {
     els.timeOfDay.classList.remove("active");
   }
   function live() {
-    setLights(view, false);
-    const now = new Date();
-    sky.manual = false;
-    view.environment.lighting.date = now;
+    // The clock, not the weather: see goLive. goLive stands the sweep and the
+    // slider down on the way past, so the handle below is being moved onto a
+    // clock that has already been set rather than fighting one.
+    goLive(view, { weather: false });
+    const now = nowDate(view);
     if (slider) {
-      slider.viewModel?.stop?.();
       const [start, end] = dayBounds();
       slider.fullTimeExtent = new T.TimeExtent({ start, end });
       programmatic = now;
@@ -2595,8 +2642,12 @@ function buildTimeOfDay(view) {
     }
     tickClock(view);
   }
-  // The weather chip's Live control has to put the clock back too.
-  liveOwner = () => { stopSweep(); live(); };
+  // Only the standing-down. Whoever called is about to set the clock itself.
+  liveOwner = () => {
+    stopSweep();
+    if (!slider) return;
+    slider.viewModel?.stop?.();
+  };
   // And the rail has to be able to move the handle without this reading it as
   // somebody grabbing the slider - hence `programmatic`, the same way live()
   // and the sweep do it.
@@ -3307,6 +3358,8 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     onPick(fn) { onPick = fn; },
     /** Hand over the seat chooser, which Fan Perspective defers to. */
     useSeats(s) { seatsRef = s; },
+    /** The keyboard's way in, which is Fan Perspective's way in. */
+    chooseSeat() { if (shown && api) setCam("fan"); },
     /** Redraw the optional controls, after something outside changed them. */
     repaint() { paintFooter(); },
     /** A play's own button closes it; any other switches over to it. */
@@ -3515,8 +3568,42 @@ function buildSeats(view, surfacesReady, onTaken) {
    * directly gives the opposite and looks like a turret.
    */
   const FOLLOW_K = 0.045;        // per frame, towards the ball
+  let seat = null;               // the seat to resume following from
+  let handedOver = false;        // the viewer has taken the camera
+
+  /**
+   * Give the camera up when the viewer reaches for it.
+   *
+   * Player Highlight has done this from the start and a seat has to as well:
+   * a camera that keeps pulling back to the ball while somebody is trying to
+   * look around is unusable, and from a fixed seat there is nowhere for them
+   * to go. The same button offers it back - it says "recenter on the ball",
+   * which is exactly what it does from a seat too.
+   *
+   * `interacting` is the viewer's own input and nothing else; a camera written
+   * from script does not set it, so the follow cannot trip this itself.
+   */
+  reactiveUtils.watch(() => view.interacting, (busy) => {
+    if (!busy || !follow) return;
+    stopFollow();
+    handedOver = true;
+    els.precenter.hidden = false;
+  });
+
+  els.precenter.addEventListener("click", () => {
+    // Shared with Player Highlight, which ignores the click unless it is the
+    // camera in charge; this does the same from the other side.
+    if (!handedOver || !seat) return;
+    handedOver = false;
+    els.precenter.hidden = true;
+    startFollow(seat);
+  });
+
   function startFollow(cam) {
     stopFollow();
+    seat = cam;
+    handedOver = false;
+    els.precenter.hidden = true;
     const step = () => {
       const p = window.__play;
       const ball = p?.ballEN?.();
@@ -3865,7 +3952,11 @@ function wireKeys(view, tour, tools) {
       case "a": case "A": tools.liveAction.toggle("gridiron"); break;
       case "g": case "G": tools.liveAction.toggle("football"); break;
       case "h": case "H": els.home.click(); break;
-      case "s": case "S": tools.seats.open(); break;
+      // Only where it means something. The chooser lives inside the replay
+      // now, and opening it from anywhere else leaves a viewer sitting in a
+      // stand with the panel still reading Broadcast and no way back to the
+      // list - the control that reopens it is only shown in Fan Perspective.
+      case "s": case "S": tools.liveAction.chooseSeat(); break;
       case "c": case "C": copyCamera(view); break;
     }
   });
