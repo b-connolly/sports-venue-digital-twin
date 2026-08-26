@@ -1,0 +1,447 @@
+{
+ "_source": "denverbroncos.io-media.com/web/confignew.json (IOMEDIA Virtual Venue), read 2026-08-25",
+ "_what": "The zone each section is sold as. Used to check the bearings in js/seats.js against a source that knows nothing about bearings.",
+ "zones": {
+  "100": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "101": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "102": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "103": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "104": [
+   "Field Level - Between Goal Lines",
+   "Field Level Prime"
+  ],
+  "105": [
+   "Field Level Prime",
+   "Lower Prime"
+  ],
+  "106": [
+   "Field Level - Between Goal Lines",
+   "Field Level Prime"
+  ],
+  "107": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "108": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "109": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "110": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "111": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "112": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "113": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "114": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "115": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "116": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "117": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "118": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "119": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "120": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "121": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "122": [
+   "Field Level - Between Goal Lines",
+   "Field Level Prime"
+  ],
+  "123": [
+   "Field Level Prime",
+   "Lower Prime"
+  ],
+  "124": [
+   "Field Level - Between Goal Lines",
+   "Field Level Prime"
+  ],
+  "125": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "126": [
+   "Field Level - Between Goal Lines",
+   "Lower Prime"
+  ],
+  "127": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "128": [
+   "Field Level - Corner End Zone",
+   "Field Level Upper - Corner End Zone"
+  ],
+  "129": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "130": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "131": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "132": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "133": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "134": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "135": [
+   "Field Level - End Zone",
+   "Field Level Upper - End Zone"
+  ],
+  "228": [
+   "Plaza Level End Zone"
+  ],
+  "229": [
+   "Plaza Level End Zone"
+  ],
+  "230": [
+   "Plaza Level End Zone"
+  ],
+  "231": [
+   "Plaza Level End Zone"
+  ],
+  "232": [
+   "Plaza Level End Zone"
+  ],
+  "233": [
+   "Plaza Level End Zone"
+  ],
+  "234": [
+   "Plaza Level End Zone"
+  ],
+  "235": [
+   "Plaza Level End Zone"
+  ],
+  "236": [
+   "Plaza Level End Zone"
+  ],
+  "300": [
+   "United Club West"
+  ],
+  "301": [
+   "United Club West"
+  ],
+  "302": [
+   "United Club West"
+  ],
+  "303": [
+   "United Club West"
+  ],
+  "304": [
+   "United Club West"
+  ],
+  "305": [
+   "United Club West"
+  ],
+  "306": [
+   "United Club West"
+  ],
+  "307": [
+   "United Club West"
+  ],
+  "308": [
+   "United Club West"
+  ],
+  "309": [
+   "United Club West"
+  ],
+  "310": [
+   "United Club West"
+  ],
+  "311": [
+   "United Club West"
+  ],
+  "312": [
+   "United Club West"
+  ],
+  "313": [
+   "United Club West"
+  ],
+  "314": [
+   "United Club West"
+  ],
+  "315": [
+   "United Club West"
+  ],
+  "316": [
+   "300 Level North End Zone"
+  ],
+  "317": [
+   "300 Level North End Zone"
+  ],
+  "318": [
+   "300 Level North End Zone"
+  ],
+  "319": [
+   "300 Level North End Zone"
+  ],
+  "320": [
+   "300 Level North End Zone"
+  ],
+  "321": [
+   "300 Level North End Zone"
+  ],
+  "322": [
+   "300 Level North End Zone"
+  ],
+  "323": [
+   "300 Level North End Zone"
+  ],
+  "324": [
+   "300 Level North End Zone"
+  ],
+  "325": [
+   "300 Level North End Zone"
+  ],
+  "326": [
+   "300 Level North End Zone"
+  ],
+  "327": [
+   "300 Level North End Zone"
+  ],
+  "328": [
+   "300 Level North End Zone"
+  ],
+  "329": [
+   "300 Level North End Zone"
+  ],
+  "330": [
+   "300 Level North End Zone"
+  ],
+  "331": [
+   "United Club East"
+  ],
+  "332": [
+   "United Club East"
+  ],
+  "333": [
+   "United Club East"
+  ],
+  "334": [
+   "United Club East"
+  ],
+  "335": [
+   "United Club East"
+  ],
+  "336": [
+   "United Club East"
+  ],
+  "337": [
+   "United Club East"
+  ],
+  "338": [
+   "United Club East"
+  ],
+  "339": [
+   "United Club East"
+  ],
+  "340": [
+   "United Club East"
+  ],
+  "341": [
+   "United Club East"
+  ],
+  "342": [
+   "United Club East"
+  ],
+  "343": [
+   "United Club East"
+  ],
+  "344": [
+   "United Club East"
+  ],
+  "345": [
+   "United Club East"
+  ],
+  "346": [
+   "United Club East"
+  ],
+  "500": [
+   "Upper Level - Corner End Zone"
+  ],
+  "501": [
+   "Upper Level - Corner End Zone"
+  ],
+  "502": [
+   "Upper Level - Corner End Zone"
+  ],
+  "503": [
+   "Upper Level - Corner End Zone"
+  ],
+  "504": [
+   "Upper Level - Corner End Zone"
+  ],
+  "505": [
+   "Upper Level - Sideline"
+  ],
+  "506": [
+   "Upper Level - Sideline"
+  ],
+  "507": [
+   "Upper Level - Sideline"
+  ],
+  "508": [
+   "Upper Level - Sideline"
+  ],
+  "509": [
+   "Upper Level - Sideline"
+  ],
+  "510": [
+   "Upper Level - Sideline"
+  ],
+  "511": [
+   "Upper Level - Sideline"
+  ],
+  "512": [
+   "Upper Level - Corner End Zone"
+  ],
+  "513": [
+   "Upper Level - Corner End Zone"
+  ],
+  "514": [
+   "Upper Level - Corner End Zone"
+  ],
+  "515": [
+   "Upper Level - Corner End Zone"
+  ],
+  "516": [
+   "Upper Level - North End Zone"
+  ],
+  "517": [
+   "Upper Level - North End Zone"
+  ],
+  "518": [
+   "Upper Level - North End Zone"
+  ],
+  "519": [
+   "Upper Level - North End Zone"
+  ],
+  "520": [
+   "Upper Level - North End Zone"
+  ],
+  "521": [
+   "Upper Level - North End Zone"
+  ],
+  "522": [
+   "Upper Level - North End Zone"
+  ],
+  "523": [
+   "Upper Level - North End Zone"
+  ],
+  "524": [
+   "Upper Level - North End Zone"
+  ],
+  "525": [
+   "Upper Level - North End Zone"
+  ],
+  "526": [
+   "Upper Level - North End Zone"
+  ],
+  "527": [
+   "Upper Level - Corner End Zone"
+  ],
+  "528": [
+   "Upper Level - Corner End Zone"
+  ],
+  "529": [
+   "Upper Level - Corner End Zone"
+  ],
+  "530": [
+   "Upper Level - Corner End Zone"
+  ],
+  "531": [
+   "Upper Level - Sideline"
+  ],
+  "532": [
+   "Upper Level - Sideline"
+  ],
+  "533": [
+   "Upper Level - Sideline"
+  ],
+  "534": [
+   "Upper Level - Sideline"
+  ],
+  "535": [
+   "Upper Level - Sideline"
+  ],
+  "536": [
+   "Upper Level - Sideline"
+  ],
+  "537": [
+   "Upper Level - Sideline"
+  ],
+  "538": [
+   "Upper Level - Corner End Zone"
+  ],
+  "539": [
+   "Upper Level - Corner End Zone"
+  ],
+  "540": [
+   "Upper Level - Corner End Zone"
+  ],
+  "541": [
+   "Upper Level - Corner End Zone"
+  ],
+  "542": [
+   "Upper Level - Corner End Zone"
+  ]
+ }
+}

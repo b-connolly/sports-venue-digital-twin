@@ -3841,7 +3841,7 @@ function buildSeats(view, surfacesReady, onTaken) {
     els.seatSelect.replaceChildren(...RINGS.map((ring) => {
       const g = document.createElement("optgroup");
       g.label = `${ring.name} level`;
-      for (let i = 0; i < ring.count; i++) {
+      for (let i = 0; i < ring.at.length; i++) {
         const n = ring.first + i;
         const o = document.createElement("option");
         o.value = String(n);

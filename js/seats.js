@@ -7,29 +7,50 @@
  * these are plausible vantages, close enough that "the view from 132" looks
  * like the view from 132, and they are not seat coordinates.
  *
- * ## What is read rather than guessed
+ * ## Bearings are measured, not derived
  *
- * The numbering is regular, and that is the whole trick. Sections run in one
- * direction around each ring at a constant spacing, so a section's bearing is
- * arithmetic rather than a digitised point: the lower bowl has 36 sections at
- * 10 degrees each, starting with 100 due south. It checks out against the
- * seating map at the quarter points - 118 lands north, 128 lands east - which
- * is the sort of thing that would be badly wrong rather than slightly wrong if
- * the model were.
+ * Which way round the bowl a section sits is read off the published seating
+ * chart, one number a section, in the table below. That is worth the 135
+ * literals: every attempt to derive them instead was wrong, and wrong in a way
+ * nothing in the app could show.
  *
- * ## What is modelled
+ * The chart is a plan with a compass on it. Each section is a solid block with
+ * white gaps around it, so labelling connected components finds all 135
+ * without reading a single digit, and normalising radius for the bowl being an
+ * ellipse splits them into decks - the sorted radii break after exactly 36
+ * blocks, then 56, then 43, which is the lower bowl, the 300s sharing a band
+ * with the 200 club, and the 500s. Numbers are then assigned by walking each
+ * ring from one anchor read off the picture by eye: one bearing to get right
+ * instead of 135. tools/digitise_chart.py does it and can be re-run.
  *
- * The rest: how far out each ring sits, how high, and how far the near edge of
- * the seating is set back from the touchline. Four numbers a ring, tuned by
- * standing in them and looking. A bowl is an ellipse rather than a circle -
- * longer along the field than across it - so the distance is a function of
- * bearing, not a constant.
+ * Three independent checks fall out rather than being imposed. 105 lands at
+ * 269.9 degrees, 123 at 90.2 and 132 at 180.0 - due west, due east and due
+ * south, level with the 50 yard line and the middle of the south stand - and
+ * only 114 was anchored, so the other three had every opportunity to disagree.
  *
- * Equal angles rather than equal arc length, which is the one deliberate
- * simplification. Physically the sections are similar widths, so they crowd
- * slightly at the ends of a true ellipse; the map shows nine or ten a side and
- * eight or nine an end, near enough even that the difference is a seat or two
- * of bearing and not worth the arithmetic.
+ * ## Why the arithmetic had to go
+ *
+ * Sections are not evenly spaced. The lower bowl steps by as little as 7.3
+ * degrees and as much as 13.2, because a section is a roughly constant *width*
+ * and the bowl is an ellipse, so the same width subtends a bigger angle where
+ * the ring passes close to the middle. Assuming even spacing puts a section up
+ * to 7.7 degrees out - most of the 9.9 degrees a section occupies - and the
+ * error is worst at the corners, which is exactly where nobody thinks to check.
+ *
+ * Two rounds of guessing came before this. Both produced a bowl in which every
+ * section sat in a plausible seat, facing the field, at a sensible height, and
+ * both were wrong: a whole-model rotation of 40 degrees that survived a check
+ * at the quarter points because it was anchored there. That failure mode is the
+ * argument for measuring.
+ *
+ * ## What is still modelled
+ *
+ * How far out each ring sits, how high, and the set-back from the touchline:
+ * `a`, `b` and `up` below, tuned by standing in them and looking. Those are
+ * deliberately not taken from the chart. A seating chart shrinks the field
+ * relative to the bowl to make room for its labels - this one draws the 100
+ * ring about right but pushes the 500s half as far out again - so its radii are
+ * schematic even though its angles are not.
  */
 import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
 import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
@@ -105,40 +126,89 @@ export const RINGS = [
   // axes are picked independently does not have that property, and the first
   // attempt - 100 by 70 - was 45 m back at the sides and 33 at the ends, which
   // is why one end of the ring could be made to work and the other could not.
-  { name: "100", first: 100, count: 36, at: 180, span: 360, a: 88, b: 60, up: 15 },
+  //
+  // The only ring that closes. 114 sits on the north end, 132 on the south,
+  // 105 and 123 level with the 50 on either touchline.
+  {
+    name: "100", first: 100, closed: true, a: 88, b: 60, up: 15,
+    at: [
+      217.5, 227.4, 234.8, 245.3, 256.8, 269.9, 283.0, 294.6,
+      305.1, 312.5, 322.4, 334.8, 343.5, 351.2,   0.1,   9.0,
+       16.7,  25.4,  37.9,  47.7,  55.2,  65.5,  77.1,  90.2,
+      103.4, 114.8, 125.2, 132.5, 142.3, 154.9, 163.6, 171.1,
+      180.0, 188.7, 196.5, 205.3
+    ]
+  },
 
-  // The club, filling the gap the two rings above it leave at the south end.
-  { name: "200", first: 228, count: 9, at: 100, span: 80, a: 100, b: 74, up: 28 },
+  // The club, filling the arc the two rings above it leave open at the south.
+  // Nine sections across 55 degrees, which is why they look narrow on the plan.
+  {
+    name: "200", first: 228, a: 100, b: 74, up: 28,
+    at: [
+      152.5, 157.9, 164.5, 172.2, 179.8, 187.8, 195.5, 201.8,
+      207.2
+    ]
+  },
 
   // Sideline comfortable from 26 m up at 72 m out; the end wants 98 m, where
   // any height from 30 m works. Beyond about 120 m at either end the camera is
-  // inside the structure rather than on it.
-  { name: "300", first: 300, count: 47, at: 180, span: 280, a: 100, b: 72, up: 30 },
+  // inside the structure rather than on it. Runs 214 degrees round to 146,
+  // anticlockwise past west, north and east, stopping either side of the club.
+  {
+    name: "300", first: 300, a: 100, b: 72, up: 30,
+    at: [
+      214.1, 218.5, 224.7, 230.7, 235.9, 241.6, 248.0, 254.7,
+      262.1, 269.8, 277.6, 285.1, 291.8, 298.3, 303.9, 309.2,
+      315.0, 321.2, 327.2, 333.2, 339.3, 346.0, 353.0,   0.0,
+        7.0,  14.1,  20.8,  26.9,  32.9,  38.9,  45.0,  50.8,
+       56.1,  61.8,  68.2,  74.9,  82.3,  90.1,  97.8, 105.2,
+      111.8, 118.3, 123.9, 129.1, 135.0, 141.0, 145.8
+    ]
+  },
 
   // The top deck. 92 m out on the sideline needs 50 m of height to clear what
   // is above it; 112 m at the end works from 42 m. 126 m does not work at any
   // height tried - that is the back wall.
-  { name: "500", first: 500, count: 43, at: 180, span: 280, a: 112, b: 92, up: 50 }
+  {
+    name: "500", first: 500, a: 112, b: 92, up: 50,
+    at: [
+      215.2, 219.8, 226.3, 233.2, 240.6, 248.9, 256.7, 263.5,
+      270.1, 276.7, 283.5, 291.3, 299.6, 307.0, 313.8, 320.7,
+      327.4, 333.9, 340.6, 347.8, 354.3,   0.1,   6.0,  12.5,
+       19.8,  26.4,  32.9,  39.4,  46.4,  53.2,  60.5,  68.8,
+       76.6,  83.4,  89.9,  96.5, 103.4, 111.1, 119.4, 126.8,
+      133.6, 140.0, 144.4
+    ]
+  }
 ];
 
-/** How far apart a ring's sections sit, in degrees. */
-function stepOf(ring) {
-  const span = ring.span ?? 360;
-  // A closed ring divides the whole turn; an arc has one fewer gap than it has
-  // sections, because both ends are occupied rather than meeting.
-  return span >= 360 ? span / ring.count : span / Math.max(1, ring.count - 1);
+/**
+ * How wide a section is, in degrees, from the gap to each of its neighbours.
+ *
+ * Needed only for drawing the plan. Widths vary by nearly a factor of two round
+ * a ring, so a block drawn at the average would overlap its neighbours at the
+ * sides and leave gaps at the ends.
+ */
+function widthOf(ring, i) {
+  const at = ring.at;
+  const gap = (a, b) => (((at[b] - at[a]) % 360) + 360) % 360;
+  const before = i > 0 ? gap(i - 1, i)
+    : ring.closed ? gap(at.length - 1, 0) : gap(0, 1);
+  const after = i < at.length - 1 ? gap(i, i + 1)
+    : ring.closed ? gap(at.length - 1, 0) : gap(at.length - 2, at.length - 1);
+  return (before + after) / 2;
 }
 
 /** The ring a section belongs to, or null if it is not one we model. */
 export function ringOf(section) {
-  return RINGS.find((r) => section >= r.first && section < r.first + r.count)
-    ?? null;
+  return RINGS.find((r) => section >= r.first
+    && section < r.first + r.at.length) ?? null;
 }
 
 /** Every section this module can place, in numbering order. */
 export function sections() {
   return RINGS.flatMap((r) =>
-    Array.from({ length: r.count }, (_, i) => r.first + i));
+    r.at.map((_, i) => r.first + i));
 }
 
 /**
@@ -153,10 +223,10 @@ export function sectionCamera(cfg, section, surfaceZ) {
   const ring = ringOf(section);
   if (!ring) return null;
 
-  // Bearing round the bowl, then the field's own rotation on top: the bowl is
-  // built around the field, and the field is not quite square to north.
-  const bearing = ring.at + (section - ring.first) * stepOf(ring)
-    + (cfg.field.rotation || 0);
+  // The measured bearing, then the field's own rotation on top. The chart
+  // draws the field square to north; the real one is off by half a degree, and
+  // the bowl is built around the field rather than around the compass.
+  const bearing = ring.at[section - ring.first] + (cfg.field.rotation || 0);
   const th = bearing * DEG;
 
   // An ellipse in the field's frame, so `a` runs along the field and `b`
@@ -199,9 +269,8 @@ export function sectionCamera(cfg, section, surfaceZ) {
 export function sectionPlan(cfg) {
   const surface = cfg.field.surfaces.gridiron;
   const blocks = RINGS.flatMap((ring) => {
-    const step = stepOf(ring);
-    return Array.from({ length: ring.count }, (_, i) => {
-      const local = (ring.at + i * step) * DEG;
+    return ring.at.map((deg, i) => {
+      const local = deg * DEG;
       const out = (ring.a * ring.b) / Math.hypot(
         ring.b * Math.cos(local), ring.a * Math.sin(local));
       return {
@@ -211,7 +280,7 @@ export function sectionPlan(cfg) {
         across: out * Math.sin(local),
         // The block's own size: as wide as its share of the ring, and deep
         // enough to be worth aiming at.
-        wide: (2 * Math.PI * out * (step / 360)) * 0.84,
+        wide: (2 * Math.PI * out * (widthOf(ring, i) / 360)) * 0.84,
         deep: 15,
         // Turned so its long side lies along the ring rather than across it.
         turn: 90 - (local / DEG)
