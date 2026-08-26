@@ -63,15 +63,34 @@ const M_PER_DEG_LON = 111320;
  * the playing surface.
  *
  * Not every ring closes, and that is the shape of this particular ground. The
- * lower bowl goes all the way round. The 300 and 500 rings do not: both stop
- * short at the south end, and the gap they leave is where the 200 club sits.
- * That is why there are only nine 200s and why they are all on one side.
+ * lower bowl goes all the way round. The 300 and 500 rings do not: both run 280
+ * degrees and stop short at the south-east, and the 80 degrees they leave is
+ * exactly where the 200 club sits. That is why there are only nine 200s and why
+ * they are all on one side - and the two arcs tiling the turn between them,
+ * 280 and 80, is the reassurance that the numbers are the ground rather than
+ * three rings that happen to fit the spokes checked.
  *
  * The distances and heights below were each found by standing in them. The
- * bearings were not - they are arithmetic from the numbering, and for the upper
- * rings the arc they run through is read off the printed seating map rather
- * than measured. Those are the numbers to doubt first if a section looks like
- * it is in the wrong part of the ground.
+ * bearings are arithmetic from the numbering, anchored on one fact per ring:
+ * where its first section sits.
+ *
+ * The lower bowl is anchored on a compass. Section 100 is due south, which is
+ * printed on the seating chart rather than inferred.
+ *
+ * The upper rings are anchored on the lower bowl instead, because sections in
+ * the same spoke line up radially and a radial alignment survives the
+ * distortion a chart drawn in perspective puts on everything else. Where a
+ * section *appears* on such a chart cannot be read as a bearing; which section
+ * it sits behind can. Six spokes - 114/323/521, 105/308, 110/316, 118/330,
+ * 100/500, 131/231, 133/233 - agree to within a degree and a half, and they
+ * were each solved separately, so the agreement is a check and not a
+ * restatement.
+ *
+ * That is also how the rings turned out to run 280 degrees rather than the 320
+ * first assumed, and how the 200 club turned out to be 10 degrees a section
+ * like the bowl below it rather than a squeezed 5. The two errors hid each
+ * other: a ring too wide by 40 degrees, started 20 degrees early, puts its
+ * middle in the right place and both its ends in the wrong one.
  */
 export const RINGS = [
   // Tuned by standing in them, and the two axes were tuned against each other
@@ -89,17 +108,17 @@ export const RINGS = [
   { name: "100", first: 100, count: 36, at: 180, span: 360, a: 88, b: 60, up: 15 },
 
   // The club, filling the gap the two rings above it leave at the south end.
-  { name: "200", first: 228, count: 9, at: 160, span: 45, a: 100, b: 74, up: 28 },
+  { name: "200", first: 228, count: 9, at: 100, span: 80, a: 100, b: 74, up: 28 },
 
   // Sideline comfortable from 26 m up at 72 m out; the end wants 98 m, where
   // any height from 30 m works. Beyond about 120 m at either end the camera is
   // inside the structure rather than on it.
-  { name: "300", first: 300, count: 47, at: 200, span: 320, a: 100, b: 72, up: 30 },
+  { name: "300", first: 300, count: 47, at: 180, span: 280, a: 100, b: 72, up: 30 },
 
   // The top deck. 92 m out on the sideline needs 50 m of height to clear what
   // is above it; 112 m at the end works from 42 m. 126 m does not work at any
   // height tried - that is the back wall.
-  { name: "500", first: 500, count: 43, at: 200, span: 320, a: 112, b: 92, up: 50 }
+  { name: "500", first: 500, count: 43, at: 180, span: 280, a: 112, b: 92, up: 50 }
 ];
 
 /** How far apart a ring's sections sit, in degrees. */
