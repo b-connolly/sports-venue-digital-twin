@@ -145,7 +145,21 @@ def main():
             fails.append(name)
 
     def probe():
-        return json.loads(c.js(PROBE))
+        """The app's state, or empty zeroes if there is no app to ask.
+
+        PROBE answers {none:true} when window.__play is missing, and every
+        caller here indexes the answer. Reading a key that is not there raises,
+        and a test that dies on a KeyError says nothing about what went wrong -
+        it looks identical whether the diagram failed, the page was blank, or
+        Chrome went away mid-run. All three have happened. Filling in zeroes
+        turns each of them into a plain FAIL with the numbers next to it.
+        """
+        st = json.loads(c.js(PROBE) or '{"none":true}')
+        if st.get("none"):
+            return {"none": True, "shown": None, "sport": None, "frames": 0,
+                    "hidden": None, "on": None, "vis": None, "dur": 0,
+                    "a": 0, "b": 0}
+        return st
 
     def wait_play(limit=45):
         for _ in range(limit):
@@ -178,7 +192,30 @@ def main():
             wait_play(120)
         time.sleep(9)
 
-        ok("app loaded", bool(c.js("!!window.__play")))
+        loaded = bool(c.js("!!window.__play"))
+        ok("app loaded", loaded)
+        if not loaded:
+            # Everything after this reads window.__play, so there is nothing to
+            # learn from running it - and plenty to lose, because the first
+            # thing it does is index a probe that has no keys, and a traceback
+            # says far less than the two lines below.
+            #
+            # The usual cause is not the app at all. A bucket prefix served
+            # over the S3 REST endpoint has no directory index, and if a
+            # zero-byte placeholder object sits at that key it is served as an
+            # empty file: HTTP 200, no body, no error anywhere. The page is
+            # blank and everything looks fine from the outside.
+            body = c.js("document.body ? document.body.innerHTML.length : -1")
+            title = c.js("document.title || ''")
+            print("")
+            print("  the page never started the app.")
+            print("  body is %s bytes, title is %r" % (body, title))
+            if not body or int(body) < 200:
+                print("  that is an empty page - check the URL resolves to a")
+                print("  file. A prefix ending in / needs index.html on it.")
+            fails.append("app never loaded")
+            return 1
+
         ok("slides bound", c.js(IDX) not in ("01 / 01", "?", ""), c.js(IDX))
 
         first = True
@@ -245,12 +282,11 @@ def main():
             fails.append("console errors")
     finally:
         proc.terminate()
-
-    print("")
-    print("%s  (%d failed)" % ("SMOKE TEST PASSED" if not fails
-                               else "SMOKE TEST FAILED", len(fails)))
-    for f in fails:
-        print("   - %s" % f)
+        print("")
+        print("%s  (%d failed)" % ("SMOKE TEST PASSED" if not fails
+                                   else "SMOKE TEST FAILED", len(fails)))
+        for f in fails:
+            print("   - %s" % f)
     return 1 if fails else 0
 
 
