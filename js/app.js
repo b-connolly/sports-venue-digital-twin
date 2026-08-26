@@ -3587,6 +3587,65 @@ function buildSeats(view, surfacesReady, onTaken) {
   let handedOver = false;        // the viewer has taken the camera
 
   /**
+   * Looking around from where you are sitting.
+   *
+   * A scene view has no first-person mode. Left-drag pans the camera over the
+   * ground and right-drag orbits it about the middle of the view; the action map
+   * takes pan, rotate, zoom or none, and every one of them moves the camera
+   * somewhere else. From a seat that is the wrong verb entirely - a spectator
+   * cannot slide sideways over the pitch, they can only turn their head.
+   *
+   * So the drag is taken over while a seat is occupied and turned into heading
+   * and tilt with the position held. One pixel of drag turns the view by one
+   * pixel's worth of its own field of view, which is what makes it feel like
+   * dragging the world rather than nudging a dial: the thing under the cursor
+   * stays roughly under the cursor.
+   *
+   * Tilt is clamped rather than free. Past vertical the view rolls over, and
+   * there is nothing below a seat worth looking at anyway.
+   */
+  const LOOK_MIN_TILT = 20;      // looking up into the roof
+  const LOOK_MAX_TILT = 105;     // and down at the row in front
+  let dragging = null;
+
+  view.on("drag", (e) => {
+    // Only from a seat, and only once one has been taken. Everywhere else the
+    // view navigates the way the rest of the app does.
+    if (!seat || cameraOwnedBySeat() === false) return;
+    e.stopPropagation();
+    if (e.action === "start") {
+      dragging = { x: e.x, y: e.y };
+      // Take the follow off the camera here rather than leaving it to the
+      // view.interacting watch. That watch is the right idea and does fire for
+      // a real hand on a real mouse, but it is a second mechanism reacting to the
+      // same gesture, and while it had not yet fired the follow was still
+      // writing a heading every frame - so a straight vertical drag came out as
+      // a slow horizontal drift and almost no tilt at all.
+      stopFollow();
+      handedOver = true;
+      els.precenter.hidden = false;
+      return;
+    }
+    if (e.action === "end") { dragging = null; return; }
+    if (!dragging) return;
+
+    const c = view.camera;
+    const perPx = (c.fov ?? 55) / Math.max(1, view.width);
+    const heading = c.heading + (dragging.x - e.x) * perPx;
+    const tilt = Math.min(LOOK_MAX_TILT,
+      Math.max(LOOK_MIN_TILT, c.tilt - (dragging.y - e.y) * perPx));
+    dragging = { x: e.x, y: e.y };
+    view.camera = new Camera({
+      position: c.position, heading, tilt, fov: c.fov
+    });
+  });
+
+  /** True while the seat is the thing the camera belongs to. */
+  function cameraOwnedBySeat() {
+    return !!seat && els.seatSheet.hidden;
+  }
+
+  /**
    * Give the camera up when the viewer reaches for it.
    *
    * Player Highlight has done this from the start and a seat has to as well:
