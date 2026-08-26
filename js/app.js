@@ -3641,9 +3641,57 @@ function buildSeats(view, surfacesReady, onTaken) {
   });
 
   /** True while the seat is the thing the camera belongs to. */
-  function cameraOwnedBySeat() {
-    return !!seat && els.seatSheet.hidden;
+  /**
+   * Is the camera still in the seat?
+   *
+   * Asked of the camera rather than remembered, and that is the whole point.
+   * The drag above only ever rewrites heading and tilt, and the follow loop
+   * only ever writes the seat's own position back, so while somebody is sitting
+   * down the position is exactly the one they sat in. Anything else that moves
+   * the camera - a slide, the home button, the tour, another play camera, the
+   * fly-in - moves it somewhere else, and that is the signal.
+   *
+   * The alternative was to have every one of those tell the seat it had been
+   * left, which is what the first version effectively assumed and none of them
+   * did. `seat` was set when a seat was taken and never cleared, so the drag
+   * handler went on swallowing every drag in the app: slides changed underneath
+   * a camera that still turned like a head, and Home flew you out to an aerial
+   * view that still would not let you look around. Asking the camera cannot be
+   * forgotten by a call site that has not been written yet.
+   */
+  const SEAT_EPS_DEG = 5e-6;     // about half a metre
+  const SEAT_EPS_M = 2;
+
+  function atSeat() {
+    if (!seat) return false;
+    const a = view.camera?.position, b = seat.position;
+    if (!a || !b) return false;
+    return Math.abs(a.longitude - b.longitude) < SEAT_EPS_DEG
+      && Math.abs(a.latitude - b.latitude) < SEAT_EPS_DEG
+      && Math.abs((a.z ?? 0) - (b.z ?? 0)) < SEAT_EPS_M;
   }
+
+  function cameraOwnedBySeat() {
+    return !!seat && els.seatSheet.hidden && atSeat();
+  }
+
+  /** Out of the seat altogether: no drag capture, no button, no held state. */
+  function leaveSeat() {
+    if (!seat) return;
+    stopFollow();
+    seat = null;
+    dragging = null;
+    // Only if this seat is the thing showing it. The button is shared with
+    // Player Highlight, which has its own reason to be offering it.
+    if (handedOver) els.precenter.hidden = true;
+    handedOver = false;
+  }
+
+  // Left rather than told. Every way out of a seat ends up here because they
+  // all have to move the camera to be a way out at all.
+  reactiveUtils.watch(() => view.camera, () => {
+    if (seat && !atSeat()) leaveSeat();
+  });
 
   /**
    * Give the camera up when the viewer reaches for it.
@@ -3685,6 +3733,15 @@ function buildSeats(view, surfacesReady, onTaken) {
       // camera should not still be drifting while somebody is picking a
       // different seat underneath it.
       if (!ball || !els.seatSheet.hidden) { follow = null; return; }
+      // An explicit flight outranks the follow. Home, a slide, the tour and
+      // every other goTo animate the camera, and this loop wrote the seat's own
+      // position straight back on the next frame - so the flight was undone as
+      // fast as it was made, the camera never actually left the seat, and the
+      // watch that is meant to notice it leaving never saw it go. From the
+      // viewer's side the app simply refused to give the seat up: Home flew
+      // nowhere, and the drag went on turning a head that should have been a
+      // camera again.
+      if (view.animation) { leaveSeat(); return; }
       // From the middle of the field, which is where the flight into the seat
       // left the camera pointing. Starting the ease at the ball instead makes
       // the first frame a jump of however far the ball happens to be from the
@@ -3863,8 +3920,9 @@ function buildSeats(view, surfacesReady, onTaken) {
 
   build();
   return {
-    open, close,
+    open, close, leave: leaveSeat,
     get section() { return at; },
+    get seated() { return cameraOwnedBySeat(); },
     get choosing() { return !els.seatSheet.hidden; }
   };
 }
