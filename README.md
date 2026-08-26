@@ -5,7 +5,8 @@ hand-held reality captures — Gaussian splats and integrated meshes — georefe
 into one scene, lit by live weather and the real position of the sun, with two
 replays driven by actual sports tracking data.
 
-<img width="1912" height="972" alt="milehigh" src="https://github.com/user-attachments/assets/feee15c4-1ed4-4475-9b52-4ca956f02644" />
+<img width="1720.2" height="874.8" alt="milehigh" src="https://github.com/user-attachments/assets/feee15c4-1ed4-4475-9b52-4ca956f02644" />
+
 **Live:** https://b-connolly.github.io/sports-venue-digital-twin/
 
 
