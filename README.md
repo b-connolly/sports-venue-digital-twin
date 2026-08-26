@@ -26,6 +26,10 @@ replays driven by actual sports tracking data.
   caught, the route that worked turns orange along its whole length and the rest
   stay where they are. Football draws only the goal: the delivery in, the finish,
   and a ring on the man at each end of them
+- **View from a seat** — pick any of the 135 sections and sit in it, from the
+  front row of the lower bowl to the back of the 500s. Drag to look around from
+  where you are sitting rather than to move; the view follows the ball gently
+  and hands back the moment you take hold of it
 - **Analysis** — distance, area, volume and elevation profile tools
 - **Time of day** — scrub the sun; stadium lights come on after dark
 - **Conditions** — live weather at the venue drives the sky, or pick your own:
@@ -57,6 +61,8 @@ The captures were processed with
 | [Metrica Sports sample data](https://github.com/metrica-sports/sample-data) | football tracking, 25 Hz, anonymised at source |
 | [NASA SVS Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851) | night sky texture, public domain |
 | [Open-Meteo](https://open-meteo.com) | live conditions at the venue |
+| Published Empower Field seating chart | where each of the 135 sections sits, read off the plan rather than assumed |
+| [Broncos Virtual Venue](https://denverbroncos.io-media.com/web/index.html) (IOMEDIA) | the zone each section is sold as, used only to check the above |
 
 Both replays are real movement, not animation. Names and squad numbers are
 stripped from the data before it ships, and no team is identified in the animated data despite being based on real-world events and actual data. The Denver Broncos are only highlighted by the capture data with permission from City of Denver to use in demos and marketing materials. See [`NOTICE`](NOTICE).

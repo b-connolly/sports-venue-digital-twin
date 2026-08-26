@@ -130,6 +130,7 @@ visible in the data rather than only in this README.
 | The record field goal's distance and flight | `fieldgoal.py` | `meta.modelled` |
 | Three staged seconds before the tackle | `kickoff.py` | `meta.measuredFrom` |
 | The ball's height, in football | `build_soccer.py` | — |
+| How far back and how high each seat sits | `js/seats.js` | `a`, `b`, `up` per ring |
 | Two repairs to the ball's path | `build_soccer.py` | `meta.bridged`, `meta.mended` |
 
 **Nobody moves before the snap.** The tracking says otherwise — over the second
@@ -146,6 +147,20 @@ and the strike are that measured attempt moved 35.1 yd downfield; only the
 distance and the flight are computed — 26.5 m/s at 37 degrees, apex 12.9 m,
 crossing the bar at 4.5 m and clearing it by 1.44. The app reads all of it out
 in the replay caption.
+
+**Where the seats are.** Which way round the bowl a section sits is measured,
+not assumed: `digitise_chart.py` reads all 135 off the published seating plan.
+How far back it sits and how high are not - those are `a`, `b` and `up` in
+`js/seats.js`, tuned by standing in them, because a seating chart shrinks the
+field to make room for its labels and its radii are schematic even though its
+angles are not.
+
+Three attempts at deriving the angles instead all failed the same way. Sections
+are not evenly spaced - the lower bowl steps by as little as 7.3 degrees and as
+much as 13.2, because a section is a roughly constant width and the bowl is an
+ellipse - and every wrong answer still put every section in a plausible seat,
+facing the field, at a sensible height. It was simply the wrong seat, and only a
+chart could say so. See `digitise_chart.py` and `zonecheck.py`.
 
 **Ball height, in football.** The source is 2D. Only a delivery the events call
 a cross, or a pass too long to be rolled, is given an arc, and the apex comes
@@ -215,6 +230,26 @@ different SDK. None of those fail a linter. All of them fail this.
 
 Needs `websocket-client` and Chrome. Nothing is installed into the app: the
 browser is driven over the DevTools protocol in a throwaway profile.
+
+```bash
+propy seatcheck.py          # a local server first; needs Chrome
+propy zonecheck.py          # neither - reads js/seats.js directly
+```
+
+`seatcheck.py` pins sections to compass points the chart shows without trusting
+any anchor: 114 on the north end, 132 on the south, 105 and 123 level with the
+50 on either touchline. It leads with those because an earlier version checked
+only which sections shared a spoke, and passed while the whole bowl was rotated
+forty degrees - every relative claim true, every seat on the wrong side of the
+ground.
+
+`zonecheck.py` checks the same table against a source that knows nothing about
+angles: the configuration behind the club's own 3D seat viewer, which names the
+zone each section is sold as. It lists the same 135 sections, no more and none
+missing. All 14 sold as Field Level End Zone face an end, all 14 Upper Level
+Sideline face a touchline, North End Zone really is north. Exactly two are sold
+as field-level prime - 105 and 123 - and the model puts them at 269.9 and 90.2
+degrees, facing each other across the halfway line.
 
 
 ## The painted surfaces
