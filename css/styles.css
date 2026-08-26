@@ -1050,8 +1050,18 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 }
 .seatmap .sec:hover { fill: rgba(244,241,234,0.42); }
 .seatmap .sec.on { fill: var(--accent); stroke: transparent; }
+/* The number has to sit legibly on two quite different tiles - the orange of
+   the chosen one and the pale grey of whichever is under the pointer - so it
+   is drawn the way a map label is: dark, and carrying its own light outline.
+   paint-order puts that outline behind the glyph rather than through it.
+
+   It was 7px, which in a viewBox around 320 units across came out near nine
+   screen pixels: present, but not readable, which is the worst of both. */
 .seatmap .seclabel {
-  fill: rgba(20,20,22,0.9); font-size: 7px; font-weight: 700;
+  fill: #141417; font-size: 9.5px; font-weight: 800;
+  letter-spacing: -0.03em;
+  paint-order: stroke;
+  stroke: rgba(255,255,255,0.5); stroke-width: 1.8; stroke-linejoin: round;
   text-anchor: middle; dominant-baseline: central; pointer-events: none;
   opacity: 0;
 }
@@ -1060,7 +1070,6 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
    at a hundred and thirty; none of them leaves a viewer clicking blind. */
 .seatmap .sec.on + .seclabel,
 .seatmap .sec:hover + .seclabel { opacity: 1; }
-.seatmap .sec:hover + .seclabel { fill: rgba(20,20,22,0.95); }
 
 /* Sits with Draw Play, and reads as the same kind of thing: a small word in
    the footer rather than a button competing with the transport. */
