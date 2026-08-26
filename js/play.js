@@ -28,6 +28,8 @@
  * maths happens per frame.
  */
 
+import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
+import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import Graphic from "https://js.arcgis.com/5.0/@arcgis/core/Graphic.js";
 import GraphicsLayer from "https://js.arcgis.com/5.0/@arcgis/core/layers/GraphicsLayer.js";
 import SpatialReference from "https://js.arcgis.com/5.0/@arcgis/core/geometry/SpatialReference.js";
@@ -152,6 +154,50 @@ function sample(arr, f) {
  * painted surface it belongs to. Mapping onto the texture rather than onto
  * regulation dimensions is what keeps players standing on the painted lines.
  */
+/**
+ * Where the broadcast camera stands, from the configuration alone.
+ *
+ * Off one touchline, high enough and far enough back that the long axis of the
+ * surface fills the frame, aimed across it. The stand-off is driven by the
+ * surface's own length rather than being a fixed number: the pitch is 8 m
+ * shorter than the gridiron field and 18 m wider, so one distance frames one of
+ * them and clips the other.
+ *
+ * Config alone, and deliberately - the replay computes the same camera from the
+ * play it has loaded, but the opening pass has to fly to it before any play
+ * exists. Both call this so there is one definition of where broadcast is; two
+ * would drift, and the pass would land a few metres off the camera the replay
+ * then corrected itself to.
+ *
+ * `surfaceZ` is the one thing that is not config: the playing surface sits on
+ * ground whose height is probed at load.
+ */
+export function broadcastCamera(cfg, surfaceKey, surfaceZ) {
+  const painted = cfg.field.surfaces[surfaceKey];
+  if (!painted) return null;
+  const marked = painted.play ?? painted;
+  const f = cfg.play.frame;
+  // The across-field unit vector, which is all `acrossAxis()` amounts to once
+  // the play space is divided out of it.
+  const th = (cfg.field.rotation || 0) * DEG;
+  const sX = cfg.play.flipAcross ? -1 : 1;
+  const u = [sX * Math.cos(th), sX * Math.sin(th)];
+  const slant = marked.depth * f.fill;
+  const d = Math.sqrt(Math.max(slant * slant - f.up * f.up, 400));
+  const ce = -u[0] * d, cn = -u[1] * d;
+  const mPerLat = 111320, mPerLon = 111320 * Math.cos(cfg.field.lat * DEG);
+  return new Camera({
+    position: new Point({
+      longitude: cfg.field.lon + ce / mPerLon,
+      latitude: cfg.field.lat + cn / mPerLat,
+      z: surfaceZ + f.up,
+      spatialReference: { wkid: 4326 }
+    }),
+    heading: (Math.atan2(-ce, -cn) * 180) / Math.PI,
+    tilt: 90 - (Math.atan2(f.up, d) * 180) / Math.PI
+  });
+}
+
 function mapper(cfg, dims) {
   const th = (cfg.field.rotation || 0) * DEG, ct = Math.cos(th), st = Math.sin(th);
   const sA = cfg.play.flipAlong ? -1 : 1, sX = cfg.play.flipAcross ? -1 : 1;
@@ -448,6 +494,8 @@ export async function addPlay(view, cfg, spec) {
     ballEN() { return ballEN; },
     /** Height of the playing surface, so a camera can work in absolute z. */
     surfaceZ: surface,
+    /** Which of CONFIG.field.surfaces this play is laid on. */
+    surfaceKey,
     toLonLat: map.toLonLat,
     /** Unit vector across the field, for placing a broadcast camera. */
     acrossAxis() {

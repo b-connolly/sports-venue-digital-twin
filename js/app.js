@@ -60,7 +60,8 @@ const loadTimeKit = () => (timeKit ??= Promise.all([
 import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
 import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import { styleLights } from "./lights.js";
-import { addPlay } from "./play.js";
+import { addPlay, broadcastCamera } from "./play.js";
+import { sectionCamera, sections, ringOf, sectionPlan } from "./seats.js";
 import { flyLap } from "./flyin.js";
 import { dressSelects } from "./selectmenu.js";
 
@@ -125,7 +126,12 @@ const CONFIG = {
     // or deleted in the web scene shifts every position after it, and this
     // would quietly start warming the wrong views. Between them these three
     // cover all the hand-held captures and the combined view.
-    views: ["Pix4DCatch", "Broncos Alumni", "Combined Mesh"],
+    // Matched loosely - see slidesNamed - because these are fragments of slide
+    // titles rather than the whole of them. Two of these three stopped matching
+    // when the scene was retitled and nothing said so: the views went on
+    // working, they were simply never warmed, and the only symptom was that the
+    // hand-held captures were slow again.
+    views: ["Pix4DCatch", "Broncos Alumni", "Built with ArcGIS"],
     // How many of those must be warm before Explore opens. The rest are warmed
     // behind a curtain that is only still up because nobody has clicked yet,
     // and are abandoned the moment somebody does - warming means moving the
@@ -176,7 +182,8 @@ const CONFIG = {
   // the seat is reached with the mesh already there.
   flyIn: {
     enabled: true,
-    to: "Fan Perspective (American Football)",
+    to: ["Gameday Experience (American Football)",
+         "Fan Perspective (American Football)"],
     // Only the first time round. A lap is worth fifteen seconds once; on every
     // loop of a slideshow it is fifteen seconds of the same thing.
     once: true,
@@ -192,12 +199,22 @@ const CONFIG = {
     // neither end of the move needs a number here. It flies in through the side
     // of the building on the way to the seat, which is a thing a camera cannot
     // do and a drone shot does all the time.
+    // Spaced evenly around the sweep, which matters more than where exactly
+    // they are. The camera runs through the path on a uniform parameter, so a
+    // segment twice as wide as its neighbour is covered at twice the speed -
+    // and these were spaced for a shorter arc that ended at the old stand
+    // camera. Left alone after the move to broadcast they read 45, 38, 14 and
+    // 67 degrees, and the last one was the lurch at the end.
+    // Evenly spaced in every quantity, not just in bearing. Spacing only the
+    // bearings left the distance to close 20, 107, 102 and 15 metres across the
+    // four quarters of the move - almost all of the approach happening in the
+    // middle half of it, which reads as a rush rather than as an arrival.
     path: [
-      { bearing: 30, out: 340, up: 76, tilt: 80 },
-      { bearing: 352, out: 290, up: 72, tilt: 76 },
-      { bearing: 338, out: 185, up: 78, tilt: 62 }
+      { bearing: 34, out: 302, up: 68, tilt: 76 },
+      { bearing: 353, out: 241, up: 76, tilt: 69 },
+      { bearing: 312, out: 180, up: 83, tilt: 62 }
     ],
-    ms: 16000,
+    ms: 12500,
     // The mesh is held back until the camera is through the roof.
     //
     // Warming it from the start of the move was the obvious thing and it looks
@@ -282,8 +299,15 @@ const CONFIG = {
     // the same number: the gridiron pass runs 19.7 s and the football goal
     // 37.5. Both allow for the pause before a replay begins - see
     // CONFIG.arrival - and a moment on the celebration afterwards.
-    { title: "Fan Perspective (American Football)", opens: "gridiron", dwellMs: 26000 },
-    { title: "Fan Perspective (Football)", opens: "football", dwellMs: 44000 }
+    // Two names each, newest first. A title is what the author chose and they
+    // are still choosing; listing the previous one costs nothing and means a
+    // rename in the scene does not quietly take the replay, the opening pass
+    // and the dwell with it.
+    { title: ["Gameday Experience (American Football)",
+              "Fan Perspective (American Football)"],
+      opens: "gridiron", dwellMs: 26000 },
+    { title: ["Gameday Experience (Football)", "Fan Perspective (Football)"],
+      opens: "football", dwellMs: 44000 }
   ],
 
 
@@ -304,7 +328,24 @@ const CONFIG = {
              "Stadium Lights", "Mile High - Stadium Lights"],
     // Sun altitude at which they switch on. -0.83 is geometric sunset; a few
     // degrees lower matches when it actually looks dark.
-    sunBelowDeg: -3
+    sunBelowDeg: -3,
+    // Which fixtures belong to the ground rather than to the street.
+    //
+    // The layer types every light: roof floodlights and aisle step lights are
+    // the stadium's own and go out with the switch, while parking poles and
+    // plaza lamps are the car park's and stay lit whatever is happening inside
+    // - nobody turns the car park off because the game has finished.
+    //
+    // Matched on the layer's own `category` field, so a fixture type added
+    // later is lit by default rather than silently switched.
+    switched: ["Roof floodlight", "Aisle step light"],
+    categoryField: "category",
+    // And the altitude at which the *scene* is lit artificially, which is a
+    // different question and a much earlier moment. A bowl shades its own field
+    // long before the sun is down - the stands are sixty metres of it - so a
+    // ground has its floodlights up while the sky outside is still bright.
+    // Six degrees is roughly half an hour before sunset here.
+    litBelowDeg: 6
   },
 
   // The field was covered when the site was captured, so it renders as a grey
@@ -379,19 +420,19 @@ const CONFIG = {
     // the one field that must not be renamed lightly. `icon` names a symbol in
     // index.html; plays of one sport share it.
     plays: [
-      { key: "gridiron", sport: "American Football", icon: "ico-gridiron",
+      { key: "gridiron", surface: "gridiron", sport: "American Football", icon: "ico-gridiron",
         label: "Deep pass", note: "75 yd touchdown", data: "./data/play.json" },
-      { key: "gridiron-run", sport: "American Football", icon: "ico-gridiron",
+      { key: "gridiron-run", surface: "gridiron", sport: "American Football", icon: "ico-gridiron",
         label: "Run right", note: "21 yd touchdown", data: "./data/play_run.json" },
-      { key: "gridiron-fg", sport: "American Football", icon: "ico-gridiron",
+      { key: "gridiron-fg", surface: "gridiron", sport: "American Football", icon: "ico-gridiron",
         label: "Record field goal", note: "68 yd, modelled",
         data: "./data/play_fieldgoal.json" },
-      { key: "football", sport: "Football", icon: "ico-football",
+      { key: "football", surface: "pitch", sport: "Football", icon: "ico-football",
         label: "Turnover to goal", note: "Tackle to finish", data: "./data/soccer.json" },
-      { key: "football-header", sport: "Football", icon: "ico-football",
+      { key: "football-header", surface: "pitch", sport: "Football", icon: "ico-football",
         label: "Cross and header", note: "Won back, crossed",
         data: "./data/soccer_header.json" },
-      { key: "football-counter", sport: "Football", icon: "ico-football",
+      { key: "football-counter", surface: "pitch", sport: "Football", icon: "ico-football",
         label: "Intercept and break", note: "The length of the pitch",
         data: "./data/soccer_counter.json" }
     ],
@@ -526,6 +567,10 @@ const $ = (id) => document.getElementById(id);
 const els = {
   intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
   masthead: $("masthead"), captures: $("captures"),
+  seatSheet: $("seatSheet"), seatSelect: $("seatSelect"), seatMap: $("seatMap"),
+  playSeatLabel: $("playSeatLabel"), lightsBtn: $("lightsBtn"),
+  seatWhere: $("seatWhere"), seatTake: $("seatTake"),
+  seatPrev: $("seatPrev"), seatNext: $("seatNext"), playSeat: $("playSeat"),
   capturesBtn: $("capturesBtn"),
   captureGroups: $("captureGroups"),
   capturesToggle: $("capturesToggle"),
@@ -902,7 +947,21 @@ async function main() {
   // action panel needs the handle, and it is built before this resolves.
   const surfaces = CONFIG.field.enabled
     ? addSurfaces(view, CONFIG.field)
-        .then((f) => { window.__field = f; return f; })
+        .then((f) => {
+          window.__field = f;
+          // The seating model, for standing in a section and looking. Nothing
+          // in the app reads this; it is how the ring numbers get checked
+          // against the building they are supposed to describe.
+          window.__seats = {
+            list: sections,
+            camera: (n) => sectionCamera(CONFIG, n, f.z),
+            go: (n) => {
+              const c = sectionCamera(CONFIG, n, f.z);
+              return c ? view.goTo(c, { duration: 900 }).catch(() => {}) : null;
+            }
+          };
+          return f;
+        })
         .catch((err) => {
           console.warn("[venue] surfaces unavailable:", err.message);
           return null;
@@ -1036,11 +1095,11 @@ async function main() {
       tools.measure.close();
       tools.timeOfDay.close();
       autoOpened = "play";
-      // No reframing: this view *is* the stand camera, so the replay opens on
-      // Fan Perspective, where the flight has already put us.
+      // No reframing: the flight has already landed on the broadcast camera,
+      // so the replay opens on it rather than moving again on arrival.
       // The panel opens at once so the arrival is acknowledged; only the play
       // itself waits, sitting at its first frame until the scene is still.
-      tools.liveAction.open({ key: play.key, frame: false, cam: "fan" })
+      tools.liveAction.open({ key: play.key, frame: false, cam: "broadcast" })
         .then(async (p) => { if (p && await settledArrival()) p.start(); })
         .catch(() => {});
       return;
@@ -1242,7 +1301,11 @@ function matchLighting(slide) {
   const live = viewRef?.environment?.lighting;
   if (!now || !live) return;
   try {
-    if (live.date) now.date = live.date;
+    // The app's clock, which is not always the sun's. With the floodlights on
+    // there is no sun and no date to read, and a slide left holding its own
+    // would arrive carrying whatever afternoon the scene was authored at.
+    const when = sky.lit ? sky.date : live.date;
+    if (when) now.date = when;
     if (live.displayUTCOffset != null) now.displayUTCOffset = live.displayUTCOffset;
     if (live.type === now.type) now.directShadowsEnabled = live.directShadowsEnabled;
   } catch (err) {
@@ -1268,25 +1331,77 @@ const viewSpecs = new Map();
  * matches more than one slide is too vague to be an identifier and is refused
  * rather than guessed at.
  */
-function slideNamed(slides, title) {
-  const want = (title || "").trim().toLowerCase();
-  const hits = slides.filter((sl) => {
-    const t = (sl.title?.text || "").trim().toLowerCase();
-    return t === want || t.startsWith(want);
-  });
-  if (hits.length === 1) return hits[0];
-  console.warn(`[venue] "${title}" matches ${hits.length} slides - ignored`);
-  return null;
+/**
+ * Every slide a title matches, in order.
+ *
+ * `title` may be one string or a list of them, and the first name that matches
+ * anything wins. That is the same courtesy CONFIG.nightLayers extends to layer
+ * names, and for the same reason: these titles are written by hand in a web
+ * scene that somebody is still editing, and a rename should cost a line of
+ * config rather than a silently dead feature.
+ */
+function slidesNamed(slides, title) {
+  for (const want of [title].flat()) {
+    const w = (want || "").trim().toLowerCase();
+    if (!w) continue;
+    const hits = slides.filter((sl) => {
+      const t = (sl.title?.text || "").trim().toLowerCase();
+      return t === w || t.startsWith(w);
+    });
+    if (hits.length) return hits;
+    // Last resort: anywhere in the title. "Pix4DCatch" should still find
+    // "Combine Handheld Captures using Pix4DCatch", which neither an exact
+    // match nor a prefix will.
+    const loose = slides.filter((sl) =>
+      (sl.title?.text || "").trim().toLowerCase().includes(w));
+    if (loose.length) return loose;
+  }
+  return [];
 }
 
+/** The single slide a title matches, or null if it is not exactly one. */
+function slideNamed(slides, title) {
+  const hits = slidesNamed(slides, title);
+  if (hits.length === 1) return hits[0];
+  console.warn(`[venue] "${[title].flat()[0]}" matches ${hits.length} slides`);
+  return hits[0] ?? null;
+}
+
+/**
+ * Which slide each entry in CONFIG.views is talking about.
+ *
+ * Two views may legitimately name the same title - a scene can have two slides
+ * called the same thing, and this one does: both replays live on a slide called
+ * "Gameday Experience". Where that happens they are taken in the order they are
+ * written, first entry to first slide, so the pair still binds.
+ *
+ * That is a fallback and not a feature. It depends on the two slides staying in
+ * the order the config lists them, which nothing enforces, so it says so loudly
+ * enough to be worth fixing in the scene: two slides that behave differently
+ * should be called different things.
+ */
 function bindViews(slides) {
   viewSpecs.clear();
+  const used = new Set();
+  const missed = [];
   for (const spec of CONFIG.views ?? []) {
-    const hit = slideNamed(slides, spec.title);
-    if (hit) viewSpecs.set(slides.indexOf(hit) + 1, spec);
+    const hits = slidesNamed(slides, spec.title)
+      .filter((sl) => !used.has(sl));
+    const hit = hits[0];
+    if (!hit) { missed.push([spec.title].flat()[0]); continue; }
+    used.add(hit);
+    viewSpecs.set(slides.indexOf(hit) + 1, spec);
   }
   console.info("[venue] views bound:",
-    [...viewSpecs].map(([n, v]) => `${n} ${v.title}`).join(" | ") || "none");
+    [...viewSpecs].map(([n, v]) => `${n} ${[v.title].flat()[0]}`).join(" | ")
+      || "none");
+  if (missed.length) {
+    // Loud, because everything these drive - the replays, the opening pass, the
+    // night clock - simply does not happen when a title stops matching, and
+    // nothing else about the app looks broken. This cost an afternoon once.
+    console.error("[venue] no slide matches: " + missed.join(", ")
+      + " — check CONFIG.views against the scene's slide titles");
+  }
 }
 
 /** The entry for a view, as the rail numbers them. */
@@ -1358,6 +1473,10 @@ function buildTour(view, slides, captures) {
   let dwell = null;
   let clockWas = null;
   let arrive = null;
+  // Where a flight should finish, when something other than the slide decides.
+  // Registered from outside because it needs the playing surface, which is
+  // probed at load rather than written down.
+  let landing = null;
 
   /**
    * Put the sun where the view was authored for. Runs before the flight rather
@@ -1375,6 +1494,8 @@ function buildTour(view, slides, captures) {
     }
     const spec = viewAt(idx + 1);
     const want = spec?.clock;
+    // A view that insists on a time needs a sun to put it on.
+    if (want) setLights(view, false);
     stopFollowingLight();
     if (want) {
       const [hh, mm] = want.split(":").map(Number);
@@ -1534,17 +1655,42 @@ function buildTour(view, slides, captures) {
       && !(CONFIG.flyIn.once && lapFlown);
 
     const MAX_FLIGHT = 6000;
+
+    // Where this view should finish, when something other than the slide
+    // decides - the two replay views land on the broadcast camera, which is
+    // computed rather than saved.
+    //
+    // The slide is lent that camera for the duration of the flight and given
+    // its own back afterwards. Lending is what keeps applyTo on its normal
+    // path: it animates the camera towards whatever the slide holds, so with
+    // the broadcast camera in there it flies straight to it, and the saved one
+    // is never used for anything. Landing first and correcting afterwards was
+    // the alternative and it shows - the flight arrives at the saved seat and
+    // then jumps.
+    //
+    // This is the same move matchLighting makes for the sky, and for the same
+    // reason: a slide is a set of instructions, and the app is entitled to
+    // amend them on the way past as long as it puts them back.
+    const landedOn = await landing?.(idx + 1);
+    const seat = slides[idx].viewpoint;
+    const savedCam = landedOn && seat ? seat.camera : null;
+    if (landedOn && seat) seat.camera = landedOn;
+
     try {
       if (lap) {
         lapFlown = true;
         let cut = false;
         cutTheLap = () => { cut = true; };
+        // Broadcast, not the slide's own camera. The saved view is a seat in
+        // the stand, and arriving there means the replay opens on a fan camera
+        // and then has to move again the moment anybody asks for the wide shot.
+        // Landing on broadcast puts the pass and the replay in the same place.
         await flyLap(
           view, CONFIG.flyIn,
           { lat: CONFIG.field.lat, lon: CONFIG.field.lon, z: CONFIG.field.z },
           (title) => view.map.allLayers.find((l) => l.title === title),
           () => cut || goTicket !== mine,
-          slides[idx].viewpoint?.camera
+          landedOn ?? slides[idx].viewpoint?.camera
         );
         cutTheLap = null;
       }
@@ -1569,9 +1715,20 @@ function buildTour(view, slides, captures) {
         new Promise((done) => setTimeout(done, MAX_FLIGHT + 500))
       ]);
     } catch { /* interrupted by user navigation — harmless */ }
+    finally { if (savedCam && seat) seat.camera = savedCam; }
     // Superseded while in the air: the move that replaced this one owns the
     // view, the latch and the dwell, and this one must not touch any of them.
     if (goTicket !== mine) return;
+    // Belt and braces: applyTo has finished with the borrowed camera, and this
+    // makes certain the view is exactly on it rather than a frame short.
+    if (landedOn) view.camera = landedOn;
+    // applyTo installs the slide's whole environment, lighting included, so a
+    // lit scene is quietly handed back to the sun by any navigation - and to
+    // the sun of whatever day the scene was saved on. Put the lights back.
+    if (sky.lit && view.environment.lighting.type !== "virtual") {
+      view.environment.lighting = { type: "virtual", directShadowsEnabled: false };
+      tickClock(view);
+    }
     // Insurance only: slide environments are nulled at load, so applyTo should
     // not have touched the sky. The slide's visibleLayers list predates the
     // lights layer though, so applying one switches it off - tickClock puts it
@@ -1612,7 +1769,12 @@ function buildTour(view, slides, captures) {
     prev: () => go(current - 1),
     stop: () => setPlaying(false),
     /** Called with the view number, 1-based, once a flight has landed. */
-    onArrive(fn) { arrive = fn; }
+    onArrive(fn) { arrive = fn; },
+    /**
+     * Asked, with the view number, where a flight to it should finish. Return
+     * null to use the slide's own camera.
+     */
+    onLanding(fn) { landing = fn; }
   };
 }
 
@@ -1901,6 +2063,21 @@ const sky = {
   sunrise: null, sunset: null, nextRise: null, weather: null,
   nightLayers: null, wasNight: null,
   manual: false,           // true while the time slider is driving the sun
+  // The floodlights: the scene lit artificially rather than by the sun.
+  //
+  // `lit` swaps the view onto virtual lighting, which is lit from the camera
+  // and so has no sun in it at all - a dark sky over a bright field, which is
+  // what a night game looks like. It cannot be done by moving the clock,
+  // because a sun high enough to light the field also paints the sky blue.
+  //
+  // Virtual lighting carries no date, so while the lights are on the app keeps
+  // its own in `date` and puts it back when they go off. That is the whole of
+  // the bookkeeping, and it only works because the lights and the time tools
+  // are mutually exclusive: opening the time panel, scrubbing the slider or
+  // arriving at a view that names a clock all switch them off first. Nothing
+  // writes the sun's date while there is no sun to write it to.
+  lit: false,
+  date: null,              // the app's own clock while the lights are on
   // Three ways the sky can be decided, in order of who wins. `imposed` is a
   // view insisting on something for as long as you are on it - the night view
   // wants its stars, and an overcast ceiling hides them whatever the weather
@@ -2011,7 +2188,7 @@ function ownSky(view) {
   const env = view.environment;
   env.atmosphereEnabled = true;
   env.starsEnabled = true;
-  if (!sky.manual) env.lighting.date = new Date();
+  if (!sky.manual && !sky.lit) env.lighting.date = new Date();
   env.lighting.displayUTCOffset = sky.offsetHours ?? utcOffsetHours(CONFIG.site.tz);
   // Slides carry an authored weather too; put the live one back.
   if (sky.weather) env.weather = sky.weather;
@@ -2076,10 +2253,82 @@ function paintLive() {
     : "Showing the venue's live conditions";
 }
 
+/**
+ * Turn the floodlights on or off.
+ *
+ * On, the view is lit from the camera instead of from the sun: the field is
+ * bright and shadowless and the sky stays dark, which is what a floodlit ground
+ * looks like. Measured on the field at half ten it is roughly four times as
+ * bright as the sun leaves it, and the stars and the atmosphere are untouched.
+ *
+ * The date is carried across by hand because virtual lighting has none. Going
+ * off, the sun is rebuilt from the app's clock rather than from the wall clock,
+ * so a viewer who spent two minutes under the lights comes back to the time
+ * they left rather than to now.
+ */
+function setLights(view, on) {
+  if (!!on === sky.lit) return sky.lit;
+  const env = view.environment;
+  if (on) {
+    sky.date = env.lighting.date ?? new Date();
+    sky.lit = true;
+    env.lighting = { type: "virtual", directShadowsEnabled: false };
+  } else {
+    sky.lit = false;
+    env.lighting = {
+      type: "sun",
+      date: sky.date ?? new Date(),
+      displayUTCOffset: sky.offsetHours ?? utcOffsetHours(CONFIG.site.tz),
+      directShadowsEnabled: false
+    };
+  }
+  tickClock(view);
+  paintFixtures();
+  els.lightsBtn?.classList.toggle("on", sky.lit);
+  els.lightsBtn?.setAttribute("aria-pressed", String(sky.lit));
+  return sky.lit;
+}
+
+/**
+ * Show or hide the ground's own fixtures, leaving the street's alone.
+ *
+ * Only while the switch is on screen. Away from a replay there is nothing to
+ * switch, and the stadium at night is supposed to be a lit stadium at night -
+ * the rim of floodlights is the shot. So the filter is applied when the control
+ * exists and is off, and lifted the rest of the time.
+ */
+function paintFixtures() {
+  const spec = CONFIG.nightLayers;
+  const off = spec.switched ?? [];
+  if (!sky.nightLayers?.length || !off.length) return;
+  const switchable = els.lightsBtn && !els.lightsBtn.hidden;
+  const where = switchable && !sky.lit
+    ? `${spec.categoryField} NOT IN (`
+      + off.map((c) => `'${String(c).replace(/'/g, "''")}'`).join(", ") + ")"
+    : null;
+  for (const l of sky.nightLayers) {
+    if ("definitionExpression" in l) l.definitionExpression = where;
+  }
+}
+
+/** Is it dark enough at the venue for the floodlights to be worth having? */
+function afterDark(view) {
+  const when = sky.lit
+    ? (sky.date ?? new Date())
+    : (view.environment.lighting.date ?? new Date());
+  return sunAltitudeDeg(when, CONFIG.site.lat, CONFIG.site.lon)
+    < CONFIG.nightLayers.litBelowDeg;
+}
+
 function tickClock(view) {
-  // In manual mode the slider owns the date; only advance it when live.
-  if (!sky.manual) view.environment.lighting.date = new Date();
-  const now = view.environment.lighting.date ?? new Date();
+  // In manual mode the slider owns the date; only advance it when live. With
+  // the floodlights on there is no sun to own it, so the app's own clock is
+  // what advances and what everything below reads.
+  if (!sky.manual && !sky.lit) view.environment.lighting.date = new Date();
+  if (sky.lit && !sky.manual) sky.date = new Date();
+  const now = sky.lit
+    ? (sky.date ?? new Date())
+    : (view.environment.lighting.date ?? new Date());
 
   if (!sky.tz) return;
   const hhmm = clockAt(sky.tz, { hour: "numeric", minute: "2-digit" });
@@ -2101,8 +2350,20 @@ function tickClock(view) {
   // tick rather than only on transitions, because applying a slide rewrites
   // layer visibility and would otherwise leave them stuck until the next
   // sunrise or sunset. Setting an unchanged value is a no-op.
+  // The floodlights follow the light, not just the switch: a replay left open
+  // across sunrise should not still be lit from the camera at nine in the
+  // morning, and the control should not still be offering it.
+  if (els.lightsBtn && !els.lightsBtn.hidden) {
+    const dark = sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon)
+      < CONFIG.nightLayers.litBelowDeg;
+    if (!dark) {
+      els.lightsBtn.hidden = true;
+      if (sky.lit) setLights(view, false);
+    }
+  }
   if (sky.nightLayers) {
     sky.nightLayers.forEach((l) => { l.visible = night; });
+    paintFixtures();
     if (night !== sky.wasNight) {
       sky.wasNight = night;
       console.info("[venue] lights", night ? "on" : "off",
@@ -2307,6 +2568,10 @@ function buildTimeOfDay(view) {
   }
 
   function open() {
+    // The clock cannot be driven while the floodlights are on, because there is
+    // no sun to drive: virtual lighting carries no date. So the tool that owns
+    // the clock takes the sun back before it opens.
+    setLights(view, false);
     els.tpanel.hidden = false;
     els.timeOfDay.classList.add("active");
     if (!slider) (making ??= make());
@@ -2317,6 +2582,7 @@ function buildTimeOfDay(view) {
     els.timeOfDay.classList.remove("active");
   }
   function live() {
+    setLights(view, false);
     const now = new Date();
     sky.manual = false;
     view.environment.lighting.date = now;
@@ -2501,6 +2767,10 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   // clutter every time after. Asked for once, it stays on for the session.
   let chalkOn = false;
   let cam = null, scrubbing = false, restore = null, shown = false;
+  let canDraw = false;           // this play has something worth drawing
+  // Set once wireTools has built the chooser; Fan Perspective needs it and the
+  // two are built in the other order.
+  let seatsRef = null;
   let aim = null;                      // smoothed look-at point, local metres
 
   /** This play's events, in the order they happen, with their labels. */
@@ -2670,29 +2940,24 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   }
 
   /**
-   * The stadium lights are emissive symbols: they read as lit but they cast no
-   * light, so at 2 a.m. the replay happens in the dark. Only when the sun is
-   * actually down, move the clock to mid-afternoon for the duration - and put
-   * it back exactly as it was on close.
+   * Lighting a replay after dark used to mean moving the clock.
+   *
+   * The stadium lights are emissive symbols - they read as lit but cast no
+   * light - so a replay at ten at night happened in the dark. The fix was to
+   * put the clock to two in the afternoon for the duration and set it back
+   * afterwards, which lit the field and also painted the sky blue: the one
+   * thing it could not do was look like a floodlit ground.
+   *
+   * It had a second cost that was easy to miss, because it only appeared in the
+   * evening. Restoring the clock on close ran after the next view had already
+   * set its own, so leaving a replay for the night view put the clock back to
+   * whatever it had been rather than to half ten, and the walk down to dusk
+   * arrived at the wrong time of day.
+   *
+   * Both are gone. setLights() lights the scene from the camera instead of from
+   * the sun, which is brighter than the noon trick managed and leaves the sky
+   * where it was, and it never touches the clock at all.
    */
-  let lightWas = null;
-  function daylight() {
-    const now = new Date(view.environment.lighting.date ?? Date.now());
-    if (sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon) > 0) return;
-    lightWas = { date: now, manual: sky.manual };
-    const noonish = new Date(now);
-    noonish.setUTCHours(20, 0, 0, 0);          // 14:00 in Denver, either offset
-    sky.manual = true;
-    view.environment.lighting.date = noonish;
-    tickClock(view);
-  }
-  function restoreLight() {
-    if (!lightWas) return;
-    sky.manual = lightWas.manual;
-    view.environment.lighting.date = lightWas.date;
-    lightWas = null;
-    tickClock(view);
-  }
 
   /**
    * Broadcast: the whole field on screen from the touchline, which is where a
@@ -2700,27 +2965,10 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
    * viewer's again - nothing holds it unless Player Highlight is chosen.
    */
   function frameField() {
-    const u = api.acrossAxis();
-    const f = CONFIG.play.frame;
-    // Aim across the surface from one touchline, and let goTo fit the corners.
-    // The pitch is wider than the gridiron field and the gridiron field longer
-    // than the pitch, so a fixed stand-off cannot suit both.
-    // Stand off far enough that the long axis fills the frame, and no
-    // further. Driving this from the surface's own length is what lets one
-    // setting suit both: the pitch is 8 m shorter than the gridiron field but
-    // 18 m wider, so a fixed distance beyond the touchline frames one of them
-    // and clips the other. goTo fitting the corners itself was tried and
-    // overshoots badly - it pads out to the whole stadium.
-    const slant = api.depth * f.fill;
-    const d = Math.sqrt(Math.max(slant * slant - f.up * f.up, 400));
-    const ce = -u[0] * d, cn = -u[1] * d;
-    const ll = api.toLonLat(ce, cn);
-    return view.goTo({
-      position: new Point({ longitude: ll[0], latitude: ll[1], z: api.surfaceZ + f.up,
-                            spatialReference: { wkid: 4326 } }),
-      heading: (Math.atan2(-ce, -cn) * 180) / Math.PI,
-      tilt: 90 - (Math.atan2(f.up, d) * 180) / Math.PI
-    }, { duration: 1600, easing: "in-out-cubic" }).catch(() => {});
+    const to = broadcastCamera(CONFIG, api.surfaceKey, api.surfaceZ);
+    if (!to) return Promise.resolve();
+    return view.goTo(to, { duration: 1600, easing: "in-out-cubic" })
+      .catch(() => {});
   }
 
   /**
@@ -2805,24 +3053,22 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
    * applying one rewrites layer visibility, which would undo the staging the
    * replay just did and put the hand-held meshes back on top of the field.
    */
+  /**
+   * Fan Perspective is a question, not a camera.
+   *
+   * It used to fly to whichever saved view opened the play, which was a seat
+   * somebody had picked once for everybody. Now it asks which seat - the sheet
+   * comes up, the camera previews each section as it is stepped through, and
+   * taking one closes the sheet and starts the play from there.
+   *
+   * The play is stopped while the choosing happens. Watching a replay run from
+   * behind a dialog, from a camera that is being moved about underneath it, is
+   * no way to see either.
+   */
   function fanView() {
-    // The stand view for a play is the saved view that starts it - one fact,
-    // not two that have to be kept in step.
-    // Only one play per sport has a saved view of its own, so a play without
-    // one borrows its sport's: the stand a viewer would watch from is a fact
-    // about the field, not about which passage is being replayed.
-    const sport = CONFIG.play.plays.find((p) => p.key === active)?.sport;
-    const opensOneOf = new Set(CONFIG.play.plays
-      .filter((p) => p.sport === sport).map((p) => p.key));
-    const entries = [...viewSpecs];
-    const n = entries.find(([, v]) => v.opens === active)?.[0]
-           ?? entries.find(([, v]) => opensOneOf.has(v.opens))?.[0];
-    const camera = slides[Number(n) - 1]?.viewpoint?.camera;
-    if (!camera) {
-      console.warn(`[venue] no saved view opens "${active}"; framing the field instead`);
-      return frameField();
-    }
-    return view.goTo(camera.clone(), { duration: 1600, easing: "in-out-cubic" }).catch(() => {});
+    api?.pause();
+    seatsRef?.open(() => { if (cam === "fan") api?.start(); });
+    return Promise.resolve();
   }
 
   const MOVE = { fan: fanView, broadcast: frameField, highlight: null };
@@ -2857,6 +3103,32 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       b.classList.toggle("on", on);
       b.setAttribute("aria-pressed", String(on));
     }
+    paintFooter();
+  }
+
+  /**
+   * The panel's two optional controls.
+   *
+   * Draw Play is offered wherever the play has something to draw, on any
+   * camera: the diagram is worth having from a seat as much as from the
+   * touchline, and gating it on the wide shot only meant it vanished the moment
+   * anybody moved. It lives in the title bar, where there is room for it beside
+   * the panel's own name.
+   *
+   * Choose Section belongs to Fan Perspective alone, because it is meaningless
+   * anywhere else, and it carries the seat it would take you back to.
+   */
+  function paintFooter() {
+    els.pchalk.hidden = !canDraw;
+    els.playSeat.hidden = cam !== "fan";
+    if (els.playSeatLabel) {
+      const n = seatsRef?.section;
+      els.playSeatLabel.textContent = n ? `Section ${n}` : "Choose section";
+    }
+    const draw = canDraw && chalkOn;
+    api?.setChalk(draw);
+    els.pchalk.setAttribute("aria-pressed", String(draw));
+    els.pchalk.classList.toggle("on", draw);
   }
 
   /** Stand down whichever camera is in charge, without stealing the view back. */
@@ -3033,6 +3305,10 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
 
   const api2 = {
     onPick(fn) { onPick = fn; },
+    /** Hand over the seat chooser, which Fan Perspective defers to. */
+    useSeats(s) { seatsRef = s; },
+    /** Redraw the optional controls, after something outside changed them. */
+    repaint() { paintFooter(); },
     /** A play's own button closes it; any other switches over to it. */
     async toggle(key) {
       if (shown && active === key) { this.close(); return; }
@@ -3078,14 +3354,27 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       // asks a different question, because it draws a different thing: not the
       // play but the goal, which needs the two men the file names for it.
       const ev = p.data.events ?? {};
-      const drawable = p.data.meta.sport === "gridiron"
-        ? (ev.pass_forward != null || ev.handoff != null)
+      // Three different drawings, and a play qualifies for whichever it has
+      // the makings of: routes where the ball is thrown or handed off, a flight
+      // where it is kicked, a delivery and a finish where it is a goal.
+      // The floodlights belong to the replay: it is the one part of the app
+      // that is about watching something happen on the field, and the only one
+      // that suffers for the field being dark. Switched on for you when it is
+      // dark enough to matter, and yours to switch off.
+      // Only after dark, and that is not a nicety. Virtual lighting replaces
+      // the sun for the whole scene rather than for the ground - there is no
+      // bounded light source in the SDK to put inside a stadium - so in
+      // daylight it flattens the car parks, the trees and the interstate along
+      // with the field, and lights a field that is already lit. Offered when it
+      // is dark enough to be worth having and withdrawn when it is not.
+      els.lightsBtn.hidden = !afterDark(view);
+      if (afterDark(view) && !sky.lit) setLights(view, true);
+      paintFixtures();
+      canDraw = p.data.meta.sport === "gridiron"
+        ? (ev.pass_forward != null || ev.handoff != null
+           || ev.field_goal_attempt != null)
         : p.data.meta.assist != null;
-      els.pchalk.hidden = !drawable;
-      const draw = drawable && chalkOn;
-      p.setChalk(draw);
-      els.pchalk.setAttribute("aria-pressed", String(draw));
-      els.pchalk.classList.toggle("on", draw);
+      paintFooter();
       // A debugging handle, and only that - nothing in the app reads it.
       window.__play = p;
 
@@ -3101,7 +3390,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       const surfaces = await surfacesReady;
       if (surfaces) await surfaces.use(p.surface);
 
-      daylight();
+
       aim = null;
       api.show(true);
       api.seek(0);
@@ -3116,7 +3405,13 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     },
     close() {
       shown = false;
-      restoreLight();
+      // The lights come down with the replay that raised them. A scene left lit
+      // from the camera after the thing that needed it has gone is how a viewer
+      // ends up wondering why the sun has stopped moving.
+      els.lightsBtn.hidden = true;
+      setLights(view, false);
+      paintFixtures();
+
       els.ppanel.hidden = true;
       for (const b of sportButtons.values()) b.classList.remove("active");
       els.live.classList.remove("active");
@@ -3143,10 +3438,9 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       });
       els.pchalk.addEventListener("click", () => {
         chalkOn = !chalkOn;
-        els.pchalk.setAttribute("aria-pressed", String(chalkOn));
-        els.pchalk.classList.toggle("on", chalkOn);
-        api?.setChalk(chalkOn);
+        paintFooter();
       });
+      els.lightsBtn.addEventListener("click", () => setLights(view, !sky.lit));
       els.precenter.addEventListener("click", recenter);
       els.prestart.addEventListener("click", () => {
         if (!api) return;
@@ -3172,6 +3466,228 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
 
   buildMenu();
   return api2;
+}
+
+/**
+ * The view from a seat.
+ *
+ * Standalone, and open to a viewer whether or not a replay is running: the
+ * question it answers - what would I see from there - is the one somebody
+ * choosing a seat is actually asking, and it does not need a play to be
+ * meaningful.
+ *
+ * While a replay *is* running it follows the ball, slowly. A seat does not
+ * snap, and neither does a head: the aim eases towards the ball rather than
+ * tracking it, so the camera drifts across the play a moment behind it. Chasing
+ * it exactly is what makes a follow camera unwatchable, and from a fixed seat
+ * it would be wrong as well as unpleasant - the one thing you cannot do from
+ * row 20 is keep the ball centred.
+ */
+function buildSeats(view, surfacesReady, onTaken) {
+  let at = null;                 // section currently chosen
+  let follow = null;             // rAF handle while following the ball
+  let aim = null;                // eased look-at point, in metres east/north
+  let taken = null;              // called once a seat is chosen
+
+  // Preview as you browse, commit when you take it. Stepping through the list
+  // moves the camera so the choice is made by looking rather than by reading a
+  // number, and the sheet stays up until the seat is taken.
+  const open = (onTake) => {
+    taken = onTake ?? null;
+    els.seatSheet.hidden = false;
+    if (at == null) at = sections()[0];
+    goTo(at);
+  };
+  const close = () => { els.seatSheet.hidden = true; taken = null; };
+
+  function stopFollow() {
+    if (follow) cancelAnimationFrame(follow);
+    follow = null;
+    aim = null;
+  }
+
+  /**
+   * Ease the heading towards wherever the ball is, from the seat we are in.
+   *
+   * The easing is on the *point looked at*, not on the angle, so the camera
+   * turns quickly when the ball is close and barely at all when it is at the
+   * far end - which is how a person in a seat behaves. Easing the angle
+   * directly gives the opposite and looks like a turret.
+   */
+  const FOLLOW_K = 0.045;        // per frame, towards the ball
+  function startFollow(cam) {
+    stopFollow();
+    const step = () => {
+      const p = window.__play;
+      const ball = p?.ballEN?.();
+      // Stops when the play does, or when the chooser comes back up - the
+      // camera should not still be drifting while somebody is picking a
+      // different seat underneath it.
+      if (!ball || !els.seatSheet.hidden) { follow = null; return; }
+      // From the middle of the field, which is where the flight into the seat
+      // left the camera pointing. Starting the ease at the ball instead makes
+      // the first frame a jump of however far the ball happens to be from the
+      // centre - measured at twenty-one degrees, in one sample, which is the
+      // one thing a slow follow must never do.
+      if (!aim) aim = [0, 0];
+      aim = [aim[0] + (ball[0] - aim[0]) * FOLLOW_K,
+             aim[1] + (ball[1] - aim[1]) * FOLLOW_K];
+      const here = cam.position;
+      const mPerLon = 111320 * Math.cos(CONFIG.field.lat * Math.PI / 180);
+      const e = (here.longitude - CONFIG.field.lon) * mPerLon;
+      const n = (here.latitude - CONFIG.field.lat) * 110540;
+      const de = aim[0] - e, dn = aim[1] - n;
+      const flat = Math.hypot(de, dn) || 1;
+      view.camera = new Camera({
+        position: here,
+        heading: (Math.atan2(de, dn) * 180) / Math.PI,
+        tilt: 90 - (Math.atan2(here.z - (window.__field?.z ?? here.z), flat) * 180) / Math.PI
+      });
+      follow = requestAnimationFrame(step);
+    };
+    follow = requestAnimationFrame(step);
+  }
+
+  async function goTo(section, { ms = 1500 } = {}) {
+    const surfaces = await surfacesReady;
+    if (!surfaces) return null;
+    const cam = sectionCamera(CONFIG, section, surfaces.z);
+    if (!cam) return null;
+    at = section;
+    els.seatSelect.value = String(section);
+    paintMap();
+    const ring = ringOf(section);
+    els.seatWhere.textContent = ring ? `${ring.name} level` : "";
+    stopFollow();
+    try {
+      await view.goTo(cam, { duration: ms, easing: "in-out-cubic" });
+    } catch { /* the viewer took over mid-flight */ }
+    return cam;
+  }
+
+  /** Settle into the chosen seat and start watching from it. */
+  async function take() {
+    // Held before closing, because closing is what forgets it. Reading it
+    // afterwards is reading null, and the play sat still at the moment it was
+    // supposed to start.
+    const done = taken;
+    const cam = await goTo(at, { ms: 1100 });
+    close();
+    if (cam && window.__play) startFollow(cam);
+    // So the way back in reads "Section 117" rather than the invitation it
+    // stopped being the moment a seat was chosen.
+    onTaken?.();
+    done?.();
+  }
+
+  const shift = (by) => {
+    const all = sections();
+    const i = all.indexOf(at);
+    goTo(all[(Math.max(0, i) + by + all.length) % all.length]);
+  };
+
+  const SVG = "http://www.w3.org/2000/svg";
+  const node = (name, attrs) => {
+    const el = document.createElementNS(SVG, name);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  };
+
+  /**
+   * The plan of the bowl.
+   *
+   * Drawn, not photographed. A picture of a seating chart would need keeping in
+   * step with the ring table by hand, and would be wrong the moment either
+   * changed; this comes out of the same numbers the cameras do, so a section in
+   * the wrong place here is a section the camera also flies to the wrong place.
+   *
+   * The field is drawn properly - turf, end zones, yard lines, halfway - because
+   * without something unmistakably a football field in the middle, a ring of
+   * tiles gives a viewer nothing to take a bearing from.
+   */
+  function drawMap() {
+    const plan = sectionPlan(CONFIG);
+    const R = plan.reach;
+    const svg = node("svg", {
+      viewBox: `${-R} ${-R * 0.72} ${R * 2} ${R * 1.44}`,
+      role: "group", "aria-label": "Plan of the seating bowl"
+    });
+
+    const f = plan.field;
+    // End zones are the outer tenth or so at each end; the marked field runs
+    // between them. Drawn as one block plus two, which is enough to read.
+    svg.appendChild(node("rect", {
+      class: "pitch", x: -f.along, y: -f.across,
+      width: f.along * 2, height: f.across * 2, rx: 1
+    }));
+    const ez = f.along * 0.166;
+    for (const sx of [-1, 1]) {
+      svg.appendChild(node("rect", {
+        class: "endzone", x: sx > 0 ? f.along - ez : -f.along,
+        y: -f.across, width: ez, height: f.across * 2
+      }));
+    }
+    for (let i = 1; i < 10; i++) {
+      const x = -f.along + ez + ((f.along - ez) * 2 * i) / 10;
+      svg.appendChild(node("line", {
+        class: i === 5 ? "halfway" : "yard",
+        x1: x, y1: -f.across, x2: x, y2: f.across
+      }));
+    }
+
+    // One tile a section, turned to lie along its ring.
+    for (const b of plan.blocks) {
+      const g = node("g", {
+        transform: `translate(${b.along.toFixed(2)} ${(-b.across).toFixed(2)})`
+                 + ` rotate(${(-b.turn).toFixed(2)})`
+      });
+      const tile = node("rect", {
+        class: "sec", "data-section": b.section,
+        x: -b.wide / 2, y: -b.deep / 2, width: b.wide, height: b.deep, rx: 2
+      });
+      tile.addEventListener("click", () => goTo(b.section));
+      g.appendChild(tile);
+      g.appendChild(Object.assign(node("text", {
+        class: "seclabel", x: 0, y: 0,
+        transform: `rotate(${b.turn.toFixed(2)})`
+      }), { textContent: String(b.section) }));
+      svg.appendChild(g);
+    }
+    els.seatMap.replaceChildren(svg);
+  }
+
+  /** Mark whichever tile is chosen. */
+  function paintMap() {
+    els.seatMap.querySelectorAll(".sec").forEach((t) => {
+      t.classList.toggle("on", Number(t.dataset.section) === at);
+    });
+  }
+
+  function build() {
+    const all = sections();
+    els.seatSelect.replaceChildren(...all.map((n) => {
+      const o = document.createElement("option");
+      o.value = String(n);
+      o.textContent = `Section ${n}`;
+      return o;
+    }));
+    els.seatSelect.addEventListener("change", () =>
+      goTo(parseInt(els.seatSelect.value, 10)));
+    els.seatPrev.addEventListener("click", () => shift(-1));
+    els.seatNext.addEventListener("click", () => shift(1));
+    els.seatTake.addEventListener("click", take);
+    drawMap();
+    els.seatSheet.addEventListener("click", (e) => {
+      if (e.target.closest("[data-close]")) close();
+    });
+  }
+
+  build();
+  return {
+    open, close,
+    get section() { return at; },
+    get choosing() { return !els.seatSheet.hidden; }
+  };
 }
 
 function wireTools(view, surfacesReady,
@@ -3266,6 +3782,11 @@ function wireTools(view, surfacesReady,
   };
   const liveAction = buildLiveAction(view, surfacesReady, stage, slides);
   liveAction.wire();
+  const seats = buildSeats(view, surfacesReady, () => liveAction.repaint());
+  liveAction.useSeats(seats);
+  // The way back to the chooser once a seat has been taken, next to Draw Play
+  // where the other replay options are.
+  els.playSeat.addEventListener("click", () => seats.open());
 
   // One panel at a time, and the outgoing one is properly torn down rather than
   // just hidden — a hidden measurement widget leaves its analysis on the view.
@@ -3281,6 +3802,19 @@ function wireTools(view, surfacesReady,
   // The chooser's own items are wired where they are built; they only need the
   // other two panels shut on the way past.
   liveAction.onPick(() => { measure.close(); timeOfDay.close(); });
+
+  // Where a flight to a replay view should finish: the broadcast camera for
+  // whichever play that view opens. Awaited rather than computed inline because
+  // the surface's height is probed at load; by the time anybody presses play it
+  // has long since resolved, so nothing waits on it in practice.
+  tour?.onLanding(async (n) => {
+    const key = viewAt(n)?.opens;
+    const play = CONFIG.play.plays.find((p) => p.key === key);
+    if (!play?.surface) return null;
+    const surfaces = await surfacesReady;
+    if (!surfaces) return null;
+    return broadcastCamera(CONFIG, play.surface, surfaces.z);
+  });
 
   // How it was made. A sheet rather than a dock panel: four sections of prose
   // want a column, and the dock is a letterbox pinned to the bottom.
@@ -3300,7 +3834,7 @@ function wireTools(view, surfacesReady,
   });
 
   els.hud.addEventListener("click", () => document.body.classList.toggle("hud-off"));
-  return { measure, timeOfDay, liveAction };
+  return { measure, timeOfDay, liveAction, seats };
 }
 
 /**
@@ -3331,6 +3865,7 @@ function wireKeys(view, tour, tools) {
       case "a": case "A": tools.liveAction.toggle("gridiron"); break;
       case "g": case "G": tools.liveAction.toggle("football"); break;
       case "h": case "H": els.home.click(); break;
+      case "s": case "S": tools.seats.open(); break;
       case "c": case "C": copyCamera(view); break;
     }
   });

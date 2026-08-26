@@ -37,7 +37,11 @@ PORT = int(os.environ.get("CDP_PORT", "10541"))
 # tour to the right view first.
 DEEP_LINK = "?live"
 
-GRIDIRON = [("Deep pass", True), ("Run right", True), ("Record field goal", False)]
+# label, offers Draw Play, how many line graphics the diagram has.
+# The field goal draws one line rather than two: it has no routes, and what it
+# draws instead is the ball's flight, which is a single arc.
+GRIDIRON = [("Deep pass", True, 2), ("Run right", True, 2),
+            ("Record field goal", True, 1)]
 FOOTBALL = ["Turnover to goal", "Cross and header", "Intercept and break"]
 
 
@@ -180,7 +184,7 @@ def main():
         first = True
         print("")
         print("-- American Football --")
-        for label, drawable in GRIDIRON:
+        for label, drawable, lines in GRIDIRON:
             pick(label)
             st = probe()
             ok("%-18s loads" % label, st.get("frames", 0) > 0,
@@ -197,8 +201,9 @@ def main():
             c.js("(function(){var p=window.__play;p.pause();p.seek(p.duration*0.62);})()")
             time.sleep(2)
             st = probe()
-            ok("%-18s draws" % label, st["a"] > 0 and st["b"] > 0,
-               "white=%d orange=%d" % (st["a"], st["b"]))
+            ok("%-18s draws" % label,
+               st["a"] > 0 and (lines < 2 or st["b"] > 0),
+               "first=%d second=%d" % (st["a"], st["b"]))
             chalk(False)
             ok("%-18s unchecks" % label, probe()["vis"] is False)
 

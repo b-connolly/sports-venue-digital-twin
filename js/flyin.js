@@ -13,6 +13,22 @@
  * the start of the pass and streams for the whole of it, under a splat that
  * stays up until near the end. The seat is reached with the mesh already there.
  *
+ * ## Smoothing, and why the timing alone is not enough
+ *
+ * The camera is placed from elapsed time, which is the only way a move of a
+ * fixed length can also be a move of a fixed shape. The cost is that a frame
+ * hitch becomes a jump: at 25 fps with occasional 170 ms gaps - which is what
+ * this scene does while it is streaming - a strictly time-based camera moved
+ * as much as 68 degrees a second in bursts against a mean of 10, and it read
+ * as the whole pass being unstable rather than as the scene being busy.
+ *
+ * So the camera follows the timed target rather than being it. Each frame it
+ * moves a proportion of the way there, and the proportion is computed from the
+ * frame's own length so the lag is a duration rather than a number of frames.
+ * A hitch then plays out over the next several frames instead of all at once.
+ * The lag is small enough to be invisible against an eased move and is paid off
+ * entirely by the end, where the camera is snapped onto the slide's own.
+ *
  * ## Why this does not use goTo
  *
  * It did, once per waypoint, and the seams between them were audible as pauses.
@@ -45,6 +61,11 @@ import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 
 const M_PER_DEG_LAT = 110540;
 const M_PER_DEG_LON = 111320;
+
+// How far behind the timed target the camera is allowed to sit, in seconds.
+// Long enough to swallow a dropped frame, short enough that the move still
+// starts and stops when it is told to.
+const LAG_S = 0.17;
 
 /** Catmull-Rom through p1 and p2, with p0 and p3 setting the tangents. */
 function spline(p0, p1, p2, p3, t) {
@@ -154,9 +175,17 @@ export function flyLap(view, spec, centre, layerNamed, aborted, landOn) {
     let onDone = !!(comingIn && swap && (swap.onAtT ?? 0) <= 0);
     const t0 = performance.now();
 
+    // What the camera is actually showing, as against where the clock says it
+    // should be. Seeded on the first frame so the move starts where it starts.
+    let shown = null;
+    let last = performance.now();
+
     const frame = () => {
       if (aborted()) { undo(); done("abandoned"); return; }
-      const raw = Math.min(1, (performance.now() - t0) / ms);
+      const now = performance.now();
+      const dt = Math.min(0.25, (now - last) / 1000);
+      last = now;
+      const raw = Math.min(1, (now - t0) / ms);
 
       if (swap && !onDone && raw >= (swap.onAtT ?? 0)) {
         if (comingIn) comingIn.visible = true;
@@ -171,11 +200,18 @@ export function flyLap(view, spec, centre, layerNamed, aborted, landOn) {
       // leaves and arrives at a standstill and is flat out through the middle,
       // which is the shape a camera operator would give it.
       const u = raw * raw * (3 - 2 * raw);
-      view.camera = cameraFrom(
-        centre,
-        along(bearing, u), along(out, u), along(up, u),
-        along(tilt, u), along(heading, u)
-      );
+      const want = [along(bearing, u), along(out, u), along(up, u),
+                    along(tilt, u), along(heading, u)];
+      if (!shown) shown = want.slice();
+      // Exponential, and computed from this frame's own length rather than a
+      // fixed step: a long frame catches up more, so the lag stays a duration
+      // instead of drifting with the frame rate.
+      const k = 1 - Math.exp(-dt / LAG_S);
+      for (let i = 0; i < want.length; i++) {
+        shown[i] += (want[i] - shown[i]) * k;
+      }
+      view.camera = cameraFrom(centre, shown[0], shown[1], shown[2],
+                               shown[3], shown[4]);
 
       if (raw >= 1) {
         // Land on the slide's own camera exactly, so whatever follows has

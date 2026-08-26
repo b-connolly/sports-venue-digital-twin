@@ -321,6 +321,54 @@ export function addChalk(data, map, z) {
     };
   }
 
+  // ------------------------------------------------------------ a kick --
+  // A field goal has no routes worth drawing and exactly one thing worth
+  // following. The ball leaves at 26.5 m/s, tops out thirteen metres up and
+  // spends most of its flight as a speck against the stands - the moment it
+  // matters is the moment it is hardest to see. So the diagram here is the
+  // flight itself: one line, in three dimensions, drawn behind the ball as it
+  // goes.
+  //
+  // Height comes from the ball's own z rather than being flattened onto the
+  // turf like everything else in this file. A parabola drawn flat is a straight
+  // line down the middle of the field, which is worse than drawing nothing.
+  const kick = ev.field_goal_attempt;
+  if (kick != null && ev.pass_forward == null && ev.handoff == null) {
+    const over = Math.min(ev.field_goal ?? until, data.meta.frames - 1);
+    const arc = new Graphic({
+      symbol: new LineSymbol3D({ symbolLayers: [new LineSymbol3DLayer({
+        material: { color: CARRY }, size: CARRY_WIDTH, cap: "round", join: "round"
+      })] })
+    });
+    layer.add(arc);
+
+    const ballAt = (k) => {
+      const [lon, lat] = map.toLonLat(...map.toEN(data.ball.x[k], data.ball.y[k]));
+      return [lon, lat, z + (data.ball.z?.[k] ?? 0)];
+    };
+
+    let seen = -1;
+    const drawKick = (t) => {
+      const f = Math.min(over, Math.round(t * hz));
+      if (f === seen) return;
+      seen = f;
+      if (f <= kick) { arc.geometry = null; return; }
+      const path = [];
+      for (let k = kick; k <= f; k++) path.push(ballAt(k));
+      arc.geometry = path.length > 1
+        ? new Polyline({ paths: [path], spatialReference: { wkid: 4326 } })
+        : null;
+    };
+
+    return {
+      layer,
+      update: drawKick,
+      reset() { seen = -1; drawKick(0); },
+      set visible(v) { layer.visible = !!v; },
+      get visible() { return layer.visible; }
+    };
+  }
+
   // Circles for the offence, crosses for the defence, which is how the sport
   // has drawn itself for a century.
   //

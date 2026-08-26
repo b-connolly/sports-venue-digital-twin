@@ -1024,6 +1024,98 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
    the panel from the rail should not be handed one that looks empty. */
 .captures.stowed { display: none; }
 
+/* ------------------------------------------------------------ seat picker
+   Narrower than the other docks: one control and two arrows do not need the
+   full letterbox, and this one is likely to be open while somebody is looking
+   at the field rather than at the panel. */
+.sheet__card--seat { max-width: 460px; }
+/* ------------------------------------------------------------- seat plan
+   A map of the bowl, drawn rather than photographed: it is generated from the
+   same ring table as the cameras, so it cannot drift from what it describes,
+   and it will still be right when the upper rings are added. */
+.seatmap { padding: 0.7rem 0.9rem 0.1rem; }
+.seatmap svg { display: block; width: 100%; height: auto; }
+
+/* The field, which is the whole point of the picture: without something
+   obviously a football field in the middle, a ring of tiles is unreadable. */
+.seatmap .pitch { fill: #1f6b3a; }
+.seatmap .endzone { fill: #16305c; }
+.seatmap .yard { stroke: rgba(255,255,255,0.38); stroke-width: 0.8; }
+.seatmap .halfway { stroke: rgba(255,255,255,0.7); stroke-width: 1.2; }
+
+.seatmap .sec {
+  fill: rgba(244,241,234,0.14);
+  stroke: rgba(244,241,234,0.22); stroke-width: 0.7;
+  cursor: pointer; transition: fill .12s, stroke .12s;
+}
+.seatmap .sec:hover { fill: rgba(244,241,234,0.42); }
+.seatmap .sec.on { fill: var(--accent); stroke: transparent; }
+.seatmap .seclabel {
+  fill: rgba(20,20,22,0.9); font-size: 7px; font-weight: 700;
+  text-anchor: middle; dominant-baseline: central; pointer-events: none;
+  opacity: 0;
+}
+/* Numbered on the one you are pointing at and the one you have chosen, and
+   nowhere else. All of them at once is unreadable at thirty-six and hopeless
+   at a hundred and thirty; none of them leaves a viewer clicking blind. */
+.seatmap .sec.on + .seclabel,
+.seatmap .sec:hover + .seclabel { opacity: 1; }
+.seatmap .sec:hover + .seclabel { fill: rgba(20,20,22,0.95); }
+
+/* Sits with Draw Play, and reads as the same kind of thing: a small word in
+   the footer rather than a button competing with the transport. */
+
+
+.seatrow {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.65rem 0.9rem 0.2rem;
+}
+.seatpick { flex: 1 1 auto; min-width: 0; display: grid; gap: 0.22rem; }
+.seatpick__label {
+  font-size: 0.55rem; font-weight: 600; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--paper-faint);
+}
+#seatSelect {
+  width: 100%; padding: 0.42rem 0.6rem;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: rgba(20,20,22,0.55); color: var(--paper);
+  font: inherit; font-size: 0.82rem;
+  color-scheme: dark; cursor: pointer;
+}
+#seatSelect:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+.seatstep {
+  flex: 0 0 auto; width: 30px; height: 30px; margin-top: 0.9rem;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: rgba(20,20,22,0.35); color: var(--paper-dim);
+  font-size: 1rem; line-height: 1; cursor: pointer;
+  transition: background .14s, color .14s, border-color .14s;
+}
+.seatstep:hover { background: rgba(251,79,20,0.85); border-color: transparent; color: #fff; }
+
+/* The one thing a viewer should know about these positions, said once and
+   quietly: they are derived from the section numbering, not surveyed. */
+.seatnote {
+  margin: 0; padding: 0.35rem 0.9rem 0.75rem;
+  font-size: 0.62rem; line-height: 1.45; color: var(--paper-faint);
+}
+
+.seatgo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; padding: 0.15rem 0.9rem 0;
+}
+.seatgo__ring {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--paper-faint);
+}
+.seatgo__btn {
+  padding: 0.42rem 0.85rem; border-radius: 9px;
+  border: 1px solid transparent; background: var(--accent); color: #fff;
+  font: inherit; font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.08em; cursor: pointer;
+}
+.seatgo__btn:hover { filter: brightness(1.08); }
+
 /* --------------------------------------------------------------- info sheet
    Prose wants a column and a scrim, not a dock panel: the dock is 740px of
    letterbox pinned to the bottom, which is right for a transport bar and wrong
@@ -1266,19 +1358,42 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
   #timePanel { width: calc(100vw - 2 * var(--pad)); }
 }
 
-/* The play-picker row and the chalk checkbox share a line: the checkbox is one
-   short control and a row of its own for it would cost more height than it is
-   worth on a panel that has to fit a phone. */
+/* The play chooser and the seat button share a line. */
 .playfoot { display: flex; align-items: stretch; gap: 0.5rem; }
 .playfoot .playseg { flex: 1 1 auto; min-width: 0; }
+
+/* Choose section.
+   It was a bare <button> carrying a class that only set its colour, so it fell
+   through to the browser's own chrome - a grey slab the height of the play
+   picker beside it. Everything it needed was written against #playChalk, which
+   it is not. */
+.seatbtn {
+  flex: 0 0 auto; align-self: center;
+  display: inline-flex; align-items: center; gap: 0.42rem;
+  padding: 0.44rem 0.75rem;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: rgba(20,20,22,0.35); color: var(--paper-dim);
+  font: inherit; font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  cursor: pointer; white-space: nowrap;
+  transition: background .14s, color .14s, border-color .14s;
+}
+.seatbtn[hidden] { display: none; }
+.seatbtn:hover { background: rgba(251,79,20,0.85); border-color: transparent; color: #fff; }
+.seatbtn:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.seatbtn svg { width: 15px; height: 15px; flex: 0 0 auto; }
 /* A checkbox and two words. It was a bordered pill with a sliding switch in it,
    which at this size read as a second control of the same rank as the play
    chooser beside it and set the height of the whole row - a lot of panel for
    something that only decides whether a diagram is drawn over the play you are
    already watching. Nothing here has a box or a background: it is a mark and a
    label sitting in the corner, and the panel is the same height without it. */
+/* Sits in the title bar between the panel's name and its clock, which is the
+   one piece of empty room in the panel and puts it beside the cameras it
+   annotates rather than among the plays it does not. */
+#playPanel .dock__h { flex: 0 0 auto; }
 #playChalk {
-  flex: 0 0 auto; align-self: center;
+  flex: 0 0 auto; align-self: center; margin-left: 0.9rem; margin-right: auto;
   display: inline-flex; align-items: center; gap: 0.42rem;
   padding: 0.2rem 0.15rem; border: 0; background: none;
   color: var(--paper-faint); font: inherit; cursor: pointer;
@@ -1307,6 +1422,39 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
 #playChalk.on .playchk__box { background: var(--accent); border-color: transparent; }
 #playChalk.on .playchk__box::after { opacity: 1; transform: rotate(42deg) scale(1); }
 
+#playChalk .playchk__short, #lightsBtn .playchk__short { display: none; }
+
+/* The floodlight switch is the same control as Draw Play, so it is the same
+   control: one set of rules, two ids. */
+#lightsBtn {
+  flex: 0 0 auto; align-self: center; margin-left: 0.85rem;
+  display: inline-flex; align-items: center; gap: 0.42rem;
+  padding: 0.2rem 0.15rem; border: 0; background: none;
+  color: var(--paper-faint); font: inherit; cursor: pointer;
+  transition: color .16s;
+}
+#lightsBtn[hidden] { display: none; }
+#lightsBtn:hover, #lightsBtn.on { color: var(--paper-dim); }
+#lightsBtn:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+#lightsBtn .playchk__box {
+  position: relative; flex: 0 0 auto;
+  width: 12px; height: 12px; border-radius: 3px;
+  border: 1px solid var(--line); background: rgba(20,20,22,0.35);
+  transition: background .16s, border-color .16s;
+}
+#lightsBtn .playchk__box::after {
+  content: ""; position: absolute; left: 3.5px; top: 0.5px;
+  width: 3px; height: 6.5px;
+  border: solid #fff; border-width: 0 1.6px 1.6px 0;
+  transform: rotate(42deg) scale(0.5); transform-origin: center;
+  opacity: 0; transition: opacity .14s, transform .14s var(--ease);
+}
+#lightsBtn.on .playchk__box { background: var(--accent); border-color: transparent; }
+#lightsBtn.on .playchk__box::after { opacity: 1; transform: rotate(42deg) scale(1); }
+#lightsBtn .playchk__label {
+  font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+}
 #playChalk .playchk__label {
   font-size: 0.6rem; font-weight: 600;
   letter-spacing: 0.16em; text-transform: uppercase;
@@ -1314,7 +1462,15 @@ body.hud-off .recenter { opacity: 0; pointer-events: none; }
 
 @media (max-width: 780px), (max-height: 500px) {
   .playfoot { flex-direction: column; gap: 0.35rem; }
-  /* Left with the plays rather than stretched across the panel: stretching a
-     checkbox only puts its tick and its label at opposite ends of a phone. */
-  #playChalk { align-self: flex-start; }
+  /* On a phone the bar has no room for prose. "Live action" is already gone;
+     the checkbox keeps its tick and loses its word, and the section picker
+     loses its label - the control below it says "Section 117" in full. */
+  #playChalk { margin-left: 0; }
+  /* Shortened, not stripped. A tick on its own in the corner of a bar is a
+     control nobody can name. */
+  #playChalk .playchk__full, #lightsBtn .playchk__full { display: none; }
+  #playChalk .playchk__short, #lightsBtn .playchk__short { display: inline; }
+  #lightsBtn { margin-left: 0.5rem; }
+  .seatpick__label { display: none; }
+  .seatbtn { letter-spacing: 0.1em; padding: 0.4rem 0.6rem; }
 }

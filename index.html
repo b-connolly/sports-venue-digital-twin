@@ -116,6 +116,41 @@
   <button id="hud"     class="tool" title="Hide interface (U)" aria-label="Hide interface">&#9678;</button>
 </div>
 
+<!-- Choosing a seat. Centred rather than docked, because it is asked for
+     from the replay panel along the bottom and would otherwise cover the
+     transport that sent you here. It closes the moment a section is picked -
+     the answer to "which seat" is the view itself, not the list. -->
+<div id="seatSheet" class="sheet" hidden role="dialog" aria-modal="true"
+     aria-labelledby="seatTitle">
+  <div class="sheet__scrim" data-close></div>
+  <article class="sheet__card sheet__card--seat">
+    <header class="sheet__bar">
+      <h2 id="seatTitle" class="sheet__h">View from a seat</h2>
+      <button id="seatClose" class="dock__btn" type="button" aria-label="Close"
+              data-close>&times;</button>
+    </header>
+    <!-- Drawn from the same ring table the cameras come from, so a section
+         cannot be in the wrong place here and the right place there. -->
+    <div id="seatMap" class="seatmap"></div>
+    <div class="seatrow">
+      <button id="seatPrev" class="seatstep" type="button"
+              aria-label="Previous section">&#8249;</button>
+      <label class="seatpick">
+        <span class="seatpick__label">Section</span>
+        <select id="seatSelect" aria-label="Section"></select>
+      </label>
+      <button id="seatNext" class="seatstep" type="button"
+              aria-label="Next section">&#8250;</button>
+    </div>
+    <div class="seatgo">
+      <span id="seatWhere" class="seatgo__ring"></span>
+      <button id="seatTake" class="seatgo__btn" type="button">Take this seat</button>
+    </div>
+    <p class="seatnote">Seating positions are modelled from the section
+      numbering, not surveyed &mdash; a vantage, not a seat.</p>
+  </article>
+</div>
+
 <section id="measurePanel" class="dock" hidden aria-label="Measure">
   <header class="dock__bar">
     <span class="dock__h">Analysis</span>
@@ -144,6 +179,22 @@
 <section id="playPanel" class="dock" hidden aria-label="Live action">
   <header class="dock__bar">
     <span class="dock__h">Live action</span>
+    <!-- In the title bar rather than the footer: it applies to every camera,
+         so it belongs with the panel's own controls and not among the plays. -->
+    <button id="playChalk" class="playchk" type="button" aria-pressed="false" hidden>
+      <span class="playchk__box" aria-hidden="true"></span>
+      <span class="playchk__label playchk__full">Draw Play</span>
+      <span class="playchk__label playchk__short">Play</span>
+    </button>
+    <!-- Floodlights. Beside Draw Play because it is the same kind of thing:
+         something the panel can do to what you are looking at. -->
+    <button id="lightsBtn" class="playchk playchk--lights" type="button"
+            aria-pressed="false" hidden
+            title="Light the ground artificially, without moving the clock">
+      <span class="playchk__box" aria-hidden="true"></span>
+      <span class="playchk__label playchk__full">Lights</span>
+      <span class="playchk__label playchk__short">Lit</span>
+    </button>
     <span id="playClock" class="dock__now">0.0s</span>
     <div id="playCams" class="camseg" role="group" aria-label="Camera">
       <button class="camseg__b" type="button" data-cam="fan" aria-pressed="false"
@@ -174,9 +225,16 @@
     <div id="playPicks" class="playseg" role="group" aria-label="Play"></div>
     <!-- Only offered for the gridiron plays, where a route diagram is the
          language the sport is already taught in. -->
-    <button id="playChalk" class="playchk" type="button" aria-pressed="false" hidden>
-      <span class="playchk__box" aria-hidden="true"></span>
-      <span class="playchk__label">Draw Play</span>
+    <button id="playSeat" class="seatbtn" type="button" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 18v-6a2 2 0 0 1 2-2h1.2a1.8 1.8 0 0 0 1.8-1.8V7" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round"/>
+        <path d="M6 18h9.5a2.5 2.5 0 0 0 2.5-2.5V7" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round"/>
+      </svg>
+      <span id="playSeatLabel" class="seatbtn__label">Choose section</span>
     </button>
   </div>
   <p id="playCaption" class="playcap"></p>
