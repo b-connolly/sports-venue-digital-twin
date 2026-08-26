@@ -389,7 +389,19 @@ const CONFIG = {
       // it stretched every yard to 0.945 m, so the field measured 103.3 yd
       // between the goal lines. The slab is 130 x 76.6 m and still holds this
       // comfortably - there is simply a little more of it showing round the edge.
-      gridiron: { width: 48.768, depth: 109.728, texture: "./assets/field.jpg" },
+      // `width`/`depth` are the painted slab, `play` the marked field inside
+      // it - the same split the pitch uses below, and for the same reason. The
+      // white out-of-bounds apron is 6 ft on every side, which the rules give
+      // as the minimum and which is two yards exactly, so the painted size is
+      // the marked one plus 3.6576 m in each direction.
+      //
+      // Everything that measures itself against the surface reads `play`.
+      // Sizing to the painted figure instead would stand every player two
+      // yards off their own markings and put the goalposts in the crowd.
+      gridiron: {
+        width: 52.4256, depth: 113.3856, texture: "./assets/field.jpg",
+        play: { width: 48.768, depth: 109.728 }
+      },
       // A full-size pitch at the top of the permitted range, with an apron of
       // grass around it as a real ground has.
       //

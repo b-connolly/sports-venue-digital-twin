@@ -5,6 +5,17 @@ sideline, yard numbers on both sidelines with the far row inverted as on a real
 field, and plain dark-blue end zones. No club name, no badge, no sponsor - the
 surface is meant to read as a venue rather than as one team's home.
 
+The field of play carries a solid white border outside the sidelines and end
+lines - the out-of-bounds apron - which the rules put at a minimum of six feet
+and which is drawn here at exactly that. Six feet is two yards, so it lands on
+the same grid as everything else and the texture stays a whole number of yards
+either way.
+
+The apron is part of the picture but not part of the field: the app is told the
+painted size and the marked size separately, and everything that measures itself
+against the surface uses the marked one. Get that wrong and every player stands
+two yards off their own markings.
+
 Edit and re-run; it writes field.jpg (portrait, ready for the app) next to
 itself.
 """
@@ -20,6 +31,8 @@ def out_path(*parts):
     return dst
 
 YD = 26                                   # pixels per yard
+# Six feet, which is the rulebook minimum and two yards exactly.
+APRON_YD = 2
 W, H = 120*YD, int(round(53.333*YD))
 TURF_A, TURF_B = (34,88,44), (28,78,38)
 # A deep navy for the end zones: dark enough to separate cleanly from the
@@ -85,12 +98,21 @@ def arc(sign):
 top, bot = arc(1), arc(-1)
 d.line(top + bot[::-1] + [top[0]], fill=WHITE, width=sw, joint="curve")
 
+# The apron goes on last, so every measurement above is in field coordinates
+# and none of it has to know the border exists.
+pad = APRON_YD*YD
+apron = Image.new("RGB", (W + 2*pad, H + 2*pad), WHITE)
+apron.paste(img, (pad, pad))
+
 here = os.path.dirname(os.path.abspath(__file__))
-img.save(os.path.join(here,"field_landscape.jpg"), quality=88, optimize=True)
-rot = img.rotate(90, expand=True)
+apron.save(os.path.join(here,"field_landscape.jpg"), quality=88, optimize=True)
+rot = apron.rotate(90, expand=True)
 dst = out_path("assets", "field.jpg")
 rot.save(dst, quality=88, optimize=True)
 print("  field.jpg %dx%d  %.0f KB"%(rot.size[0],rot.size[1],
       os.path.getsize(dst)/1024))
+print("  painted %.3f x %.3f m, marked %.3f x %.3f m"
+      % ((120 + 2*APRON_YD)*0.9144, (53.333 + 2*APRON_YD)*0.9144,
+         120*0.9144, 53.333*0.9144))
 img.crop((cx-int(a*2.0),cy-int(b*2.4),cx+int(a*2.0),cy+int(b*2.4))).resize(
     (760,int(760*(b*4.8)/(a*4.0))), Image.LANCZOS).save(os.path.join(here,"midfield_preview.png"))

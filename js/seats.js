@@ -267,7 +267,11 @@ export function sectionCamera(cfg, section, surfaceZ) {
  * which way is up.
  */
 export function sectionPlan(cfg) {
-  const surface = cfg.field.surfaces.gridiron;
+  // The marked field, not the painted slab: the plan draws yard lines across
+  // whatever rectangle it is given, and drawing them across the out-of-bounds
+  // apron as well would put every one of them in the wrong place.
+  const gridiron = cfg.field.surfaces.gridiron;
+  const surface = gridiron.play ?? gridiron;
   const blocks = RINGS.flatMap((ring) => {
     return ring.at.map((deg, i) => {
       const local = deg * DEG;
