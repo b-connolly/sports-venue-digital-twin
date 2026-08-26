@@ -3567,7 +3567,22 @@ function buildSeats(view, surfacesReady, onTaken) {
    * far end - which is how a person in a seat behaves. Easing the angle
    * directly gives the opposite and looks like a turret.
    */
-  const FOLLOW_K = 0.045;        // per frame, towards the ball
+  const FOLLOW_K = 0.045;        // per frame, towards the aim
+  /**
+   * How far towards the ball a seat actually looks.
+   *
+   * Not all the way. A spectator does not keep the ball centred - they hold the
+   * middle of the field and let the play move across their vision, turning only
+   * when it goes far enough to be worth it. Following the ball exactly is what
+   * made this feel like a camera on a gimbal rather than like sitting in a
+   * stand: the whole field swung about for every carry.
+   *
+   * So the aim is a point part of the way from the centre of the field to the
+   * ball, which roughly halves the head movement. It only works because the
+   * seat sees wide - see SEAT_FOV - and at 55 degrees this would simply lose
+   * the ball off the edge.
+   */
+  const FOLLOW_BIAS = 0.45;
   let seat = null;               // the seat to resume following from
   let handedOver = false;        // the viewer has taken the camera
 
@@ -3617,8 +3632,10 @@ function buildSeats(view, surfacesReady, onTaken) {
       // centre - measured at twenty-one degrees, in one sample, which is the
       // one thing a slow follow must never do.
       if (!aim) aim = [0, 0];
-      aim = [aim[0] + (ball[0] - aim[0]) * FOLLOW_K,
-             aim[1] + (ball[1] - aim[1]) * FOLLOW_K];
+      // Part of the way to the ball, not all of it, and eased on top of that.
+      const want = [ball[0] * FOLLOW_BIAS, ball[1] * FOLLOW_BIAS];
+      aim = [aim[0] + (want[0] - aim[0]) * FOLLOW_K,
+             aim[1] + (want[1] - aim[1]) * FOLLOW_K];
       const here = cam.position;
       const mPerLon = 111320 * Math.cos(CONFIG.field.lat * Math.PI / 180);
       const e = (here.longitude - CONFIG.field.lon) * mPerLon;
@@ -3628,7 +3645,11 @@ function buildSeats(view, surfacesReady, onTaken) {
       view.camera = new Camera({
         position: here,
         heading: (Math.atan2(de, dn) * 180) / Math.PI,
-        tilt: 90 - (Math.atan2(here.z - (window.__field?.z ?? here.z), flat) * 180) / Math.PI
+        tilt: 90 - (Math.atan2(here.z - (window.__field?.z ?? here.z), flat) * 180) / Math.PI,
+        // Carried from the seat every frame. A Camera built without one gets
+        // the default 55, so leaving it out here would snap the view narrow
+        // again on the first frame of the follow.
+        fov: cam.fov
       });
       follow = requestAnimationFrame(step);
     };

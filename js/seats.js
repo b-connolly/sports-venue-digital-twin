@@ -36,6 +36,20 @@ import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 
 const DEG = Math.PI / 180;
 
+/**
+ * How wide a seat sees, in degrees.
+ *
+ * The default camera is 55, which is a lens rather than a person: comfortable
+ * for a map and far too narrow for a stand. Somebody sitting in row 20 takes in
+ * most of the field without moving their head, and the camera has to be given
+ * the same latitude or it ends up turning constantly to keep up with a ball
+ * that a real spectator would simply be watching.
+ *
+ * 75 is the useful part of human vision - not the full 180-odd degrees, which
+ * includes everything you can detect but not read. Widening it is what lets the
+ * follow turn less; the two settings only make sense together.
+ */
+const SEAT_FOV = 75;
 const M_PER_DEG_LAT = 110540;
 const M_PER_DEG_LON = 111320;
 
@@ -146,7 +160,8 @@ export function sectionCamera(cfg, section, surfaceZ) {
     // Down onto the middle of the field from however high the seat is. A seat
     // is nearly level with what it is watching, so this is a few degrees off
     // the horizon rather than the steep look-down of a broadcast camera.
-    tilt: 90 - Math.atan2(ring.up, out) / DEG
+    tilt: 90 - Math.atan2(ring.up, out) / DEG,
+    fov: ring.fov ?? SEAT_FOV
   });
 }
 
