@@ -3301,6 +3301,11 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
 
   function paint(st) {
     if (!scrubbing) els.pscrub.value = String(st.t / st.dur);
+    // Only while it is running. The panel folds itself away when the pointer
+    // is elsewhere - see .dock.canrest - and the hover half of that is CSS's
+    // own; this is the half that says the moment is right for it. A paused
+    // panel is one somebody is reading.
+    els.ppanel.classList.toggle("canrest", !!st.running && !scrubbing);
     els.pclock.textContent = `${st.t.toFixed(1)}s`;
     els.picon.setAttribute("d", st.running ? PAUSE_D : PLAY_D);
     els.ptoggle.setAttribute("aria-label", st.running ? "Pause" : "Play");
