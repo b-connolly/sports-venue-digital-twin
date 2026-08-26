@@ -2525,8 +2525,32 @@ function tickClock(view) {
   const dawn = !dark && sky.wasDark === true;
   sky.wasDark = dark;
 
-  if (els.lightsBtn && els.ppanel && !els.ppanel.hidden) {
-    els.lightsBtn.hidden = false;
+  // The switch belongs to the replay panel, so it is hidden exactly when the
+  // panel is. Asserted rather than only cleared, because closing the panel runs
+  // setLights, which ticks the clock synchronously from inside close() - and at
+  // that moment the panel is still marked open, so a version of this that only
+  // ever showed the button put it back on screen halfway through being told to
+  // put it away. It then sat over the night views with no replay under it, and
+  // paintFixtures read it as a live control and filtered the roof floodlights
+  // out of the one view that exists to show them.
+  if (els.lightsBtn && els.ppanel) els.lightsBtn.hidden = els.ppanel.hidden;
+
+  // Automatic only while the sun is the thing running.
+  //
+  // `manual` means something else owns the clock - a slide walking the light to
+  // the hour it was authored for, or the viewer dragging the time slider - and
+  // switching the floodlights on underneath that does not merely surprise them,
+  // it stops the clock dead. Turning them on swaps the scene to virtual
+  // lighting, which carries no date at all, so an animation part way from
+  // midday to half past ten at night loses the value it was animating and
+  // freezes wherever it had got to. That is exactly what happened to the night
+  // views: the walk crossed dusk, this fired, and Stadium at Night arrived
+  // stuck at a quarter to eight in the evening with its floodlights unlit and
+  // Night Sky started from the wrong hour behind it.
+  //
+  // Whoever is driving the clock can still work the switch by hand at any hour,
+  // which is the whole point of it being always offered.
+  if (!sky.manual && els.ppanel && !els.ppanel.hidden) {
     if (dusk) setLights(view, true);
     else if (dawn && sky.lit) setLights(view, false);
   }
@@ -3580,14 +3604,17 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     },
     close() {
       shown = false;
+      // The panel is marked closed first. setLights ticks the clock on its way
+      // through, and the tick decides what the switch and the fixtures should
+      // be from whether this panel is open - so telling it afterwards means
+      // answering that question wrongly, once, at the only moment it matters.
+      els.ppanel.hidden = true;
       // The lights come down with the replay that raised them. A scene left lit
       // from the camera after the thing that needed it has gone is how a viewer
       // ends up wondering why the sun has stopped moving.
       els.lightsBtn.hidden = true;
       setLights(view, false);
       paintFixtures();
-
-      els.ppanel.hidden = true;
       for (const b of sportButtons.values()) b.classList.remove("active");
       els.live.classList.remove("active");
       menu(false);
