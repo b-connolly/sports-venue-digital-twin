@@ -35,20 +35,29 @@ import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
 import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 
 const DEG = Math.PI / 180;
+
 const M_PER_DEG_LAT = 110540;
 const M_PER_DEG_LON = 111320;
 
 /**
  * The rings, as the seating map numbers them.
  *
- * `first` is the lowest section number and `at` the bearing it sits on; `count`
- * closes the ring, so the spacing is 360/count and the last section is
- * first + count - 1. `a` and `b` are the ellipse's half-axes - along the field
- * and across it - `up` is the eye height above the playing surface.
+ * `first` is the lowest section number, `at` the bearing it sits on, and
+ * `count` how many there are. `span` is how far round they go: 360 for a ring
+ * that closes, less for one that does not. `a` and `b` are the ellipse's
+ * half-axes - along the field and across it - and `up` is the eye height above
+ * the playing surface.
  *
- * Only the lower bowl for now. The upper rings are the same arithmetic with
- * different numbers, and there is no sense in writing them down before the
- * model has been stood in and checked.
+ * Not every ring closes, and that is the shape of this particular ground. The
+ * lower bowl goes all the way round. The 300 and 500 rings do not: both stop
+ * short at the south end, and the gap they leave is where the 200 club sits.
+ * That is why there are only nine 200s and why they are all on one side.
+ *
+ * The distances and heights below were each found by standing in them. The
+ * bearings were not - they are arithmetic from the numbering, and for the upper
+ * rings the arc they run through is read off the printed seating map rather
+ * than measured. Those are the numbers to doubt first if a section looks like
+ * it is in the wrong part of the ground.
  */
 export const RINGS = [
   // Tuned by standing in them, and the two axes were tuned against each other
@@ -63,8 +72,29 @@ export const RINGS = [
   // axes are picked independently does not have that property, and the first
   // attempt - 100 by 70 - was 45 m back at the sides and 33 at the ends, which
   // is why one end of the ring could be made to work and the other could not.
-  { name: "100", first: 100, count: 36, at: 180, a: 88, b: 60, up: 15 }
+  { name: "100", first: 100, count: 36, at: 180, span: 360, a: 88, b: 60, up: 15 },
+
+  // The club, filling the gap the two rings above it leave at the south end.
+  { name: "200", first: 228, count: 9, at: 160, span: 45, a: 100, b: 74, up: 28 },
+
+  // Sideline comfortable from 26 m up at 72 m out; the end wants 98 m, where
+  // any height from 30 m works. Beyond about 120 m at either end the camera is
+  // inside the structure rather than on it.
+  { name: "300", first: 300, count: 47, at: 200, span: 320, a: 100, b: 72, up: 30 },
+
+  // The top deck. 92 m out on the sideline needs 50 m of height to clear what
+  // is above it; 112 m at the end works from 42 m. 126 m does not work at any
+  // height tried - that is the back wall.
+  { name: "500", first: 500, count: 43, at: 200, span: 320, a: 112, b: 92, up: 50 }
 ];
+
+/** How far apart a ring's sections sit, in degrees. */
+function stepOf(ring) {
+  const span = ring.span ?? 360;
+  // A closed ring divides the whole turn; an arc has one fewer gap than it has
+  // sections, because both ends are occupied rather than meeting.
+  return span >= 360 ? span / ring.count : span / Math.max(1, ring.count - 1);
+}
 
 /** The ring a section belongs to, or null if it is not one we model. */
 export function ringOf(section) {
@@ -92,8 +122,7 @@ export function sectionCamera(cfg, section, surfaceZ) {
 
   // Bearing round the bowl, then the field's own rotation on top: the bowl is
   // built around the field, and the field is not quite square to north.
-  const step = 360 / ring.count;
-  const bearing = ring.at + (section - ring.first) * step
+  const bearing = ring.at + (section - ring.first) * stepOf(ring)
     + (cfg.field.rotation || 0);
   const th = bearing * DEG;
 
@@ -136,7 +165,7 @@ export function sectionCamera(cfg, section, surfaceZ) {
 export function sectionPlan(cfg) {
   const surface = cfg.field.surfaces.gridiron;
   const blocks = RINGS.flatMap((ring) => {
-    const step = 360 / ring.count;
+    const step = stepOf(ring);
     return Array.from({ length: ring.count }, (_, i) => {
       const local = (ring.at + i * step) * DEG;
       const out = (ring.a * ring.b) / Math.hypot(
@@ -148,7 +177,7 @@ export function sectionPlan(cfg) {
         across: out * Math.sin(local),
         // The block's own size: as wide as its share of the ring, and deep
         // enough to be worth aiming at.
-        wide: (2 * Math.PI * out / ring.count) * 0.84,
+        wide: (2 * Math.PI * out * (step / 360)) * 0.84,
         deep: 15,
         // Turned so its long side lies along the ring rather than across it.
         turn: 90 - (local / DEG)

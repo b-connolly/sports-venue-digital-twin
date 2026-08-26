@@ -61,7 +61,7 @@ import Camera from "https://js.arcgis.com/5.0/@arcgis/core/Camera.js";
 import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import { styleLights } from "./lights.js";
 import { addPlay, broadcastCamera } from "./play.js";
-import { sectionCamera, sections, ringOf, sectionPlan } from "./seats.js";
+import { sectionCamera, sections, ringOf, sectionPlan, RINGS } from "./seats.js";
 import { flyLap } from "./flyin.js";
 import { dressSelects } from "./selectmenu.js";
 
@@ -3725,7 +3725,11 @@ function buildSeats(view, surfacesReady, onTaken) {
     // One tile a section, turned to lie along its ring.
     for (const b of plan.blocks) {
       const g = node("g", {
-        transform: `translate(${b.along.toFixed(2)} ${(-b.across).toFixed(2)})`
+        // Along is negated so the plan reads the way the printed seating map
+        // does: north to the left, south to the right, east at the top. The
+        // maths puts south on the left, which is correct and unfamiliar - and
+        // this chart will be held up against the official one.
+        transform: `translate(${(-b.along).toFixed(2)} ${(-b.across).toFixed(2)})`
                  + ` rotate(${(-b.turn).toFixed(2)})`
       });
       const tile = node("rect", {
@@ -3751,12 +3755,20 @@ function buildSeats(view, surfacesReady, onTaken) {
   }
 
   function build() {
-    const all = sections();
-    els.seatSelect.replaceChildren(...all.map((n) => {
-      const o = document.createElement("option");
-      o.value = String(n);
-      o.textContent = `Section ${n}`;
-      return o;
+    // Grouped by level. A hundred and thirty-five sections in one list is a
+    // scroll rather than a choice, and the level is the first thing anybody
+    // decides anyway - lower bowl, club, or somewhere up in the 500s.
+    els.seatSelect.replaceChildren(...RINGS.map((ring) => {
+      const g = document.createElement("optgroup");
+      g.label = `${ring.name} level`;
+      for (let i = 0; i < ring.count; i++) {
+        const n = ring.first + i;
+        const o = document.createElement("option");
+        o.value = String(n);
+        o.textContent = `Section ${n}`;
+        g.appendChild(o);
+      }
+      return g;
     }));
     els.seatSelect.addEventListener("change", () =>
       goTo(parseInt(els.seatSelect.value, 10)));
