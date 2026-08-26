@@ -1113,7 +1113,8 @@ async function main() {
       // so the replay opens on it rather than moving again on arrival.
       // The panel opens at once so the arrival is acknowledged; only the play
       // itself waits, sitting at its first frame until the scene is still.
-      tools.liveAction.open({ key: play.key, frame: false, cam: "broadcast" })
+      tools.liveAction.open({ key: play.key, frame: false, cam: "broadcast",
+                             fromTour: true })
         .then(async (p) => { if (p && await settledArrival()) p.start(); })
         .catch(() => {});
       return;
@@ -1134,6 +1135,11 @@ async function main() {
     else console.warn(`[venue] view ${n} opens "${opens}", which is nothing`);
   });
   wireKeys(view, tour, tools);
+
+  // Ask for the first press. The show does not start itself - somebody arriving
+  // should get the scene, not a slideshow already halfway through it - which
+  // leaves the button needing to say that it is there.
+  tour.nudge(true);
 
   // Deep link. ?live opens the replay straight away and plays it; ?live=7.1
   // opens it paused at that second, so a particular moment - the catch, the
@@ -1617,6 +1623,47 @@ function buildTour(view, slides, captures) {
   // on early.
   let dwellTicket = 0;
 
+  /**
+   * A view that opens a replay holds until the replay has actually finished.
+   *
+   * A number cannot do this job. The dwell has to cover a flight of unknown
+   * length, a wait for the scene to go quiet, and only then the passage itself,
+   * and the sum of those is different on every machine and every connection.
+   * Sized generously it dead-airs the show; sized honestly it cuts the play off
+   * mid-throw. It was 16 s against a passage that runs 19.6, so the deep pass
+   * was clipped before the catch on a good day and further on a bad one.
+   *
+   * So this waits for the thing itself. `time` reaching `duration` is the
+   * play's own account of being over, which no estimate can beat.
+   *
+   * The dwell is still read, as a cap: a replay that never starts - a data file
+   * that will not load, a tab left in the background where rAF does not run -
+   * must not strand the slideshow on one view forever.
+   */
+  const TAIL_MS = 2200;            // a beat on the celebration before moving on
+
+  function untilPlayOver(stale, capMs) {
+    return new Promise((done) => {
+      const t0 = performance.now();
+      // Wait for it to be running before waiting for it to be over. The play
+      // from the previous view is still in hand on arrival and it is already
+      // finished, so a bare "is it at the end" test is answered yes about the
+      // wrong passage - which sent the show past the football goal four
+      // seconds in, half a second of it played.
+      let started = false;
+      const step = () => {
+        if (stale()) return done();
+        const p = window.__play;
+        const over = p && p.duration && p.time >= p.duration - 0.05;
+        if (!over) started = true;
+        else if (started) return done();
+        if (performance.now() - t0 > capMs) return done();
+        setTimeout(step, 250);
+      };
+      step();
+    });
+  }
+
   function schedule() {
     clearTimeout(dwell);
     if (!playing) return;
@@ -1627,14 +1674,44 @@ function buildTour(view, slides, captures) {
       if (stale()) return;
       dwell = setTimeout(() => { if (!stale()) go(current + 1); }, hold);
     };
+    // The replays run themselves out; everything else keeps its timer.
+    if (CONFIG.play.plays.some((p) => p.key === viewAt(current + 1)?.opens)) {
+      untilPlayOver(stale, hold + 30000).then(() => {
+        if (stale()) return;
+        dwell = setTimeout(() => { if (!stale()) go(current + 1); }, TAIL_MS);
+      });
+      return;
+    }
     if (drivesItsOwnShow(viewAt(current + 1))) { start(); return; }
     settle(view, CONFIG.slideSettle.maxMs, CONFIG.slideSettle.quietMs, stale)
       .then(start);
   }
 
-  function setPlaying(on) {
+  /**
+   * The play button asks for a press when pressing it is the thing to do.
+   *
+   * Two moments, and they are the same moment from the viewer's side: nothing
+   * is happening and something could be. On arrival, before the show has ever
+   * run - the button is the one obvious control in the rail and it still gets
+   * missed. And after the show has been stopped by something the viewer did,
+   * which is the case that actually strands people: they change the play, or
+   * the camera, the slideshow stands down because they plainly want to look at
+   * something themselves, and nothing says it has.
+   *
+   * Not while it is running, and not once it has been pressed - a control that
+   * pulses at somebody who has already answered it is nagging rather than
+   * offering.
+   */
+  function nudge(on) {
+    els.tourPlay.classList.toggle("hint", !!on && !playing);
+  }
+
+  function setPlaying(on, byViewer = false) {
     if (playing === on) return;
     playing = on;
+    // Stopped by the viewer's own hand needs no invitation; stopped out from
+    // under them does.
+    nudge(!on && !byViewer);
     clearTimeout(dwell);
     els.tourPlay.classList.toggle("on", on);
     els.tourPlay.setAttribute("aria-pressed", String(on));
@@ -1779,7 +1856,7 @@ function buildTour(view, slides, captures) {
   // at that point the viewer plainly wants to look at something themselves.
   els.prev.addEventListener("click", () => go(current - 1));
   els.next.addEventListener("click", () => go(current + 1));
-  els.tourPlay.addEventListener("click", () => setPlaying(!playing));
+  els.tourPlay.addEventListener("click", () => setPlaying(!playing, true));
   reactiveUtils.watch(() => view.interacting, (busy) => { if (busy) setPlaying(false); });
 
   return {
@@ -1787,6 +1864,8 @@ function buildTour(view, slides, captures) {
     next: () => go(current + 1),
     prev: () => go(current - 1),
     stop: () => setPlaying(false),
+    /** Ask for a press, or stop asking. */
+    nudge,
     /** Called with the view number, 1-based, once a flight has landed. */
     onArrive(fn) { arrive = fn; },
     /**
@@ -3404,7 +3483,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
 
       // After the data is in hand, not before: a failed load should not have
       // folded the panel away and switched the layers about for nothing.
-      stage?.();
+      stage?.(opts);
 
       // Put the other one away first, or both sets of players stand on the
       // same grass.
@@ -4036,10 +4115,16 @@ function wireTools(view, surfacesReady,
   // range the splat is the weaker of the two reconstructions, so the saved fan
   // views are authored with the meshes on and this matches them. It used to be
   // the other way round, chosen from the wide drone shot where the splat wins.
-  const stage = () => {
+  const stage = (opts) => {
     // A running slideshow and a replay both want the camera; the replay wins,
     // because starting one is the more deliberate act of the two.
-    tour?.stop();
+    //
+    // Unless the slideshow is the one that opened it. A staged view opening its
+    // own replay is the show running, not somebody overriding it, and treating
+    // the two alike is why the tour used to halt on the American football view:
+    // it flew there, opened the passage it exists to show, and stood itself
+    // down for doing so. Whoever pressed play then had to press it again.
+    if (!opts?.fromTour) tour?.stop();
     collapseCaptures();
     replayDefaults?.();
   };

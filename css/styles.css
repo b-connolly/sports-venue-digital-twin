@@ -248,6 +248,29 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateY(6px
   box-shadow: 0 2px 10px rgba(251, 79, 20, 0.35);
 }
 .tour__arrow--play svg { width: 13px; height: 13px; fill: currentColor; display: block; }
+/* A ring breathing outwards, rather than the button itself moving. The rail
+   sits over the scene and anything that changes size in it reads as a glitch;
+   a halo leaving the edge reads as an invitation. It fades as it goes so the
+   loop has no seam.
+
+   Deliberately slow. At a second it nags, and a control that nags in a demo is
+   worse than one that is missed - this has to survive being on screen for the
+   length of a conversation without becoming the thing everybody is looking at. */
+@keyframes tourpulse {
+  0%   { box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 0 rgba(251,79,20,0.5); }
+  70%  { box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 9px rgba(251,79,20,0); }
+  100% { box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 0 rgba(251,79,20,0); }
+}
+.tour__arrow--play.hint { animation: tourpulse 2.6s ease-out infinite; }
+/* Somebody who has asked for less movement still gets the pointer, just a
+   still one. Dropping the cue altogether would leave them the worse off of the
+   two, which is the opposite of what the setting is for. */
+@media (prefers-reduced-motion: reduce) {
+  .tour__arrow--play.hint {
+    animation: none;
+    box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 3px rgba(251,79,20,0.45);
+  }
+}
 .tour__arrow--play:hover {
   background: #ff6a33; border-color: transparent; color: #fff;
 }
