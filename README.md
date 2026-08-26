@@ -23,7 +23,7 @@ replays driven by actual sports tracking data.
   caught, the route that worked turns orange along its whole length and the rest
   stay where they are. Football draws only the goal: the delivery in, the finish,
   and a ring on the man at each end of them
-- **Analysis** — distance, area, volume and elevation profile against the captures
+- **Analysis** — distance, area, volume and elevation profile tools
 - **Time of day** — scrub the sun; stadium lights come on after dark
 - **Conditions** — live weather at the venue drives the sky, or pick your own:
   clear, cloudy, rain, snow that lies, fog
