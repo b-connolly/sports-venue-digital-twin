@@ -14,10 +14,18 @@ Run them with the Python that has Pillow, from this folder.
 | `build_soccer.py` | `data/soccer.json`, `data/soccer_header.json`, `data/soccer_counter.json` | One passage of football from 25 Hz tracking, resampled to 10. Takes the passage as an argument — `turnover` (the default), `header` or `counter`. The `PASSAGES` table at the top is the list. |
 | `kickoff.py` | the head of `soccer.json` | Three staged seconds in front of the tackle. Imported by `build_soccer.py`, and runnable alone. Moves the event frames and `meta.assist` to match. |
 | `anonymise.py` | the last step of every play file | Drops `name` and `jersey` from every player and the names from the play description; `meta.carrier` becomes an index. The renderer never reads any of it. |
-| `make_field.py` | `assets/field.jpg` | The painted gridiron. The midfield mark is two constants at the top (`LOGO_LEN_YD`, `LOGO_HGT_YD`). |
+| `make_field.py` | `assets/field.jpg` | The painted gridiron, with the solid white out-of-bounds border outside the lines — six feet, the rulebook minimum, and `APRON_YD` if you want it wider. The midfield mark is two constants at the top (`LOGO_LEN_YD`, `LOGO_HGT_YD`). |
 | `make_pitch.py` | `assets/pitch.jpg` | The football pitch: regulation markings, no club marks, with an apron of grass around them. |
 | `bundle.py` | `../build/dist` | A bundled copy of the app, generated from these same files, for the hosted comparison. Not needed to run anything. |
 | `smoke.py` | nothing | Drives the app in headless Chrome and checks all six replays still work. Run before a deploy and again after one. |
+| `seatcheck.py` | nothing | Every section faces where the seating chart says it does. |
+| `zonecheck.py` | nothing | The same table against the club's own zone names. No browser needed. |
+| `seatrelease.py` | nothing | A seat lets go of the camera when you leave it. |
+| `tourcheck.py` | nothing | The slideshow runs its own replays through, and asks for a press when it stops. |
+| `dockcheck.py` | nothing | The replay panel folds away while a passage runs, and comes back on hover. |
+| `lightscheck.py` | nothing | The light switch is offered at every hour and stays where it was put. |
+| `nightcheck.py` | nothing | The night views arrive at night, with the ground lit. |
+| `digitise_chart.py` | `tools/bearings.json` | Reads the section bearings off `seating_chart.png`. Rerun it if the chart changes. |
 
 ## Getting the source data
 
@@ -147,6 +155,13 @@ and the strike are that measured attempt moved 35.1 yd downfield; only the
 distance and the flight are computed — 26.5 m/s at 37 degrees, apex 12.9 m,
 crossing the bar at 4.5 m and clearing it by 1.44. The app reads all of it out
 in the replay caption.
+
+**The out-of-bounds border.** The painted gridiron is bigger than the field:
+`width`/`depth` in `CONFIG.field.surfaces.gridiron` is the slab that carries the
+texture, `play` is the marked field inside it, and everything that measures
+itself against the surface reads `play`. Confusing the two stands all 22 players
+two yards wide of their own markings and puts the uprights in the crowd, which
+is the whole reason the two numbers exist separately.
 
 **Where the seats are.** Which way round the bowl a section sits is measured,
 not assumed: `digitise_chart.py` reads all 135 off the published seating plan.

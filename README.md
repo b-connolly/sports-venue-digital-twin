@@ -15,12 +15,18 @@ replays driven by actual sports tracking data.
 ## What's in it
 
 - **Captures** — toggle each splat and mesh independently
-- **Views** — saved viewpoints from the scene, with a slideshow
+- **Views** — saved viewpoints from the scene, with a slideshow that runs
+  itself: the two replay views hold until the passage they opened has finished
+  rather than for a fixed count, so nothing is cut off mid-throw. Changing the
+  play or the camera stands the show down, because at that point you plainly
+  want to look at something yourself — and the play button pulses to say so
 - **Live action** — six replays on the field: pick a sport, then a passage.
   American football gives a deep pass, a running touchdown and a record-distance
   field goal; football gives a tackle worked to a finish, a cross headed in, and an
   interception broken the length of the pitch. Each has fan, broadcast and
-  follow-the-ball cameras
+  follow-the-ball cameras. While a passage is running and the pointer is
+  elsewhere the panel folds to a strip and dims, and comes back the moment you
+  point at it
 - **Draw Play** — the play chalked onto the field as it develops, playbook style.
   American football draws every route from the snap; the moment the ball is
   caught, the route that worked turns orange along its whole length and the rest
@@ -31,7 +37,9 @@ replays driven by actual sports tracking data.
   where you are sitting rather than to move; the view follows the ball gently
   and hands back the moment you take hold of it
 - **Analysis** — distance, area, volume and elevation profile tools
-- **Time of day** — scrub the sun; stadium lights come on after dark
+- **Time of day** — scrub the sun; the floodlights come on by themselves after
+  dark and can be switched on by hand at any hour, because a bowl is its own
+  shade and a low morning sun still leaves the ground dim
 - **Conditions** — live weather at the venue drives the sky, or pick your own:
   clear, cloudy, rain, snow that lies, fog
 
