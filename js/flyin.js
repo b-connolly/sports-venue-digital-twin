@@ -118,6 +118,12 @@ function cameraFrom(centre, bearing, out, up, tilt, heading) {
   });
 }
 
+/** One title, several, or none, always as a list. */
+function names(v) {
+  if (v == null) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
 /** Bring `to` within half a turn of `from`, so a sweep never goes the long way. */
 function nearest(from, to) {
   let d = to - from;
@@ -141,11 +147,37 @@ export function flyLap(view, spec, centre, layerNamed, aborted, landOn) {
   const via = spec.path ?? [];
   if (!via.length || !landOn) return Promise.resolve("abandoned");
 
-  const swap = spec.swap ?? null;
-  const goingOut = swap ? layerNamed(swap.off) : null;
-  const comingIn = swap ? layerNamed(swap.on) : null;
-  const was = [goingOut, comingIn].filter(Boolean).map((l) => [l, l.visible]);
-  const undo = () => was.forEach(([l, visible]) => { l.visible = visible; });
+  /**
+   * Layers switched at points along the move.
+   *
+   * A list rather than one on and one off, because the two flights this drives
+   * want different things at different moments and the single pair could only
+   * express one of them. The opening lap has one swap - mesh on, splat off,
+   * both near the end. The walk round to the statues has three, and the reason
+   * they are not one is the whole point of warming: the statue captures are off
+   * to the south of everything the camera passes and can come on immediately,
+   * where the stadium mesh is opaque and would sit over the splat for the whole
+   * sweep if it did.
+   *
+   * Each step names a fraction of the move and the layers to show or hide at
+   * it. Everything touched is put back if the move is abandoned.
+   */
+  const steps = (Array.isArray(spec.swap) ? spec.swap : [spec.swap])
+    .filter(Boolean)
+    .map((st) => ({
+      at: st.at ?? st.onAtT ?? st.offAtT ?? 1,
+      on: names(st.on).map(layerNamed).filter(Boolean),
+      off: names(st.off).map(layerNamed).filter(Boolean),
+      done: false
+    }))
+    .sort((a, b) => a.at - b.at);
+  const was = new Map();
+  for (const st of steps) {
+    for (const l of [...st.on, ...st.off]) {
+      if (!was.has(l)) was.set(l, l.visible);
+    }
+  }
+  const undo = () => was.forEach((visible, l) => { l.visible = visible; });
 
   // Start where the camera already is, finish on the slide's own camera, and
   // and take the written waypoints in between. Bearings are unwrapped as they
@@ -170,9 +202,15 @@ export function flyLap(view, spec, centre, layerNamed, aborted, landOn) {
   const ms = spec.ms ?? 16000;
 
   return new Promise((done) => {
-    if (comingIn && swap && (swap.onAtT ?? 0) <= 0) comingIn.visible = true;
-    let offDone = false;
-    let onDone = !!(comingIn && swap && (swap.onAtT ?? 0) <= 0);
+    const apply = (st) => {
+      st.done = true;
+      for (const l of st.on) l.visible = true;
+      for (const l of st.off) l.visible = false;
+    };
+    // Anything due at the very start happens before the first frame rather
+    // than on it, so a layer asked for at t=0 begins streaming as the move does
+    // rather than a frame into it.
+    for (const st of steps) if (st.at <= 0) apply(st);
     const t0 = performance.now();
 
     // What the camera is actually showing, as against where the clock says it
@@ -187,14 +225,7 @@ export function flyLap(view, spec, centre, layerNamed, aborted, landOn) {
       last = now;
       const raw = Math.min(1, (now - t0) / ms);
 
-      if (swap && !onDone && raw >= (swap.onAtT ?? 0)) {
-        if (comingIn) comingIn.visible = true;
-        onDone = true;
-      }
-      if (swap && !offDone && raw >= (swap.offAtT ?? 1)) {
-        if (goingOut) goingOut.visible = false;
-        offDone = true;
-      }
+      for (const st of steps) if (!st.done && raw >= st.at) apply(st);
 
       // One ease across the whole move rather than one per leg. Smoothstep
       // leaves and arrives at a standstill and is flat out through the middle,

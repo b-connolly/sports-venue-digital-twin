@@ -22,7 +22,10 @@ replays driven by actual sports tracking data.
   is cut off mid-throw — and then the show hands itself back, because the end
   of a replay is where you want to scrub through it rather than be moved along.
   Changing the play or the camera stands it down for the same reason. The play
-  button pulses whenever it is the thing to press
+  button pulses whenever it is the thing to press. The move from the night sky
+  to the statues is flown rather than cut: a slow arc round the outside of the
+  stadium with the sun coming up over it, which also gives the handheld captures
+  at the far end the length of the shot to load
 - **Live action** — six replays on the field: pick a sport, then a passage.
   American football gives a deep pass, a running touchdown and a record-distance
   field goal; football gives a tackle worked to a finish, a cross headed in, and an

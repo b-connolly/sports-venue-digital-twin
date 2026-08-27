@@ -338,6 +338,82 @@ modelled from primitives at regulation size — 7.32 m between the posts, 2.44 m
 to the underside of the bar — with the net as a translucent double-sided panel.
 Closing the panel fades the gridiron back.
 
+### The walk to the statues
+
+One move in the show is flown rather than interpolated. Night Sky sits out to
+the north-west and the statue plaza is due south, so the ordinary slide flight -
+which interpolates the camera in x, y and z - cuts the corner and goes through
+the stadium. No easing fixes that; the problem is the shape of the path, not its
+pace.
+
+`CONFIG.flyBetween` names the pair and gives the shape: waypoints in polar terms
+- a bearing round the ground, a distance from the middle of it, a height above
+the playing surface - driven frame by frame through a spline by the same
+`flyLap` the opening lap uses. Interpolating a circle in those terms stays a
+circle, which is exactly the property the straight line lacks. Nineteen seconds,
+anticlockwise past the west stand, rising to 78 m and then down onto the plaza.
+
+It buys three things, and the second is the one that is easy to miss:
+
+  * **It stays outside.** Distance from the middle of the ground never drops
+    below 190 m until the camera is round to the south and clear of the
+    building, and the approach from there is a radial rather than a crossing.
+  * **The statue captures get nineteen seconds to load.** They are the heaviest
+    thing in the scene per square metre and the view lands close enough to see
+    every tile, so arriving with them cold means watching a grey blob resolve.
+    They come on at the top of the move; the stadium mesh waits until the camera
+    has turned away, because it is opaque where the splat is not and would
+    otherwise sit over the better reconstruction for the whole pass.
+  * **The sun walks home.** See below.
+
+Matched on both ends and only while the show is running. Arriving at the statues
+from anywhere else, or stepping there by hand, gets the ordinary flight -
+nineteen seconds is a shot when it arrives as part of something and an
+unresponsive button when somebody has just pressed next.
+
+`tools/flycheck.py` asserts the clearance against the camera the app actually
+flies rather than against the numbers in the config, because a spline through
+safe-looking waypoints can still bulge between them.
+
+### Walking the sun home
+
+The view after Night Sky has no clock of its own, so live time used to come back
+in a single frame: the sun jumped most of a day, the sky went from stars to
+whatever Denver is under, the floodlights went out and the slider's handle
+teleported across its track — all on top of the calmest camera move in the show.
+
+It is walked across the flight instead, and walked *forwards*. Live time is
+behind midnight rather than ahead of it, so the short way is backwards, and a
+sun that runs backwards reads as a fault however smoothly it does it. Going
+forward gives a sunrise: the sky pales over the west stand while the camera
+comes round it, the floodlights drop out as the sun clears the horizon, and the
+move lands in daylight at the time it really is at the venue. The walk arrives a
+day ahead of the true instant and the hand-back to the live clock steps that day
+off, which is invisible — the same time of day is the same sun.
+
+Three bugs sat behind this and all three are worth knowing about, because each
+one produced a *plausible* wrong answer rather than an obvious one:
+
+  * **The warm-up left the scene's authored date on the lighting.** Applying a
+    slide installs its environment, date included, and the scene is authored on
+    a fixed afternoon. The rail could afford to be careless - `tickClock` puts
+    it right within thirty seconds and nothing has looked at it - but the
+    warm-up runs before the first tick, so whatever it left was what the app was
+    holding when the show started. `warmUp` now makes the same `matchLighting`
+    stamp the rail does.
+  * **The time slider kept the day it was built with.** Built from that stale
+    date, every instant the rail set afterwards fell outside its extent, the
+    widget clamped it back inside, and the watch read the clamp as a hand on the
+    handle: `manual` latched on and live time was lost for the session. It read
+    as nothing worse than the light looking a bit odd, because a wrong
+    declination is not a wrong clock face. Measured: 165 days.
+  * **The handle only ever clamped.** The track is one day long and the walk
+    crosses midnight, so the handle parked against the edge and stayed there
+    while the readout above it went on counting. `sliderOwner` now moves the
+    day under the handle.
+
+### Holding on the replays
+
 The slideshow stops on each of the two replay views. Every other view is a
 place - you arrive, you look, it moves on - and these two are an event: the
 passage runs out to its end, and the moment it does is the moment somebody

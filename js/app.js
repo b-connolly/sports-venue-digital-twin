@@ -227,8 +227,107 @@ const CONFIG = {
     // it would be fetching anything useful: the tiles it needs are the ones for
     // the seat, and those are only worth asking for from somewhere near it. It
     // then has the rest of the move, and the arrival wait after it, to arrive.
-    swap: { on: "3D Mesh", onAtT: 0.82, off: "Gaussian Splat", offAtT: 0.94 }
+    swap: [
+      { at: 0.82, on: "3D Mesh" },
+      { at: 0.94, off: "Gaussian Splat" }
+    ]
   },
+
+  /**
+   * Flights between two named views, where the straight line between them is
+   * not a shot.
+   *
+   * A slide flight interpolates the camera in x, y and z, which is right for
+   * almost every pair of views in this scene and wrong for one: Night Sky sits
+   * out to the north-west and the statue plaza is due south, so the move
+   * between them cuts the corner and goes through the stadium. Half a second of
+   * concrete interior at speed, and out the other side.
+   *
+   * Named rather than numbered, for the same reason CONFIG.views is - a slide
+   * added to the web scene must not silently move this onto a different pair -
+   * and matched on both ends, so it only runs as the move it was shaped for.
+   * Arriving at the same view from anywhere else gets the ordinary flight.
+   *
+   * Each is the same shape flyIn takes: waypoints in polar terms - a bearing
+   * round the ground, a distance from the middle of it, a height above the
+   * playing surface - driven frame by frame through a spline. See flyin.js for
+   * why that rather than a chain of goTo, and why polar rather than Cartesian:
+   * interpolating a circle in these terms stays a circle, which is exactly the
+   * property the straight line lacks.
+   */
+  flyBetween: [
+    {
+      from: "Night Sky",
+      to: ["Combine Handheld Captures using Pix4DCatch",
+           "Broncos Stampede"],
+      // Nineteen seconds for 165 degrees of arc. The opening lap does 12.5 for
+      // rather less, and is the faster shot on purpose - it is an entrance.
+      // This one is a walk to somewhere, under a sky that is going from
+      // midnight to now while it happens, and it wants the time.
+      ms: 19000,
+      /**
+       * Round the west side, high, and then down onto the plaza.
+       *
+       * The bearings run the short way from the Night Sky camera to the
+       * statues, which is anticlockwise past the west stand. Distance never
+       * drops below 190 m until the camera is round to the south and clear of
+       * the building, so the whole sweep is outside it - see tools/flycheck.py,
+       * which asserts exactly that rather than trusting these numbers.
+       *
+       * The height rises before it falls. Starting at 27 m and ending at 11
+       * would have been a flat trudge round a car park; lifting to 78 over the
+       * west stand makes it a pass over the stadium, and the descent out of it
+       * is what gives the arrival somewhere to arrive from.
+       *
+       * Tilt comes down from 95 - Night Sky is looking up at the stars - to the
+       * statue view's own 64, monotonically, so the gaze settles rather than
+       * nodding.
+       *
+       * Headings are left to default to "look at the middle of the ground" for
+       * the first three, which is what keeps the stadium framed for the sweep.
+       * The last two are written down because the arrival is not looking at the
+       * stadium at all - it is looking at the statues, 99 degrees off - and
+       * left to the default that whole turn lands in the final leg. Split
+       * across two, and with the ease already decelerating into the end, it
+       * reads as the camera finding the horses rather than whipping onto them.
+       */
+      path: [
+        { bearing: -50,  out: 345, up: 62, tilt: 82 },
+        { bearing: -92,  out: 320, up: 78, tilt: 76 },
+        { bearing: -130, out: 268, up: 62, tilt: 72 },
+        { bearing: -158, out: 190, up: 30, tilt: 66, heading: 75 }
+      ],
+      /**
+       * What loads when, and why it is not all at the start.
+       *
+       * The statue captures come on immediately. They are the reason for the
+       * flight as much as the shot is: they are the heaviest thing in the scene
+       * per square metre and the view lands close enough to see every tile, so
+       * arriving with them cold is arriving at a grey blob that resolves while
+       * somebody is looking at it. Nineteen seconds of streaming is what this
+       * buys them. They sit south of everything the camera passes on the way,
+       * so having them on early costs the sweep nothing.
+       *
+       * The stadium mesh is the opposite case and waits. It is opaque where the
+       * splat is not, so switching it on early would simply put the weaker
+       * reconstruction over the better one for the whole pass - and the pass is
+       * the part of this the splat is best at. It comes on as the camera turns
+       * away south, with the splat following it off a beat later.
+       */
+      swap: [
+        { at: 0, on: ["Broncos Stampede", "Bronco Alumni Statues",
+                      "Statues", "Statues2", "Pix4D Catch 3D Mesh"] },
+        { at: 0.62, on: "3D Mesh" },
+        { at: 0.74, off: "Gaussian Splat" }
+      ],
+      // Walk the sun home over the move. Night Sky leaves the clock somewhere
+      // in the small hours; the view after it has no clock of its own and so
+      // used to snap back to live time on arrival - a whole night undone in one
+      // frame, floodlights out, sky rewritten. Walked instead, the sun comes up
+      // over the west stand while the camera goes round it.
+      clock: "live"
+    }
+  ],
 
   // How long a view is held before the tour moves on, once the flight to it
   // has finished, and once it has finished loading - see slideSettle. The
@@ -581,6 +680,21 @@ function localInstant(tz, hh, mm, at = new Date()) {
   return new Date(t);
 }
 
+/**
+ * The same time of day, moved onto today's date at the venue.
+ *
+ * Whole-day arithmetic would nearly do and is wrong twice a year: shifting by
+ * 24-hour blocks across a daylight-saving boundary lands an hour out, which is
+ * an hour of sun. Rebuilding the instant from the site's own hour and minute
+ * cannot drift, because it never counts days at all.
+ */
+function ontoToday(when) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: CONFIG.site.tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(when).map((x) => [x.type, x.value]));
+  return localInstant(CONFIG.site.tz, Number(p.hour), Number(p.minute));
+}
+
 const $ = (id) => document.getElementById(id);
 const els = {
   intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
@@ -778,6 +892,17 @@ async function warmUp(view, slides, restore,
     els.msg.textContent = els.enter.disabled ? "Loading…" : "Ready — still caching…";
     if (els.enter.disabled) bar.over(99, Math.min(left, cfg.perViewMs));
     const t0 = performance.now();
+    // The same stamp the rail makes before every flight, and for a sharper
+    // reason here. Applying a slide installs its authored environment, date
+    // included, and the scene is authored on a fixed afternoon five months from
+    // whenever anybody runs this. The rail can afford to be careless about that
+    // - tickClock puts the date back within thirty seconds and nothing has
+    // looked at it - but the warm-up runs behind the curtain, before the first
+    // tick, and whatever it leaves on the lighting is what the app is holding
+    // when the show starts. The time slider is built from that date and keeps
+    // the day it was built with for the session; anchored to the authored one
+    // it clamped every clock the rail set afterwards back into a day in March.
+    matchLighting(slide);
     // animate: false - this is a jump, not a flight. Nobody is watching, and a
     // 2.6 s easing per view would be most of the budget spent on nothing.
     await slide.applyTo(view, { animate: false }).catch(() => {});
@@ -1540,7 +1665,7 @@ function buildTour(view, slides, captures) {
    * than after it, so the sky is already right when the camera arrives instead
    * of changing under it once it lands.
    */
-  function applyClock(idx, slide) {
+  function applyClock(idx, slide, { walked = false } = {}) {
     // The sky a view insists on, if any. Nothing to save and restore: `imposed`
     // is only ever set from here, so clearing it is enough to hand the weather
     // back to whatever the viewer or the feed had decided.
@@ -1580,6 +1705,19 @@ function buildTour(view, slides, captures) {
         return;
       }
       view.environment.lighting.date = to;
+    } else if (clockWas && walked) {
+      // A flight is about to walk this clock home instead - see walkClockHome.
+      // The saved state is dropped here rather than after the walk because it
+      // is only ever a way back to live, and the walk is a better one: it ends
+      // there too, having shown the journey. Left in place it would be a stale
+      // instant waiting for the next view with no clock of its own to snap to.
+      //
+      // `manual` stays true for the duration. It is what stops tickClock
+      // writing the wall clock over the date every second, which is the whole
+      // reason a walked sun is possible at all.
+      clockWas = null;
+      sky.manual = true;
+      return;
     } else if (clockWas) {
       sky.manual = clockWas.manual;
       view.environment.lighting.date = clockWas.date;
@@ -1624,6 +1762,78 @@ function buildTour(view, slides, captures) {
       tickClock(view);
     };
     lightRaf = requestAnimationFrame(step);
+  }
+
+  /**
+   * Walk the sun home, over a flight.
+   *
+   * The night views hold the clock at half ten and then sweep it towards
+   * midnight, and the view after them has no clock of its own - so the app let
+   * go and the live time came back in a single frame. Everything moved at once:
+   * the sun jumped most of a day, the sky went from stars to whatever Denver is
+   * actually under, the floodlights went out, and the time slider's handle
+   * teleported across its track. It is the most abrupt thing in the show, and
+   * it happens over the top of a camera move that is meant to be the calmest.
+   *
+   * So the clock is walked across the flight instead, and it is walked
+   * *forwards*. Live time is behind midnight, not ahead of it, so the short way
+   * is backwards - and a sun that runs backwards reads as a mistake however
+   * smoothly it does it. Going forward instead means whole days are added until
+   * the target is ahead, and what the viewer gets is a sunrise: the sky pales
+   * over the west stand while the camera comes round it, the floodlights drop
+   * out when the sun clears the horizon, and the move lands in daylight at the
+   * same time of day it really is at the venue.
+   *
+   * The date it lands on is a day or so ahead of the true instant, which is
+   * worth exactly nothing visually - the same time of day is the same sun - and
+   * is corrected on the last line anyway, where the walk hands the clock back
+   * to the live one that has been running all along.
+   *
+   * tickClock is called on its own interval rather than every frame. It reads
+   * the sun's altitude, repaints the weather chip and decides the night layers,
+   * and none of that needs 60 Hz; the date, which does, is written every frame.
+   */
+  const CLOCK_STEP_MS = 120;
+
+  function walkClockHome(ms, stale) {
+    return new Promise((done) => {
+      // Virtual lighting carries no date, so there would be nothing to walk.
+      setLights(view, false);
+      stopFollowingLight();
+      sky.manual = true;
+      // Onto today first. The walk is only ever about the time of day, and a
+      // clock that has picked up somebody else's date - see dayBounds - would
+      // otherwise have the sun cross every month between here and now. Measured
+      // before this: a hundred and sixty-five days in nineteen seconds.
+      const from = ontoToday(nowDate(view)).getTime();
+      let to = Date.now();
+      while (to <= from) to += 864e5;      // forwards only - see above
+      const t0 = performance.now();
+      let last = 0;
+      const step = (now) => {
+        if (stale()) { done(); return; }
+        const raw = Math.min(1, (now - t0) / ms);
+        // The same ease the camera is on, so the sun and the shot start and
+        // stop together instead of the light sliding under a settled camera.
+        const u = raw * raw * (3 - 2 * raw);
+        view.environment.lighting.date = new Date(from + (to - from) * u);
+        if (now - last >= CLOCK_STEP_MS) {
+          last = now;
+          tickClock(view);
+          sliderOwner(view.environment.lighting.date);
+        }
+        if (raw < 1) { requestAnimationFrame(step); return; }
+        // Home. The clock is handed back to the live one, which puts the date
+        // on the true instant rather than the day-ahead one the walk arrived
+        // at, and leaves tickClock advancing it a second at a time again.
+        sky.manual = false;
+        view.environment.lighting.date = new Date();
+        tickClock(view);
+        sliderOwner(view.environment.lighting.date);
+        done();
+      };
+      requestAnimationFrame(step);
+    });
   }
 
   /** How long to hold a view before moving on, in the slideshow. */
@@ -1813,10 +2023,16 @@ function buildTour(view, slides, captures) {
     releaseCamera();
     sweepOwner();
     matchLighting(slides[idx]);
+    // The written flight for this pair of views, if there is one. Worked out
+    // before the clock is touched rather than after, because a flight that
+    // carries the clock has to stop applyClock putting it back first - one
+    // frame of live daylight before the walk starts from midnight is the whole
+    // jump this exists to remove, arriving a moment earlier.
+    const flight = flightBetween(from, idx);
     // After matchLighting, not before: a walking clock has to keep stamping the
     // slide as it goes, and matchLighting would otherwise overwrite the first
     // stamp with the time the walk started from.
-    applyClock(idx, slides[idx]);
+    applyClock(idx, slides[idx], { walked: flight?.clock === "live" });
     // The lap, where this is the move it was written for: the slideshow is
     // running, we are arriving at the view it names, and we are coming from the
     // one before it rather than jumping in from somewhere else.
@@ -1863,7 +2079,37 @@ function buildTour(view, slides, captures) {
           landedOn ?? slides[idx].viewpoint?.camera
         );
         cutTheLap = null;
+      } else if (flight) {
+        let cut = false;
+        cutTheLap = () => { cut = true; };
+        const stale = () => cut || goTicket !== mine;
+        // The clock walks alongside rather than after. They are one move from
+        // the viewer's side - the sun comes up over the stand the camera is
+        // going round - and running them in sequence would be a flight in the
+        // dark followed by a sunrise from a parked camera.
+        const sun = flight.clock === "live"
+          ? walkClockHome(flight.ms ?? CONFIG.flyDuration, stale)
+          : Promise.resolve();
+        await Promise.all([
+          flyLap(
+            view, flight,
+            { lat: CONFIG.field.lat, lon: CONFIG.field.lon, z: CONFIG.field.z },
+            (title) => view.map.allLayers.find((l) => l.title === title),
+            stale,
+            landedOn ?? slides[idx].viewpoint?.camera
+          ),
+          sun
+        ]);
+        cutTheLap = null;
       }
+      // The slide is stamped again, and only now. matchLighting ran before the
+      // flight, with the sky the flight started under - which for a walked
+      // clock is the middle of the night, a whole sunrise ago. Applying the
+      // slide below installs its environment wholesale, so left alone it would
+      // put the sun straight back where the walk had just brought it from. The
+      // same is quietly true of the lap: twelve seconds of live clock is not
+      // visible, but it is the same mistake and there is no reason to keep it.
+      if (lap || flight) matchLighting(slides[idx]);
       // Bounded, because `moving` is a latch: if applyTo ever fails to settle -
       // a flight interrupted at the wrong moment, a tab backgrounded mid-
       // animation - the rail would be dead for the rest of the session, arrows
@@ -1871,10 +2117,10 @@ function buildTour(view, slides, captures) {
       // something is genuinely stuck.
       await Promise.race([
         slides[idx].applyTo(view, {
-          // The lap has already landed on this slide's camera, so there is
+          // The flight has already landed on this slide's camera, so there is
           // nothing left to fly; applyTo is only here to set the layers and the
           // environment the slide asks for.
-          animate: !lap,
+          animate: !lap && !flight,
           // A view that walks its clock flies for as long as the walk takes -
           // the lighting animation is part of the flight, so the flight sets
           // its pace.
@@ -1914,6 +2160,40 @@ function buildTour(view, slides, captures) {
     // going to take the panel and possibly the camera, and it should not be
     // doing that while the camera is still flying.
     arrive?.(idx + 1);
+  }
+
+  /**
+   * The written flight for a move, or null for the ordinary one.
+   *
+   * Both ends have to match. A flight is a shape cut for one pair of views -
+   * this one sweeps anticlockwise round the west stand because that is the
+   * short way from the north-west to the south, and taken from anywhere else it
+   * would be an arbitrary detour ending in the right place.
+   *
+   * Only while the show is running, for the same reason the opening lap is:
+   * nineteen seconds is a shot when it arrives as part of something, and an
+   * unresponsive button when somebody has just pressed next. Stepping by hand,
+   * or picking the view out of the list, gets the ordinary flight.
+   */
+  function flightBetween(from, to) {
+    if (from < 0 || !playing) return null;
+    const here = slides[from], there = slides[to];
+    if (!here || !there) return null;
+    return (CONFIG.flyBetween ?? []).find((f) =>
+      titled(here, f.from) && titled(there, f.to)) ?? null;
+  }
+
+  /**
+   * Does this slide answer to any of these titles?
+   *
+   * slidesNamed rather than slideNamed, asked of a list of one: the singular
+   * form warns when a title matches anything other than exactly one slide, and
+   * here a miss is the ordinary answer rather than a misconfiguration. Asked
+   * the other way it would log a warning for every pair of views that is not
+   * the one flight in the config, on every move of the show.
+   */
+  function titled(slide, names) {
+    return [names].flat().some((n) => slidesNamed([slide], n).length > 0);
   }
 
   function paint() {
@@ -2777,9 +3057,33 @@ function startWeather(view, inflight) {
 function buildTimeOfDay(view) {
   let slider = null;
 
-  const dayBounds = () => {
-    // Midnight-to-midnight of the day currently being shown, in site local time.
-    const cur = nowDate(view);
+  const dayBounds = (at = new Date()) => {
+    /**
+     * Midnight to midnight of today at the venue, in site local time.
+     *
+     * Today's, and deliberately not "the day currently being shown", which is
+     * what this used to read and is a different thing far more often than it
+     * looks. The scene is authored on a fixed date and applying a slide
+     * installs that date along with everything else - the warm-up does it
+     * before anybody has seen anything - so the lighting can be holding a day
+     * five months from now while the app believes it is tracking live time.
+     * tickClock puts it right within thirty seconds and nobody notices.
+     *
+     * The slider does notice, because it is built once and keeps the day it
+     * was built with. Anchored to a stale one, every instant the rail set
+     * afterwards fell outside it, the widget clamped it back inside, and the
+     * watch below read the clamp as a hand on the handle: sun dragged to the
+     * wrong date, `manual` latched on, live time lost for the session. The sun
+     * was still at the right hour, so it read as nothing worse than the light
+     * looking a bit odd - a wrong declination is not a wrong clock face.
+     *
+     * The app has never shown any day but today, so that is the default. The
+     * one caller that passes an instant is the handle-follower below, which has
+     * to be able to move the whole track onto tomorrow: a walked sun crosses
+     * midnight halfway through, and a day-long slider cannot show that without
+     * changing which day it is a slider for.
+     */
+    const cur = at;
     const p = Object.fromEntries(clockAt(sky.tz, {
       year: "numeric", month: "2-digit", day: "2-digit"
     }).formatToParts(cur).map((x) => [x.type, x.value]));
@@ -2822,9 +3126,21 @@ function buildTimeOfDay(view) {
       loop: true,
       timeVisible: true
     });
-    // Any movement of the slider takes ownership of the sun.
+    // A debugging handle, and only that - nothing in the app reads it. The
+    // handle's agreement with the sun is otherwise invisible from outside the
+    // widget, and it is a thing that has been wrong twice.
+    window.__timeSlider = slider;
+    // Any movement of the slider takes ownership of the sun - but not its own
+    // arrival. The widget settles its extent as it builds: it clamps what it
+    // was handed into the full extent and snaps it to a stop, so the first
+    // value the watch ever sees is one the app did not write and did not ask
+    // for. Read as a hand on the handle it did the full job - `manual` latched
+    // on, and the sun was dragged to whatever instant the widget had settled on
+    // - which is a strange way to lose live time: by opening a panel.
+    let arrived = false;
     reactiveUtils.watch(() => slider.timeExtent, (t) => {
       if (!t?.start) return;
+      if (!arrived) { arrived = true; return; }
       if (programmatic && Math.abs(t.start - programmatic) < 1000) { programmatic = null; return; }
       stopSweep();                            // a hand on the slider wins
       sky.manual = true;
@@ -2919,6 +3235,21 @@ function buildTimeOfDay(view) {
   // and the sweep do it.
   sliderOwner = (when) => {
     if (!slider || !when) return;
+    // Carry the day, not just the handle.
+    //
+    // The track is one day long and the rail can set a time on any of them -
+    // the walk from the night views to live crosses midnight about halfway
+    // through. Handed an instant off the end of its extent the widget does the
+    // only thing it can and clamps, so the handle parks against the edge and
+    // stays there while the readout above it goes on counting: a slider that
+    // has visibly stopped agreeing with the clock it is showing. Moving the
+    // extent first means the handle keeps tracking, and the tick labels come
+    // with it.
+    const ext = slider.fullTimeExtent;
+    if (!ext || when < ext.start || when > ext.end) {
+      const [start, end] = dayBounds(when);
+      slider.fullTimeExtent = new T.TimeExtent({ start, end });
+    }
     programmatic = when;
     slider.timeExtent = new T.TimeExtent({ start: when, end: when });
   };

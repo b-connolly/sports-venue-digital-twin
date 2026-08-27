@@ -25,6 +25,7 @@ Run them with the Python that has Pillow, from this folder.
 | `dockcheck.py` | nothing | The replay panel folds away while a passage runs, and comes back on hover. |
 | `lightscheck.py` | nothing | The light switch is offered at every hour and stays where it was put. |
 | `nightcheck.py` | nothing | The night views arrive at night, with the ground lit. |
+| `flycheck.py` | nothing | The walk from Night Sky to the statues stays outside the stadium, and walks the sun home rather than snapping it. |
 | `digitise_chart.py` | `tools/bearings.json` | Reads the section bearings off `seating_chart.png`. Rerun it if the chart changes. |
 
 ## Getting the source data

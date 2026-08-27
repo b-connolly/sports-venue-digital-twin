@@ -41,7 +41,7 @@ STATE = """(function(){
   var l = (s && s.nightLayers && s.nightLayers[0]) || null;
   return JSON.stringify({
     slide: (document.getElementById('tourIdx')||{}).textContent,
-    title: (document.getElementById('tourTitle')||{}).textContent,
+    title: (document.getElementById('tourName')||{}).textContent,
     clock: (document.getElementById('wxTime')||{}).textContent,
     hour: L && L.date ? new Date(L.date).getUTCHours() : null,
     panel: !document.getElementById('playPanel').hidden,
