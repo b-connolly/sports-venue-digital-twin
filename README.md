@@ -69,8 +69,6 @@ The captures were processed with
 | [Metrica Sports sample data](https://github.com/metrica-sports/sample-data) | football tracking, 25 Hz, anonymised at source |
 | [NASA SVS Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851) | night sky texture, public domain |
 | [Open-Meteo](https://open-meteo.com) | live conditions at the venue |
-| Published Empower Field seating chart | where each of the 135 sections sits, read off the plan rather than assumed |
-| [Broncos Virtual Venue](https://denverbroncos.io-media.com/web/index.html) (IOMEDIA) | the zone each section is sold as, used only to check the above |
 
 Both replays are real movement, not animation. Names and squad numbers are
 stripped from the data before it ships, and no team is identified in the animated data despite being based on real-world events and actual data. The Denver Broncos are only highlighted by the capture data with permission from City of Denver to use in demos and marketing materials. See [`NOTICE`](NOTICE).
