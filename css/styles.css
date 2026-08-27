@@ -291,12 +291,91 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateY(6px
 /* Clamped rather than truncated: a third line would push the captures panel
    down on every navigation, and no slide in the scene needs one. The full
    text is on the element's title attribute either way. */
+/* The name is a button, and deliberately does not look like one. A control
+   that announced itself here would compete with the play button, which is the
+   thing the rail is actually asking anybody to press; this only has to be
+   findable once somebody goes looking for a way to skip ahead. So: no border,
+   no fill, the chevron at a third opacity, and the whole thing lifts on hover
+   the way the rest of the rail does. */
+.tour__pick { position: relative; }
 .tour__title {
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  width: 100%; margin: 0; padding: 0;
+  border: 0; background: none; cursor: pointer;
+  font: inherit; text-align: left;
+  color: var(--paper);
+  transition: color 0.16s;
+}
+.tour__name {
+  flex: 1 1 auto; min-width: 0;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
   font-size: 0.85rem; font-weight: 500; line-height: 1.32;
-  color: var(--paper);
   overflow: hidden; overflow-wrap: break-word; text-wrap: pretty;
 }
+.tour__chev {
+  flex: 0 0 11px; width: 11px; height: 11px;
+  /* Optically centred on the first line of the name rather than on the block:
+     a two-line title would otherwise push it half a line down. */
+  margin-top: 0.28rem;
+  opacity: 0.35; transition: transform 0.28s var(--ease), opacity 0.16s;
+}
+.tour__title:hover .tour__chev,
+.tour__title[aria-expanded="true"] .tour__chev { opacity: 0.85; }
+.tour__title[aria-expanded="true"] .tour__chev { transform: rotate(180deg); }
+.tour__title:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+
+/* Dropped over the scene rather than pushed into the card. The rail is one
+   flow column — see .rail — so a list that took up space here would shove the
+   captures panel down the screen every time it opened and haul it back up
+   again on every choice. Overlaying costs nothing and keeps the rail still.
+
+   Capped and scrolled: the count comes from the web scene and this app has no
+   say in it, so a list sized to "however many slides there happen to be" is a
+   list that runs off the bottom of a laptop the day somebody adds four. */
+.tour__list {
+  position: absolute; z-index: 12;
+  top: calc(100% + 7px); left: -0.35rem; right: -0.35rem;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px;
+  max-height: min(52vh, 340px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  animation: tourlist-in 0.16s var(--ease);
+}
+.tour__list[hidden] { display: none; }
+
+@keyframes tourlist-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tour__item {
+  display: flex; align-items: baseline; gap: 0.55rem;
+  width: 100%; padding: 0.4rem 0.5rem;
+  border: 0; border-radius: 7px;
+  background: transparent; color: var(--paper-dim);
+  font: inherit; font-size: 0.74rem; line-height: 1.3;
+  text-align: left; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.tour__item:hover { background: rgba(244,241,234,0.09); color: var(--paper); }
+.tour__item:focus-visible {
+  outline: 2px solid var(--accent-2); outline-offset: -2px;
+}
+/* The number carries the same tracking and tabular figures as the counter
+   above it, so the two read as one numbering rather than two. */
+.tour__item__n {
+  flex: 0 0 auto;
+  font-size: 0.56rem; font-weight: 600; letter-spacing: 0.14em;
+  color: var(--paper-faint); font-variant-numeric: tabular-nums;
+  transition: color 0.15s;
+}
+.tour__item__name { flex: 1 1 auto; min-width: 0; }
+.tour__item.on { color: var(--paper); }
+.tour__item.on .tour__item__n { color: var(--accent-2); }
 
 /* captures — same column, keeps its glass card */
 .captures {
@@ -887,7 +966,7 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
      the counter and the three buttons are what you need, and the name of the
      view is already the thing you are looking at. */
   .tour { padding: 0.45rem 0.55rem; gap: 0; }
-  .tour__title { display: none; }
+  .tour__pick { display: none; }
   .tour__bar { gap: 0.5rem; }
   .tour__arrow { width: 30px; height: 30px; }   /* thumbs, not cursors */
 

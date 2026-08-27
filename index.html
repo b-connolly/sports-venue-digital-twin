@@ -78,7 +78,25 @@
         <button id="next" class="tour__arrow" type="button" aria-label="Next view">&#8250;</button>
       </div>
     </div>
-    <span id="tourTitle" class="tour__title">&nbsp;</span>
+    <!-- The name of the view is also the way to any other one: pressing it
+         drops the whole list. Subtle on purpose — a viewer who never notices
+         it still has the arrows and the play button, which is how the rail has
+         always worked; this is for the second time through, when somebody
+         wants the night sky again and does not want to step past four views to
+         reach it. Built from the web scene's slides in buildTour. -->
+    <div class="tour__pick">
+      <button id="tourTitle" class="tour__title" type="button"
+              aria-expanded="false" aria-controls="tourList"
+              aria-label="Choose a view">
+        <span id="tourName" class="tour__name">&nbsp;</span>
+        <svg class="tour__chev" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor"
+                stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <div id="tourList" class="tour__list" hidden role="menu"
+           aria-label="All views"></div>
+    </div>
   </nav>
 
   <aside id="captures" class="captures hidden stowed" aria-label="Captures">

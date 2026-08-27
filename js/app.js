@@ -594,7 +594,8 @@ const els = {
   capturesToggle: $("capturesToggle"),
   rail: $("rail"), tour: $("tour"), prev: $("prev"), next: $("next"),
   tourPlay: $("tourPlay"), tourIcon: $("tourIcon"),
-  idx: $("tourIdx"), title: $("tourTitle"),
+  idx: $("tourIdx"), title: $("tourName"),
+  titleBtn: $("tourTitle"), tourList: $("tourList"),
   tools: $("tools"), home: $("home"), measure: $("measure"), hud: $("hud"),
   timeOfDay: $("timeOfDay"), tpanel: $("timePanel"), thost: $("timeHost"),
   tlive: $("timeLive"), tclose: $("timeClose"), treadout: $("timeReadout"),
@@ -614,6 +615,25 @@ const els = {
   wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"),
   wxLive: $("wxLive"), wxPick: $("wxPick"), wxMenu: $("wxMenu"),
 };
+
+/**
+ * Who is offering "recenter on the ball".
+ *
+ * Two things can. Player Highlight offers it once the viewer has taken the
+ * camera off the follow, and Fan Perspective offers it from the moment a seat
+ * is taken until the seat is given up. They are never both in charge - the
+ * camera belongs to one mode or the other - but their code paths do cross:
+ * switching cameras stands the highlight loop down, and the tidy-up on the way
+ * past used to hide the button outright, taking the seat's offer with it.
+ *
+ * So each owner sets its own flag and the button follows the pair. Neither can
+ * put away an offer it did not make.
+ */
+const recenterOwners = { highlight: false, seat: false };
+function offerRecenter(who, on) {
+  recenterOwners[who] = !!on;
+  els.precenter.hidden = !(recenterOwners.highlight || recenterOwners.seat);
+}
 
 /**
  * The loading bar.
@@ -1860,8 +1880,75 @@ function buildTour(view, slides, captures) {
     els.title.textContent = name;
     // The title clamps at two lines; the tooltip is what carries a name long
     // enough to be cut, so nothing is unreachable.
-    els.title.title = name;
+    els.titleBtn.title = name ? `${name} — choose a view` : "Choose a view";
+    for (const item of els.tourList.children) {
+      const on = Number(item.dataset.at) === current;
+      item.classList.toggle("on", on);
+      item.setAttribute("aria-current", on ? "true" : "false");
+    }
   }
+
+  /**
+   * Jumping straight to a view.
+   *
+   * The arrows step and the play button runs the whole show; neither answers
+   * "take me back to the night sky", which is the thing anybody asks for on a
+   * second pass through. A list of the views, hanging off the name of the one
+   * you are on, answers it in one press without adding a control to a rail
+   * that is already carrying four.
+   *
+   * Built once, from the slides the web scene actually has, for the same reason
+   * everything else here is matched on title rather than number: the scene is
+   * the author's and the app does not get to assume how many views are in it.
+   */
+  function buildList() {
+    els.tourList.replaceChildren(...slides.map((slide, i) => {
+      const b = document.createElement("button");
+      b.className = "tour__item";
+      b.type = "button";
+      b.setAttribute("role", "menuitem");
+      b.dataset.at = String(i);
+      const n = document.createElement("span");
+      n.className = "tour__item__n";
+      n.textContent = String(i + 1).padStart(2, "0");
+      const name = document.createElement("span");
+      name.className = "tour__item__name";
+      name.textContent = slide.title?.text ?? `View ${i + 1}`;
+      b.append(n, name);
+      b.addEventListener("click", () => {
+        showList(false);
+        // Choosing a view by hand is the same gesture as pressing an arrow, so
+        // it is treated the same way: the show is not stopped, the dwell is
+        // re-armed by go() when the flight lands.
+        go(i);
+      });
+      return b;
+    }));
+  }
+
+  function showList(on) {
+    els.tourList.hidden = !on;
+    els.titleBtn.setAttribute("aria-expanded", String(!!on));
+    // Onto the view you are on, so the list opens where you are rather than at
+    // the top of a scrolled column.
+    if (on) els.tourList.querySelector(".tour__item.on")
+      ?.scrollIntoView({ block: "nearest" });
+  }
+
+  els.titleBtn.addEventListener("click", () => showList(els.tourList.hidden));
+  // Clicking away closes it, the way the sport chooser does.
+  document.addEventListener("pointerdown", (e) => {
+    if (els.tourList.hidden) return;
+    if (els.tourList.contains(e.target) || els.titleBtn.contains(e.target)) return;
+    showList(false);
+  });
+  els.tourList.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    showList(false);
+    els.titleBtn.focus();
+  });
+
+  buildList();
 
   // Stepping by hand does not stop the tour, it just resets the dwell - go()
   // re-arms the timer when it lands. Touching the camera does stop it, because
@@ -3180,9 +3267,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
    */
   let camRaf = null, camLast = 0, blend = 1, from = null, released = false;
 
-  function showRecenter(on) {
-    els.precenter.hidden = !on;
-  }
+  const showRecenter = (on) => offerRecenter("highlight", on);
 
   /** Hand the camera to the viewer, keeping the mode selected. */
   function release() {
@@ -3271,6 +3356,11 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     // Nothing to point at yet. The buttons are live while a replay loads, and
     // every one of these moves is worked out from the field the play is on.
     if (!api) return;
+    // Leaving Fan Perspective is what gives the seat up, and the only thing
+    // that does. Everything the seat holds goes with it: the drag that turns a
+    // head, the lock that keeps the camera in the stand, and the offer of the
+    // way back - which is why that offer survives everything short of this.
+    if (cam === "fan" && mode !== "fan") seatsRef?.leave();
     const letGo = mode === "highlight" && cam === "highlight";
     cam = letGo ? null : mode;
     paintCams();
@@ -3323,6 +3413,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   cameraOwner = () => {
     if (!cam) return;
     dropFollow();
+    if (cam === "fan") seatsRef?.leave();
     cam = null;
     paintCams();
     restore = null;
@@ -3623,6 +3714,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       surfacesReady.then((s) => s?.use(CONFIG.field.default)).catch(() => {});
       handBack();
       dropFollow();
+      seatsRef?.leave();
       cam = null;
       paintCams();
     },
@@ -3697,10 +3789,13 @@ function buildSeats(view, surfacesReady, onTaken) {
   const open = (onTake) => {
     taken = onTake ?? null;
     els.seatSheet.hidden = false;
+    // Nothing to offer while the sheet is up - see paintRecenter - and the
+    // preview flight below is about to take the camera out of the seat anyway.
+    paintRecenter();
     if (at == null) at = sections()[0];
     goTo(at);
   };
-  const close = () => { els.seatSheet.hidden = true; taken = null; };
+  const close = () => { els.seatSheet.hidden = true; taken = null; paintRecenter(); };
 
   function stopFollow() {
     if (follow) cancelAnimationFrame(follow);
@@ -3733,7 +3828,24 @@ function buildSeats(view, surfacesReady, onTaken) {
    */
   const FOLLOW_BIAS = 0.45;
   let seat = null;               // the seat to resume following from
-  let handedOver = false;        // the viewer has taken the camera
+  /**
+   * The seat to go *back* to, which is not the same thing.
+   *
+   * `seat` is only set while the camera is actually sitting in it, because
+   * everything downstream of it - the drag that turns a head, the follow that
+   * writes a position back every frame - is wrong the moment the camera is
+   * somewhere else. So anything that moves the camera clears it.
+   *
+   * That left the way back moving with it. A stray scroll took the camera out
+   * of the stand, cleared the seat, and with it the one control that offered
+   * the seat back - so the viewer was in fan perspective, out of their seat,
+   * and had to reopen the chooser and pick a section again to get back in.
+   *
+   * `home` is the seat itself and it outlives leaving it. It is cleared by
+   * leave(), and leave() is called when fan perspective is given up and at no
+   * other time, so the offer stands for exactly as long as the mode does.
+   */
+  let home = null;
 
   /**
    * Looking around from where you are sitting.
@@ -3771,8 +3883,7 @@ function buildSeats(view, surfacesReady, onTaken) {
       // writing a heading every frame - so a straight vertical drag came out as
       // a slow horizontal drift and almost no tilt at all.
       stopFollow();
-      handedOver = true;
-      els.precenter.hidden = false;
+      paintRecenter();
       return;
     }
     if (e.action === "end") { dragging = null; return; }
@@ -3787,6 +3898,52 @@ function buildSeats(view, surfacesReady, onTaken) {
     view.camera = new Camera({
       position: c.position, heading, tilt, fov: c.fov
     });
+  });
+
+  /**
+   * Staying put.
+   *
+   * The drag above turns the primary and secondary buttons into a head rather
+   * than a camera, which is two thirds of what a seat needs. Zoom was the third
+   * that was left alone, and it is the one that strands people: a seat is a
+   * fixed point, so the only thing a scroll can do from one is take the viewer
+   * out of it - out of the stand, over the pitch, and looking at the ground
+   * from nowhere in particular.
+   *
+   * The action map covers the wheel and the two-finger pinch, which the SDK
+   * treats as the tertiary drag. Double-click and the keyboard are separate
+   * gestures with separate events, so they are turned away where they arrive.
+   *
+   * Only the keys that move the camera. The SDK's seated verbs - w/a/s/d to
+   * look about, n and p to straighten up - do exactly what somebody in a seat
+   * wants and are left alone; the arrows, u and j walk the camera across the
+   * ground, and + and - drive it in and out, so those are the ones stopped.
+   */
+  const ZOOM_KEYS = new Set(["+", "=", "-", "_"]);
+  const PAN_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+                            "u", "U", "j", "J"]);
+  let navWas = null;
+
+  function lockNavigation(on) {
+    const map = view.navigation?.actionMap;
+    if (!map) return;                       // older SDK: the events below still hold
+    if (on && !navWas) {
+      navWas = { mouseWheel: map.mouseWheel, dragTertiary: map.dragTertiary };
+      map.mouseWheel = "none";
+      map.dragTertiary = "none";
+    } else if (!on && navWas) {
+      map.mouseWheel = navWas.mouseWheel;
+      map.dragTertiary = navWas.dragTertiary;
+      navWas = null;
+    }
+  }
+
+  // Asked of the camera, like everything else here: the lock is only on while
+  // somebody is actually sitting down, so these need no state of their own.
+  view.on("double-click", (e) => { if (cameraOwnedBySeat()) e.stopPropagation(); });
+  view.on("key-down", (e) => {
+    if (!cameraOwnedBySeat()) return;
+    if (ZOOM_KEYS.has(e.key) || PAN_KEYS.has(e.key)) e.stopPropagation();
   });
 
   /** True while the seat is the thing the camera belongs to. */
@@ -3811,35 +3968,69 @@ function buildSeats(view, surfacesReady, onTaken) {
   const SEAT_EPS_DEG = 5e-6;     // about half a metre
   const SEAT_EPS_M = 2;
 
-  function atSeat() {
-    if (!seat) return false;
-    const a = view.camera?.position, b = seat.position;
+  function atCamera(c) {
+    const a = view.camera?.position, b = c?.position;
     if (!a || !b) return false;
     return Math.abs(a.longitude - b.longitude) < SEAT_EPS_DEG
       && Math.abs(a.latitude - b.latitude) < SEAT_EPS_DEG
       && Math.abs((a.z ?? 0) - (b.z ?? 0)) < SEAT_EPS_M;
   }
 
+  function atSeat() { return !!seat && atCamera(seat); }
+
   function cameraOwnedBySeat() {
     return !!seat && els.seatSheet.hidden && atSeat();
   }
 
-  /** Out of the seat altogether: no drag capture, no button, no held state. */
-  function leaveSeat() {
+  /**
+   * Whether to offer the way back to the seat, worked out rather than
+   * remembered.
+   *
+   * Three conditions, and each of them earns its place. There has to be a seat
+   * to go back to, which is what makes the offer survive being scrolled,
+   * flown or stepped out of it. The follow has to be off, because while it is
+   * running the camera is already on the ball and a button offering to put it
+   * there is furniture. And the chooser has to be down, because a control
+   * floating over the sheet that is currently picking a different seat is an
+   * invitation to undo the thing you are in the middle of doing.
+   */
+  function paintRecenter() {
+    offerRecenter("seat", !!home && !follow && els.seatSheet.hidden);
+  }
+
+  /**
+   * The camera has left the seat - but not fan perspective.
+   *
+   * Everything that depends on the camera actually being in the seat stands
+   * down: the drag stops being a head turn, the follow stops writing a
+   * position back, and the navigation the seat had locked is handed back, on
+   * the grounds that somebody out of their seat should be able to move about
+   * like anywhere else in the app.
+   *
+   * The offer of the way back is not one of those things, which is the whole
+   * difference between this and leave().
+   */
+  function leftSeat() {
     if (!seat) return;
     stopFollow();
     seat = null;
     dragging = null;
-    // Only if this seat is the thing showing it. The button is shared with
-    // Player Highlight, which has its own reason to be offering it.
-    if (handedOver) els.precenter.hidden = true;
-    handedOver = false;
+    lockNavigation(false);
+    paintRecenter();
+  }
+
+  /** Fan perspective given up altogether: no seat, no offer, no way back. */
+  function leave() {
+    leftSeat();
+    lockNavigation(false);       // belt and braces: leftSeat only unlocks a held seat
+    home = null;
+    paintRecenter();
   }
 
   // Left rather than told. Every way out of a seat ends up here because they
   // all have to move the camera to be a way out at all.
   reactiveUtils.watch(() => view.camera, () => {
-    if (seat && !atSeat()) leaveSeat();
+    if (seat && !atSeat()) leftSeat();
   });
 
   /**
@@ -3857,31 +4048,63 @@ function buildSeats(view, surfacesReady, onTaken) {
   reactiveUtils.watch(() => view.interacting, (busy) => {
     if (!busy || !follow) return;
     stopFollow();
-    handedOver = true;
-    els.precenter.hidden = false;
+    paintRecenter();
   });
 
   els.precenter.addEventListener("click", () => {
     // Shared with Player Highlight, which ignores the click unless it is the
     // camera in charge; this does the same from the other side.
-    if (!handedOver || !seat) return;
-    handedOver = false;
-    els.precenter.hidden = true;
-    startFollow(seat);
+    if (!home) return;
+    // Back to the seat first, where the camera has been taken out of it. The
+    // follow only ever turns a head - it writes the seat's own position back
+    // every frame - so starting it from wherever the viewer drifted to would
+    // teleport them into the seat rather than fly them, and starting it from
+    // the drifted position is not on offer at all.
+    if (atCamera(home)) { sit(home); return; }
+    returnToSeat();
   });
 
-  function startFollow(cam) {
+  async function returnToSeat() {
+    const going = home;
+    offerRecenter("seat", false);
+    try {
+      await view.goTo(going, { duration: 900, easing: "in-out-cubic" });
+    } catch { /* the viewer took over mid-flight */ }
+    // Fan perspective was given up, or a different seat taken, while this was
+    // in the air. Either way the flight no longer speaks for anybody.
+    if (home !== going) return;
+    sit(going);
+  }
+
+  /**
+   * Sit down.
+   *
+   * The seat is held from here until leave() gives it up, and that is what
+   * locks the navigation: from a fixed point every zoom is a way out of it and
+   * nothing else. The follow is started on top of that only if there is a ball
+   * to follow - the chooser is open to a viewer with no replay running, and the
+   * view from row 20 is worth having either way.
+   */
+  function sit(cam) {
     stopFollow();
     seat = cam;
-    handedOver = false;
-    els.precenter.hidden = true;
+    home = cam;
+    lockNavigation(true);
+    if (window.__play) startFollow();
+    else paintRecenter();
+  }
+
+  function startFollow() {
+    stopFollow();
+    if (!seat) return;
+    const cam = seat;
     const step = () => {
       const p = window.__play;
       const ball = p?.ballEN?.();
       // Stops when the play does, or when the chooser comes back up - the
       // camera should not still be drifting while somebody is picking a
       // different seat underneath it.
-      if (!ball || !els.seatSheet.hidden) { follow = null; return; }
+      if (!ball || !els.seatSheet.hidden) { follow = null; paintRecenter(); return; }
       // An explicit flight outranks the follow. Home, a slide, the tour and
       // every other goTo animate the camera, and this loop wrote the seat's own
       // position straight back on the next frame - so the flight was undone as
@@ -3890,7 +4113,7 @@ function buildSeats(view, surfacesReady, onTaken) {
       // viewer's side the app simply refused to give the seat up: Home flew
       // nowhere, and the drag went on turning a head that should have been a
       // camera again.
-      if (view.animation) { leaveSeat(); return; }
+      if (view.animation) { leftSeat(); return; }
       // From the middle of the field, which is where the flight into the seat
       // left the camera pointing. Starting the ease at the ball instead makes
       // the first frame a jump of however far the ball happens to be from the
@@ -3919,6 +4142,7 @@ function buildSeats(view, surfacesReady, onTaken) {
       follow = requestAnimationFrame(step);
     };
     follow = requestAnimationFrame(step);
+    paintRecenter();
   }
 
   async function goTo(section, { ms = 1500 } = {}) {
@@ -3946,7 +4170,7 @@ function buildSeats(view, surfacesReady, onTaken) {
     const done = taken;
     const cam = await goTo(at, { ms: 1100 });
     close();
-    if (cam && window.__play) startFollow(cam);
+    if (cam) sit(cam);
     // So the way back in reads "Section 117" rather than the invitation it
     // stopped being the moment a seat was chosen.
     onTaken?.();
@@ -4069,7 +4293,7 @@ function buildSeats(view, surfacesReady, onTaken) {
 
   build();
   return {
-    open, close, leave: leaveSeat,
+    open, close, leave,
     get section() { return at; },
     get seated() { return cameraOwnedBySeat(); },
     get choosing() { return !els.seatSheet.hidden; }

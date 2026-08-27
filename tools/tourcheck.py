@@ -15,6 +15,13 @@ thing to do: on arrival, and after the show has been stopped out from under
 whoever started it. Never while it is running, and never after they have
 answered it.
 
+The third part is the way past the arrows. Stepping is fine on a first pass and
+useless on a second, when somebody wants the night sky again and does not want
+to walk four views to reach it - so the name of the view is a button and it
+drops the whole list. Checked here for the two things that make it useful: that
+the list is built from the scene's own slides rather than a hard-coded set, and
+that choosing one actually arrives there.
+
 Run tools/serve.py first, then: python tools/tourcheck.py
 """
 import json
@@ -112,6 +119,47 @@ try:
     time.sleep(2)
     s = st(c)
     ok("stopping it by hand does not nag", s["hint"] is False, s)
+
+    # --- jumping straight to a view ------------------------------------------
+    # Built from the scene, so the count is whatever the author saved. What can
+    # be asserted is that it matches the counter the rail is already showing.
+    n_slides = int(st(c)["slide"].split("/")[1])
+    ok("the list has one item per view",
+       c.js("document.getElementById('tourList').children.length") == n_slides,
+       "%s of %s" % (c.js("document.getElementById('tourList').children.length"),
+                     n_slides))
+    ok("and it starts closed",
+       bool(c.js("document.getElementById('tourList').hidden")))
+
+    c.js("document.getElementById('tourTitle').click()")
+    time.sleep(0.6)
+    ok("pressing the name of the view opens it",
+       not c.js("document.getElementById('tourList').hidden"))
+    ok("and the name says so",
+       c.js("""document.getElementById('tourTitle')
+         .getAttribute('aria-expanded')""") == "true")
+
+    # The last view, which is the furthest from wherever the show left off, so
+    # arriving at it cannot be a coincidence.
+    c.js("""(function(){var l=document.getElementById('tourList');
+      l.children[l.children.length-1].click();})()""")
+    time.sleep(5)
+    ok("choosing one closes the list",
+       bool(c.js("document.getElementById('tourList').hidden")))
+    ok("and arrives at that view",
+       st(c)["slide"].startswith("%02d" % n_slides), st(c)["slide"])
+    ok("which is then marked as the one you are on",
+       bool(c.js("""(function(){var l=document.getElementById('tourList');
+         return l.children[l.children.length-1].classList.contains('on');})()""")))
+
+    # Clicking away puts it back, the way the sport chooser does.
+    c.js("document.getElementById('tourTitle').click()")
+    time.sleep(0.4)
+    c.js("""document.body.dispatchEvent(new PointerEvent('pointerdown',
+      {bubbles:true, clientX:700, clientY:500}))""")
+    time.sleep(0.4)
+    ok("clicking away closes it",
+       bool(c.js("document.getElementById('tourList').hidden")))
 
     print("")
     print("  errors:", c.errs or "none")

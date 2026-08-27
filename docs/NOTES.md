@@ -77,13 +77,34 @@ Each replay offers three cameras, in its title bar:
 
 | | |
 |---|---|
-| **Fan Perspective** | From the stand, out of a saved slide - 8 for the gridiron, 9 for the pitch. Only the slide's camera is used, never the slide itself: applying one rewrites layer visibility and would undo the staging the replay just did. |
+| **Fan Perspective** | From a seat you pick. The chooser comes up - 135 sections over five rings, with a plan of the bowl - and the camera previews each one as it is stepped through. Taking one settles into it and starts the passage from there. |
 | **Broadcast** | The whole field from the touchline, where a television camera would be cut from. This is the opening view. |
-| **Player Highlight** | Follows the ball. The only one that keeps hold of the camera; press it again to hand the view back to where it was. |
+| **Player Highlight** | Follows the ball. Taking hold of the camera hands it over and the button offers the follow back; press the mode again to give it up altogether. |
 
-Fan and Broadcast are a single move and then the camera is yours again, so
-pressing either a second time simply repeats it. `CONFIG.play.plays[].fanSlide`
-picks the stand slide, numbered the way the views rail numbers them.
+Broadcast is a single move and then the camera is yours again. A seat is not:
+it is a fixed point, and the app holds you in it until you leave the mode.
+
+  * **Drag turns your head.** A scene view has no first-person mode, so the
+    gesture is intercepted and rewritten as heading and tilt with the position
+    held. Tilt is clamped to 20-105 deg.
+  * **Zoom is off.** The wheel and the two-finger pinch are taken out of
+    `view.navigation.actionMap`, and double-click and the pan and zoom keys are
+    stopped as they arrive. The SDK's seated verbs are deliberately left alone:
+    `w`/`a`/`s`/`d` look about, `n` and `p` straighten up. A seat is a fixed
+    point, so every zoom from one is a way out of the stand and nothing else -
+    which is exactly how people used to strand themselves.
+  * **The way back outlives leaving the seat.** *Recenter on the ball* is
+    offered from the moment a seat is taken until Fan Perspective is given up,
+    and it flies back to the seat first if the camera has been taken out of it.
+    Anything that moves the camera - Home, a slide, the tour - gives the seat
+    up, but only changing camera, closing the replay or applying a saved view
+    gives the *mode* up, and only that clears the offer.
+
+Leaving the seat and leaving fan perspective are separate events in `app.js`:
+`leftSeat()` stands down the drag capture, the follow and the zoom lock, and
+`leave()` additionally forgets the seat and withdraws the offer. The button
+itself is shared with Player Highlight, so each owner sets its own flag through
+`offerRecenter()` and neither can put away an offer it did not make.
 
 The **L** button replays a real NFL touchdown on the field: a 75-yard catch and
 run, third quarter of the 2017 season opener. Nobody is named - see
@@ -331,7 +352,7 @@ Deep link: `?live` opens the gridiron replay and `?goal` the football one;
 | Feature | Notes |
 |---|---|
 | Cinematic intro | Title card with a progress bar. Entry is enabled as soon as the view is ready — it deliberately does *not* wait on `view.updating`, because splat and integrated-mesh layers stream continuously and that flag may never settle |
-| Views | Two arrows and the current title, under the app title. Drives `slide.applyTo()` with a 2.6 s eased flight |
+| Views | Two arrows, a play button and the current title, under the app title. The title is also a button: it drops the whole list of the scene's slides, so any view is one press away rather than a walk through the ones between. Drives `slide.applyTo()` with a 2.6 s eased flight |
 | Captures panel | Two peer groups — the splat and the meshes — sharing one column grid. The mesh header is a tri-state master (all / none / mixed), showing a count only while the group is split. Every switch mirrors its layer, so slides that change visibility keep them honest. Opens on the splat alone |
 | Analysis | Distance, area, volume and elevation profile, segmented in one docked panel |
 | Time of day | A `TimeSlider` scrubbing one full day and driving the sun, with play/loop and a shadows toggle — see below |
