@@ -16,10 +16,13 @@ replays driven by actual sports tracking data.
 
 - **Captures** — toggle each splat and mesh independently
 - **Views** — saved viewpoints from the scene, with a slideshow that runs
-  itself: the two replay views hold until the passage they opened has finished
-  rather than for a fixed count, so nothing is cut off mid-throw. Changing the
-  play or the camera stands the show down, because at that point you plainly
-  want to look at something yourself — and the play button pulses to say so
+  itself, and a name you can press to jump straight to any view rather than
+  step through the ones between. The two replay views hold until the passage
+  they opened has actually finished rather than for a fixed count, so nothing
+  is cut off mid-throw — and then the show hands itself back, because the end
+  of a replay is where you want to scrub through it rather than be moved along.
+  Changing the play or the camera stands it down for the same reason. The play
+  button pulses whenever it is the thing to press
 - **Live action** — six replays on the field: pick a sport, then a passage.
   American football gives a deep pass, a running touchdown and a record-distance
   field goal; football gives a tackle worked to a finish, a cross headed in, and an

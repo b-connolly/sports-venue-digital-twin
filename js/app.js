@@ -1674,6 +1674,30 @@ function buildTour(view, slides, captures) {
    */
   const TAIL_MS = 2200;            // a beat on the celebration before moving on
 
+  /**
+   * And then it stops and asks.
+   *
+   * The show used to walk straight off the end of a replay into the next view,
+   * which is the wrong shape for what has just happened. Everything else in the
+   * tour is a place - you arrive, you look, it moves on - and these two are an
+   * event: twenty-two people run a passage of play out to its end, and the
+   * moment it finishes is the moment somebody wants to scrub back through it,
+   * look at the diagram, walk round the frozen last frame or take a seat in the
+   * stand and watch it again. Marching on over the top of that is the app
+   * deciding it has finished with something the viewer has not.
+   *
+   * So the two sports views are terminal to the run: the passage plays through
+   * to the end, the show stands down, and the play button asks for a press. It
+   * is not a stop in the sense of something going wrong - pressing it carries on
+   * from where the show left off - it is a held breath, in the two places where
+   * the app has just shown something worth staying with.
+   *
+   * Which views these are is not written down anywhere: it is any view whose
+   * `opens` names a play, which is the same question that decides the passage
+   * has to run to the end before the show moves at all. The two answers cannot
+   * drift apart because they are the same test.
+   */
+
   function untilPlayOver(stale, capMs) {
     return new Promise((done) => {
       const t0 = performance.now();
@@ -1706,11 +1730,18 @@ function buildTour(view, slides, captures) {
       if (stale()) return;
       dwell = setTimeout(() => { if (!stale()) go(current + 1); }, hold);
     };
-    // The replays run themselves out; everything else keeps its timer.
+    // The replays run themselves out, and then hand the show back - see above.
+    // Everything else keeps its timer.
     if (CONFIG.play.plays.some((p) => p.key === viewAt(current + 1)?.opens)) {
       untilPlayOver(stale, hold + 30000).then(() => {
         if (stale()) return;
-        dwell = setTimeout(() => { if (!stale()) go(current + 1); }, TAIL_MS);
+        dwell = setTimeout(() => {
+          if (stale()) return;
+          // Not `byViewer`: nobody asked for this, so the button is left
+          // asking - which is the whole point of stopping here rather than
+          // moving on quietly.
+          setPlaying(false);
+        }, TAIL_MS);
       });
       return;
     }
@@ -1722,13 +1753,24 @@ function buildTour(view, slides, captures) {
   /**
    * The play button asks for a press when pressing it is the thing to do.
    *
-   * Two moments, and they are the same moment from the viewer's side: nothing
-   * is happening and something could be. On arrival, before the show has ever
-   * run - the button is the one obvious control in the rail and it still gets
-   * missed. And after the show has been stopped by something the viewer did,
-   * which is the case that actually strands people: they change the play, or
-   * the camera, the slideshow stands down because they plainly want to look at
-   * something themselves, and nothing says it has.
+   * Three moments, and they are one moment from the viewer's side: nothing is
+   * happening and something could be.
+   *
+   *   * On arrival, before the show has ever run. The button is the one
+   *     obvious control in the rail and it still gets missed.
+   *   * After the show has been stopped by something the viewer did - they
+   *     change the play, or the camera, the slideshow stands down because they
+   *     plainly want to look at something themselves, and nothing says it has.
+   *   * And at the end of a replay, where the show now hands itself back on
+   *     purpose rather than because anything went wrong. See schedule().
+   *
+   * The third is why the pulse is as insistent as it is. The first two catch
+   * somebody who is already looking at the rail, and a whisper is enough; this
+   * one has to reach somebody whose eyes are on the middle of the field, where
+   * twenty-two people have just stopped moving, and tell them the way on is a
+   * button in the corner. A ring breathing at a third opacity does not carry
+   * that far - measured on the thing it has to compete with, which is a frozen
+   * touchdown celebration.
    *
    * Not while it is running, and not once it has been pressed - a control that
    * pulses at somebody who has already answered it is nagging rather than

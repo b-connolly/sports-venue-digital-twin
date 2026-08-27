@@ -9,6 +9,13 @@ for doing so, because opening a replay was treated as somebody overriding the
 show whoever had done it. Whoever pressed play then had to press it again, on
 the one view where something was actually happening.
 
+It does stop there now, and that is not the same bug coming back: it stops
+*after* the passage has run to its end, on purpose, because the end of a replay
+is where somebody wants to scrub back through it rather than be moved along.
+The distinction is the whole of the first half of this file - the passage must
+finish, and only then may the show stand down - so both halves are asserted
+together and neither can be satisfied by the other's failure.
+
 And when it does stop - because the viewer changed the play, or the camera -
 nothing said so. The play button now asks for a press when pressing it is the
 thing to do: on arrival, and after the show has been stopped out from under
@@ -80,28 +87,70 @@ try:
     ok("pressing play starts the show", s["touring"] is True, s)
     ok("and stops the button asking", s["hint"] is False, s)
 
-    # --- the staged replay must not stand the show down ---------------------
-    # Slide two opens the gridiron passage. Before this, that was the end of
-    # the tour.
-    deadline = time.time() + 150
+    # --- the staged replay runs out, and then hands the show back -----------
+    # Slide two opens the gridiron passage. Two failures are being told apart
+    # here and they look identical from a single sample: standing the show down
+    # because a replay was opened (the old bug) and standing it down because the
+    # replay has finished (the intent). What separates them is where the
+    # playhead is at the moment it stops, so that is what is captured.
+    deadline = time.time() + 180
     saw_replay = False
+    stopped = None
     while time.time() < deadline:
         s = st(c)
         if s["slide"].startswith("02"):
             saw_replay = True
             if not s["touring"]:
+                stopped = s
                 break
         if saw_replay and not s["slide"].startswith("02"):
             break
         time.sleep(1)
     ok("it reached the replay view", saw_replay, s)
-    ok("and the staged replay did not stop the show", s["touring"] is True, s)
-    ok("the passage ran to the end before moving on",
-       s["t"] is not None and s["dur"] is not None
-       and (s["t"] >= s["dur"] - 0.6 or s["slide"].startswith("02")),
-       "%s of %s" % (s["t"], s["dur"]))
+    ok("the show stops there rather than moving on", stopped is not None, s)
+    ok("and only once the passage had run to its end",
+       stopped is not None and stopped["t"] is not None
+       and stopped["dur"] is not None and stopped["t"] >= stopped["dur"] - 0.6,
+       stopped and "%s of %s" % (stopped["t"], stopped["dur"]))
+    ok("the button asks to be pressed to carry on",
+       stopped is not None and stopped["hint"] is True, stopped)
 
-    # --- but the viewer changing something does ------------------------------
+    # Pressing it carries on from where the show left off rather than restarting
+    # it - the hold is a held breath, not a stop.
+    c.js("document.getElementById('tourPlay').click()")
+    time.sleep(6)
+    s = st(c)
+    ok("pressing it moves on to the next view",
+       not s["slide"].startswith("02") and s["touring"] is True, s)
+
+    # --- and the football view holds too ------------------------------------
+    # Both replays, not just the first. They share one branch in schedule() so
+    # this cannot really diverge, but "pause on both sports" is the ask and one
+    # sample of one sport is not it. The football passage is the long one - 37 s
+    # against the gridiron's 20 - so this waits accordingly.
+    deadline = time.time() + 180
+    held = None
+    while time.time() < deadline:
+        s = st(c)
+        if s["slide"].startswith("03") and not s["touring"]:
+            held = s
+            break
+        if not s["slide"].startswith("03") and held is None and s["touring"] \
+                and time.time() > deadline - 60:
+            break                      # walked past it: that is the failure
+        time.sleep(1)
+    ok("the football view holds as well", held is not None, s)
+    ok("and it too ran its passage out first",
+       held is not None and held["t"] is not None and held["dur"] is not None
+       and held["t"] >= held["dur"] - 0.6,
+       held and "%s of %s" % (held["t"], held["dur"]))
+
+    # Back under way for the checks below, which are about the viewer stopping
+    # the show rather than the show standing itself down.
+    c.js("document.getElementById('tourPlay').click()")
+    time.sleep(5)
+
+    # --- and the viewer stopping it is still a different thing --------------
     c.js("""(function(){
       var b = document.querySelectorAll('#playPicks button');
       if (b.length > 1) b[1].click();})()""")

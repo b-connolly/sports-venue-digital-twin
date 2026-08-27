@@ -338,6 +338,17 @@ modelled from primitives at regulation size — 7.32 m between the posts, 2.44 m
 to the underside of the bar — with the net as a translucent double-sided panel.
 Closing the panel fades the gridiron back.
 
+The slideshow stops on each of the two replay views. Every other view is a
+place - you arrive, you look, it moves on - and these two are an event: the
+passage runs out to its end, and the moment it does is the moment somebody
+wants to scrub back through it, read the diagram, walk round the frozen last
+frame or take a seat in the stand and watch it again. So the show holds until
+the passage has actually finished, waits a beat on the celebration, and then
+hands itself back with the play button asking to be pressed. Pressing it
+carries on from where the show left off. Which views these are is not written
+down: it is any view whose `opens` names a play, which is the same test that
+decides the passage has to run to the end at all, so the two cannot drift.
+
 Both replays share one **Live action** button in the rail, which opens out into
 the two codes. Controls: play/pause, restart, and a scrub bar with the moments
 of the play marked on it, and a three-way camera picker - Fan Perspective,
@@ -352,7 +363,7 @@ Deep link: `?live` opens the gridiron replay and `?goal` the football one;
 | Feature | Notes |
 |---|---|
 | Cinematic intro | Title card with a progress bar. Entry is enabled as soon as the view is ready — it deliberately does *not* wait on `view.updating`, because splat and integrated-mesh layers stream continuously and that flag may never settle |
-| Views | Two arrows, a play button and the current title, under the app title. The title is also a button: it drops the whole list of the scene's slides, so any view is one press away rather than a walk through the ones between. Drives `slide.applyTo()` with a 2.6 s eased flight |
+| Views | Two arrows, a play button and the current title, under the app title. The title is also a button: it drops the whole list of the scene's slides, so any view is one press away rather than a walk through the ones between. Drives `slide.applyTo()` with a 2.6 s eased flight. The show stands down on each of the two replay views once its passage has run out — see the note on the slideshow below |
 | Captures panel | Two peer groups — the splat and the meshes — sharing one column grid. The mesh header is a tri-state master (all / none / mixed), showing a count only while the group is split. Every switch mirrors its layer, so slides that change visibility keep them honest. Opens on the splat alone |
 | Analysis | Distance, area, volume and elevation profile, segmented in one docked panel |
 | Time of day | A `TimeSlider` scrubbing one full day and driving the sun, with play/loop and a shadows toggle — see below |

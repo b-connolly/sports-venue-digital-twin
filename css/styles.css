@@ -248,28 +248,67 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateY(6px
   box-shadow: 0 2px 10px rgba(251, 79, 20, 0.35);
 }
 .tour__arrow--play svg { width: 13px; height: 13px; fill: currentColor; display: block; }
-/* A ring breathing outwards, rather than the button itself moving. The rail
-   sits over the scene and anything that changes size in it reads as a glitch;
-   a halo leaving the edge reads as an invitation. It fades as it goes so the
-   loop has no seam.
+/* Rings breathing outwards, rather than the button itself moving. The rail sits
+   over the scene and anything that changes size in it reads as a glitch; a halo
+   leaving the edge reads as an invitation. They fade as they go, so the loop has
+   no seam.
 
-   Deliberately slow. At a second it nags, and a control that nags in a demo is
-   worse than one that is missed - this has to survive being on screen for the
-   length of a conversation without becoming the thing everybody is looking at. */
+   It was one ring at 2.6s, deliberately faint, on the argument that a control
+   which nags in a demo is worse than one that is missed. That argument was made
+   about the two quiet moments - arrival, and the show standing down - and it
+   held for those. It does not hold for the third: the slideshow now hands itself
+   back at the end of each replay, and at that moment the viewer is looking at
+   the middle of the field, not at the rail. The way on has to reach them there.
+
+   So: two rings a beat apart rather than one, out to 16px rather than 9, from
+   0.9 opacity rather than 0.5, on a 1.5s cycle rather than 2.6 - and the button
+   itself brightens through the beat, so the pulse is legible even where the
+   halo is lost against a pale sky. Nothing changes size and nothing moves; it is
+   the same gesture, turned up until it carries across a stadium. */
 @keyframes tourpulse {
-  0%   { box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 0 rgba(251,79,20,0.5); }
-  70%  { box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 9px rgba(251,79,20,0); }
-  100% { box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 0 rgba(251,79,20,0); }
+  0% {
+    box-shadow: 0 2px 12px rgba(251,79,20,0.55), 0 0 0 0 rgba(251,79,20,0.9);
+    background: var(--accent);
+  }
+  55% { background: #ff8552; }
+  70% {
+    box-shadow: 0 2px 18px rgba(251,79,20,0.7), 0 0 0 16px rgba(251,79,20,0);
+  }
+  100% {
+    box-shadow: 0 2px 12px rgba(251,79,20,0.55), 0 0 0 0 rgba(251,79,20,0);
+    background: var(--accent);
+  }
 }
-.tour__arrow--play.hint { animation: tourpulse 2.6s ease-out infinite; }
+/* The second ring, half a beat behind the first. Two expanding shadows cannot
+   be phased against each other on one element - they share a keyframe clock -
+   so the trailing one is drawn by a pseudo-element with its own delay. It has no
+   background of its own and a spread shadow only paints outside the border box,
+   so the glyph underneath stays crisp; pointer-events keeps it from eating the
+   click it is asking for. No z-index: it needs to sit over the arrows beside it,
+   not under them, and negative stacking here would put it behind the rail's own
+   glass. */
+@keyframes tourpulse-echo {
+  0%   { box-shadow: 0 0 0 0 rgba(251,79,20,0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(251,79,20,0); }
+  100% { box-shadow: 0 0 0 0 rgba(251,79,20,0); }
+}
+.tour__arrow--play { position: relative; }
+.tour__arrow--play.hint { animation: tourpulse 1.5s ease-out infinite; }
+.tour__arrow--play.hint::after {
+  content: ""; position: absolute; inset: 0;
+  border-radius: inherit; pointer-events: none;
+  animation: tourpulse-echo 1.5s ease-out infinite 0.75s;
+}
 /* Somebody who has asked for less movement still gets the pointer, just a
    still one. Dropping the cue altogether would leave them the worse off of the
-   two, which is the opposite of what the setting is for. */
+   two, which is the opposite of what the setting is for. Held at the strength
+   the animated version reaches, rather than at the strength it starts from. */
 @media (prefers-reduced-motion: reduce) {
   .tour__arrow--play.hint {
     animation: none;
-    box-shadow: 0 2px 10px rgba(251,79,20,0.35), 0 0 0 3px rgba(251,79,20,0.45);
+    box-shadow: 0 2px 14px rgba(251,79,20,0.6), 0 0 0 5px rgba(251,79,20,0.55);
   }
+  .tour__arrow--play.hint::after { animation: none; }
 }
 .tour__arrow--play:hover {
   background: #ff6a33; border-color: transparent; color: #fff;
