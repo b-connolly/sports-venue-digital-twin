@@ -249,6 +249,36 @@
       <div id="playPhase" class="playtrack__phase">&nbsp;</div>
     </div>
   </div>
+  <!-- What the tracking says beyond where everybody is. Between the transport
+       and the plays because it belongs to the passage rather than to the
+       choosing of one, and it reads across as the play runs.
+
+       The last item is not decoration. These numbers are computed in the
+       browser from a recording, and a figure derived from a recording must not
+       look like one measured live - so the label rides with them, and pressing
+       it opens the page that explains exactly what is real here and what a live
+       deployment would use instead. -->
+  <div id="playStats" class="pstats" hidden>
+    <div class="pstat">
+      <span class="pstat__k">Carrier</span>
+      <span id="statCarrier" class="pstat__v">&mdash;</span>
+      <span id="statCarrierSpeed" class="pstat__n"></span>
+    </div>
+    <div class="pstat">
+      <span class="pstat__k">Nearest</span>
+      <span id="statChaser" class="pstat__v">&mdash;</span>
+      <span id="statSep" class="pstat__n"></span>
+    </div>
+    <div class="pstat pstat--top">
+      <span class="pstat__k">Top speed</span>
+      <span id="statTop" class="pstat__v">&mdash;</span>
+    </div>
+    <button id="statSource" class="pstat__src" type="button"
+            title="Real recorded tracking. The speeds and distances are worked out in your browser, not measured by sensors — press for what that means.">
+      Derived in browser
+    </button>
+  </div>
+
   <!-- The plays of whichever sport is open. Filled from CONFIG.play.plays;
        a sport with only one play leaves it empty and it hides itself. -->
   <div class="playfoot">
@@ -419,6 +449,46 @@
             football from <a href="https://github.com/metrica-sports/sample-data"
                target="_blank" rel="noopener">Metrica Sports' open sample data</a>,
             which is anonymised at source.
+          </p>
+        </div>
+      </section>
+
+      <section class="step">
+        <span class="step__n">05</span>
+        <div>
+          <h3>The numbers on the replay</h3>
+          <p>
+            While a passage runs, the panel reads out who has the ball and how
+            fast they are going, who is nearest to them and whether that gap is
+            opening or closing. Two different things are true about those
+            figures and it is worth being precise about both.
+          </p>
+          <p>
+            <b>The movement is real and recorded.</b> Every position comes from
+            an actual game, tracked ten times a second. Nobody drew these runs
+            and nothing is invented: the 75-yard touchdown really did top
+            21&nbsp;mph.
+          </p>
+          <p>
+            <b>The analysis is real and local.</b> The speeds, the separations
+            and the closing rates are arithmetic done in your browser on that
+            recording &mdash; a difference between positions, and a distance
+            between two players. They are not sensor readings, there is no live
+            feed behind them, and this app is not connected to a stadium.
+          </p>
+          <p>
+            Operationally it would be. A venue running this for real has a live
+            tracking feed rather than a file, many games rather than one
+            passage, and needs the answers kept rather than recomputed
+            &mdash; which is the job
+            <a href="https://www.esri.com/en-us/arcgis/products/arcgis-velocity/overview"
+               target="_blank" rel="noopener">ArcGIS&nbsp;Velocity</a> does:
+            ingest the feed, compute motion statistics over each tracked player,
+            watch for conditions like possession changing, and put the result
+            where a map, a dashboard and an alert can all read it. The same
+            arithmetic, at a scale a browser cannot reach. What you are looking
+            at here is the shape of that, running on a recording, so the idea
+            can be shown without the stadium.
           </p>
         </div>
       </section>

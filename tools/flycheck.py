@@ -282,16 +282,29 @@ try:
        % (max(apart) if apart else -1, len(both)))
 
     # --- the statues had the whole flight to load -------------------------
-    on = next((i for i, p in enumerate(path) if p["stampede"]), None)
+    # Measured in seconds, not in sample index. The recorder runs on rAF and
+    # the frame rate is not uniform across a flight - it drops while the scene
+    # is streaming hardest, which is exactly the middle - so the index of a
+    # sample is not a fraction of the move. Asserted by index this sat on
+    # 0.50 of a 0.5 threshold for several runs and eventually landed the wrong
+    # side of it, which is a flaky test rather than a finding.
+    span = path[-1]["t"] - path[0]["t"]
+
+    def when(pred):
+        """How far into the recorded window a condition first holds, 0..1."""
+        hit = next((p for p in path if pred(p)), None)
+        return None if hit is None or span <= 0 else (hit["t"] - path[0]["t"]) / span
+
+    on = when(lambda p: p["stampede"])
     ok("the statue capture is switched on at the top of the move",
-       on is not None and on < len(path) * 0.25,
-       "frame %s of %d" % (str(on), len(path)))
+       on is not None and on < 0.25,
+       "%.0f%% in" % (on * 100) if on is not None else "never")
 
     # And the splat is not dropped until the camera has turned away from it.
-    off = next((i for i, p in enumerate(path) if p["splat"] is False), None)
+    off = when(lambda p: p["splat"] is False)
     ok("the splat is not dropped until late in the move",
-       off is None or off > len(path) * 0.5,
-       "frame %s of %d" % (str(off), len(path)))
+       off is None or off > 0.5,
+       "%.0f%% in" % (off * 100) if off is not None else "never")
 
     print("")
     print("  errors:", c.errs or "none")

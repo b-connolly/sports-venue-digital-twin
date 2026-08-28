@@ -43,6 +43,11 @@ replays driven by actual sports tracking data.
   where you are sitting rather than to move; the view follows the ball gently
   and hands back the moment you take hold of it
 - **Analysis** — distance, area, volume and elevation profile tools
+- **The play's numbers** — who has the ball and how fast, who is nearest and
+  whether the gap is closing. Read off the real tracking, computed in the
+  browser, and labelled as such: the movement is recorded, the analysis is
+  local, and neither is live. A venue doing this for real would run
+  [ArcGIS Velocity](docs/VELOCITY.md) against a live feed
 - **Time of day** — scrub the sun; the floodlights come on by themselves after
   dark and can be switched on by hand at any hour, because a bowl is its own
   shade and a low morning sun still leaves the ground dim. `‹ ›` step the day,

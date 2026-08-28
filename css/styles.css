@@ -963,6 +963,69 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
    sun line would otherwise read as separating two facts. */
 .weather.ahead .weather__time { color: var(--accent-2); }
 
+/* ------------------------------------------------------- the play's numbers
+   A strip between the transport and the plays: three readings and the label
+   that says where they came from. Sized to sit on one line at the dock's full
+   width and to fold to two on a phone, because the alternative - dropping a
+   reading - would drop the caveat with it. */
+.pstats {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 0.35rem 1.4rem;
+  margin: 0 0.8rem; padding: 0.5rem 0 0.55rem;
+  border-top: 1px solid var(--line);
+}
+.pstats[hidden] { display: none; }
+.pstat { display: flex; align-items: baseline; gap: 0.45rem; min-width: 0; }
+.pstat--top { margin-left: auto; }
+.pstat__k {
+  font-size: 0.5rem; font-weight: 600; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--paper-faint); white-space: nowrap;
+}
+.pstat__v {
+  font-size: 0.8rem; font-weight: 500; color: var(--paper);
+  white-space: nowrap;
+}
+/* "In flight" and "Loose" are states rather than people, and should not read
+   with the weight of a name. */
+.pstat__v.dim { color: var(--paper-dim); font-style: italic; }
+.pstat__n {
+  font-size: 0.78rem; color: var(--paper-dim); white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.2s;
+}
+/* Closing is the one that matters in a chase, so it is the one that colours.
+   Opening is deliberately quieter: a gap that is growing is the absence of a
+   story, and it should not compete with one. */
+.pstat__n.closing { color: #e8735f; }
+.pstat__n.opening { color: var(--paper-faint); }
+
+/* The provenance label.
+   Outlined and quiet, like the forecast pill and for the same reason: a figure
+   derived from a recording must not look like one measured live. It is a
+   button because the explanation has somewhere to be, and a caveat nobody can
+   follow up is decoration. */
+.pstat__src {
+  margin-left: auto;
+  padding: 0.16rem 0.5rem; border-radius: 999px;
+  border: 1px solid var(--line);
+  background: none; color: var(--paper-faint);
+  font: inherit; font-size: 0.46rem; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  white-space: nowrap; cursor: pointer;
+  transition: color .16s, border-color .16s, background .16s;
+}
+.pstat__src:hover {
+  color: var(--paper); border-color: var(--paper-faint);
+  background: rgba(244,241,234,0.06);
+}
+.pstat__src:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+
+@media (max-width: 780px) {
+  .pstats { gap: 0.3rem 0.9rem; }
+  .pstat--top { display: none; }      /* the two live readings earn the room */
+  .pstat__src { margin-left: 0; }
+}
+
 /* Stepping the day, in the time panel's title bar. */
 .dock__day { display: flex; align-items: center; gap: 0.15rem; flex: 0 0 auto; }
 .dock__daybtn {

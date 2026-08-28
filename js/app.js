@@ -62,6 +62,7 @@ import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import { styleLights } from "./lights.js";
 import { addPlay, broadcastCamera } from "./play.js";
 import { sectionCamera, sections, ringOf, sectionPlan, RINGS } from "./seats.js";
+import { buildStats } from "./stats.js";
 import { flyLap } from "./flyin.js";
 import { dressSelects } from "./selectmenu.js";
 
@@ -725,6 +726,9 @@ const els = {
   ppicks: $("playPicks"), pchalk: $("playChalk"),
   pcams: [...document.querySelectorAll("#playCams .camseg__b")],
   pclose: $("playClose"), prestart: $("playRestart"),
+  pstats: $("playStats"), statCarrier: $("statCarrier"),
+  statCarrierSpeed: $("statCarrierSpeed"), statChaser: $("statChaser"),
+  statSep: $("statSep"), statTop: $("statTop"), statSource: $("statSource"),
   precenter: $("playRecenter"),
   weather: $("weather"), wxIcon: $("wxIcon"), wxTemp: $("wxTemp"),
   wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"), wxTag: $("wxTag"),
@@ -4045,9 +4049,60 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     els.picon.setAttribute("d", st.running ? PAUSE_D : PLAY_D);
     els.ptoggle.setAttribute("aria-label", st.running ? "Pause" : "Play");
     els.pphase.textContent = phaseAt(st.t);
+    paintStats(st.t);
     for (const i of els.pmarks.children) {
       i.classList.toggle("hit", st.t >= parseFloat(i.dataset.at) - 0.001);
     }
+  }
+
+  /**
+   * Who has the ball, who is closest, and how fast.
+   *
+   * Read off the passage rather than measured: see js/stats.js, and the label
+   * in the panel that says so. The three cells are chosen to be the shape of a
+   * moment rather than a table of twenty-two rows - a viewer watching a play
+   * wants to know about the two people the play is currently about.
+   */
+  function paintStats(t) {
+    const st = api?.stats;
+    if (!st) { els.pstats.hidden = true; return; }
+    els.pstats.hidden = false;
+    const now = st.at(t);
+
+    // A ball in the air belongs to nobody, and saying so is more useful than
+    // naming whichever receiver happens to be under it - see FLIGHT_M.
+    if (now.flight) {
+      els.statCarrier.textContent = "In flight";
+      els.statCarrier.classList.add("dim");
+      els.statCarrierSpeed.textContent = `${now.ballMph.toFixed(0)} mph`;
+    } else if (now.carrier) {
+      els.statCarrier.textContent = now.carrier.label;
+      els.statCarrier.classList.remove("dim");
+      els.statCarrierSpeed.textContent = `${now.carrier.mph.toFixed(1)} mph`;
+    } else {
+      els.statCarrier.textContent = "Loose";
+      els.statCarrier.classList.add("dim");
+      els.statCarrierSpeed.textContent = `${now.ballMph.toFixed(0)} mph`;
+    }
+
+    els.statChaser.textContent = now.chaser ? now.chaser.label : "—";
+    if (now.sep == null) {
+      els.statSep.textContent = "";
+    } else {
+      // The arrow is the sign of the closing rate, which is the half of this a
+      // number alone does not carry: four yards opening and four yards closing
+      // are the same four yards and opposite situations.
+      const closing = now.closing < -0.15;
+      const opening = now.closing > 0.15;
+      els.statSep.textContent =
+        `${now.sep.toFixed(1)} ${st.unit}${closing ? " ▼" : opening ? " ▲" : ""}`;
+      els.statSep.classList.toggle("closing", closing);
+      els.statSep.classList.toggle("opening", opening);
+    }
+
+    els.statTop.textContent = `${st.top.mph.toFixed(1)} mph`;
+    els.statTop.title = st.top.who
+      ? `Fastest in this passage: ${st.top.who}` : "";
   }
 
   /**
@@ -4067,6 +4122,13 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
           return addPlay(view, CONFIG, { data: spec.data, z: surfaces.z });
         })
         .then((p) => {
+          // Worked out once, for the whole passage, the moment the data is in
+          // hand. It is a few thousand differences over an array already in
+          // memory - cheaper than one frame of rendering - and doing it here
+          // rather than per tick means scrubbing is as smooth as playing.
+          p.stats = buildStats(p.data, {
+            depthM: p.depth, widthM: p.halfWidth * 2
+          });
           loaded.set(key, p);
           p.onUpdate(paint);
           pending = null;
@@ -4308,6 +4370,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       // be from whether this panel is open - so telling it afterwards means
       // answering that question wrongly, once, at the only moment it matters.
       els.ppanel.hidden = true;
+      els.pstats.hidden = true;
       // The lights come down with the replay that raised them. A scene left lit
       // from the camera after the thing that needed it has gone is how a viewer
       // ends up wondering why the sun has stopped moving.
@@ -4353,6 +4416,9 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
         b.addEventListener("click", () => setCam(b.dataset.cam));
       }
       els.pclose.addEventListener("click", () => this.close());
+      // The provenance label opens the page that explains it. A caveat nobody
+      // can follow up is decoration.
+      els.statSource.addEventListener("click", () => els.info.click());
       // Clicking away closes the flyout, the way a menu should.
       document.addEventListener("pointerdown", (e) => {
         if (els.liveMenu.hidden) return;

@@ -412,6 +412,55 @@ one produced a *plausible* wrong answer rather than an obvious one:
     while the readout above it went on counting. `sliderOwner` now moves the
     day under the handle.
 
+### The numbers on the replay
+
+While a passage runs the panel reads out who has the ball and how fast they are
+going, who is nearest and whether that gap is opening or closing. It is
+`js/stats.js`, computed once when the play loads — a few thousand differences
+over an array already in memory, cheaper than a frame of rendering, which is why
+scrubbing is as smooth as playing.
+
+Read off the 75-yard touchdown it comes out as the play itself: the centre has
+the ball pre-snap at 0.0 mph, the quarterback takes it and drops back with a
+tackle closing, the ball goes up at 47 mph and belongs to nobody, the receiver
+catches it at 20.9 mph and pulls away from the free safety, then slows into the
+end zone. Top speed 21.0 mph — which is where a real NFL tracking release puts a
+fast receiver, and the check asserts that range rather than the exact figure.
+
+Three decisions worth recording:
+
+  * **Possession is gated on the ball's height, not on event names.** The feeds
+    label different things — the gridiron marks `pass_forward` and
+    `pass_arrived`, the football `cross` — so a table of phase names per feed is
+    a table a new play can fall outside of. Height needs no table. Above 2 m the
+    ball is in the air and nobody is carrying it, and measured across all six
+    passages that is exactly right: the handoff play never leaves 1.05 m and
+    possession correctly never lapses, while the deep pass and the cross both
+    reach 8.1 m and correctly go unclaimed while they are up.
+  * **Separations are in the feed's own unit** — yards for a gridiron, metres
+    for a pitch. Reporting one as the other is wrong by ten per cent and looks
+    fine, which is why the check asserts the unit.
+  * **Only the scaling is needed, not the rotation.** Positions arrive in the
+    feed's space and are scaled onto the marked surface; rotation preserves
+    distance, and a separation is a distance.
+
+#### Saying what they are
+
+These are computed in a browser from a recording. They are not sensor readings
+and the app must not let anybody think otherwise, so the caveat rides beside the
+numbers rather than living in a footnote — the same rule the forecast pill
+follows. `DERIVED IN BROWSER` sits on the strip, its tooltip says the tracking is
+real and recorded but the figures are not measured, and pressing it opens the
+info sheet, because a caveat nobody can follow up is decoration.
+
+The distinction the copy is careful about: **the tracking is real and recorded,
+the analysis is real and local, and neither is live.** Step 05 of the info sheet
+says that in as many words, and names [ArcGIS Velocity](VELOCITY.md) as what a
+venue would actually run — a live feed rather than a file, many games rather than
+one passage, and the answers kept rather than recomputed. `tools/statscheck.py`
+asserts all of it, because a promise about honesty that nothing checks is a
+promise that quietly stops being true.
+
 ### A day that has not happened
 
 Everything else this app shows is the world as it is or as it was: live weather,

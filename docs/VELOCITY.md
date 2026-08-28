@@ -7,11 +7,21 @@ other: a simulator that plays a passage back on a clock, a Velocity pipeline
 that derives speed, closing distance and possession from it, and a stream the
 app can subscribe to.
 
-**Nothing here is wired into the app yet.** What exists is the foundation: the
-transform, the simulator, a local stand-in for the receiver, and a check that
-holds the first two to the app's own arithmetic. The pipeline itself is a
-configuration exercise in an org, and the two open questions at the end have to
-be answered before it is worth doing.
+**The pipeline is not wired into the app, and by design it may never need to
+be.** The analytics the app shows are computed in the browser — `js/stats.js`,
+described in [NOTES](NOTES.md#the-numbers-on-the-replay) — and that is the right
+default: perfect sync, no dependency, works in a conference room with no network,
+and it degrades to nothing if a stream is unavailable because there was never a
+stream.
+
+What Velocity is for is the part a browser cannot do: **the archive**, stateful
+incident detection, and the honest answer to "what would you actually deploy."
+The client-side path also gives the pipeline something to be checked against —
+*"these two agree"* is a better demonstration than either number alone.
+
+So the foundation here is the transform, the simulator, a local stand-in for the
+receiver, and a check holding the first two to the app's own arithmetic. The
+pipeline itself is a configuration exercise in an org.
 
 ---
 
@@ -203,9 +213,8 @@ exact to floating point.
    demo" and "works only when signed in", and it decides whether any of this
    reaches the app at all.
 
-2. **Is the browser fallback the primary?** The honest answer is probably yes:
-   compute the analytics client-side from the same JSON, ship that, and let
-   Velocity be the archive, the incident engine and the deployment story rather
-   than the source of what is on screen. That also gives a reference to check the
-   pipeline against — *"these two agree"* is a better demonstration than either
-   number alone.
+2. ~~Is the browser fallback the primary?~~ **Settled: yes.** `js/stats.js`
+   ships and is the default. Velocity is the archive, the incident engine and
+   the deployment story rather than the source of what is on screen. The schema
+   it must match is the one `stats.js` already produces, and `at(t)` is keyed by
+   seconds into the passage for exactly that reason.
