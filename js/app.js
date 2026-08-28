@@ -62,7 +62,6 @@ import Point from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Point.js";
 import { styleLights } from "./lights.js";
 import { addPlay, broadcastCamera } from "./play.js";
 import { sectionCamera, sections, ringOf, sectionPlan, RINGS } from "./seats.js";
-import { buildEgress } from "./egress.js";
 import { flyLap } from "./flyin.js";
 import { dressSelects } from "./selectmenu.js";
 
@@ -417,22 +416,6 @@ const CONFIG = {
   ],
 
 
-  /**
-   * Getting out, and the two numbers the arithmetic rests on.
-   *
-   * Both are stated here rather than buried in the code that uses them, because
-   * both are arguable and somebody will want to argue with them. The capacity is
-   * the venue's published figure. The occupancy is a planning assumption - the
-   * usual range for an NFL stadium is somewhere either side of two and a half
-   * people to a vehicle, and the panel says which one it used so the answer can
-   * be re-derived rather than taken on trust.
-   */
-  egress: {
-    data: "data/traffic.json",
-    capacity: 76125,          // Empower Field at Mile High, published
-    perVehicle: 2.6           // a planning figure, not a measurement
-  },
-
   // Opening camera. The web scene's own initial viewpoint is used when this is
   // null. Press C in the running app to print the current camera, then paste it
   // here — this is app-side only and does not touch the web scene.
@@ -735,10 +718,6 @@ const els = {
   mpanel: $("measurePanel"), mhost: $("measureHost"),
   mclear: $("measureClear"), mclose: $("measureClose"),
   info: $("info"), infoSheet: $("infoSheet"),
-  egress: $("egress"), egressPanel: $("egressPanel"),
-  egressClose: $("egressClose"), egressSum: $("egressSum"),
-  egressRing: $("egressRing"), egressKey: $("egressKey"),
-  egressNote: $("egressNote"), egressYear: $("egressYear"),
   live: $("live"), liveMenu: $("liveMenu"),
   ppanel: $("playPanel"), ptoggle: $("playToggle"),
   picon: $("playIcon"), pscrub: $("playScrub"), pmarks: $("playMarks"),
@@ -1251,12 +1230,8 @@ async function main() {
   };
   els.enter.addEventListener("click", reveal, { once: true });
 
-  // The counts layer, built before the panel that reads it. Nothing is fetched
-  // here - see egress.js - so this costs a closure until somebody presses E.
-  const egress = buildEgress(view, CONFIG);
   const tools = wireTools(view, surfaces,
-    { captureDefaults: openingState, replayDefaults: replayState, slides, tour,
-      egress });
+    { captureDefaults: openingState, replayDefaults: replayState, slides, tour });
 
   // Some views open something when you reach them: the night view brings up the
   // time slider, the two stand views start their replay. One panel at a time,
@@ -4933,121 +4908,8 @@ function buildSeats(view, surfacesReady, onTaken) {
   };
 }
 
-/**
- * The egress panel: the roads, and the arithmetic.
- *
- * Every number on screen is either published or a division of two published
- * numbers, and the one assumption is named in the sentence that uses it. That
- * is the whole design rule here. A panel that said "estimated clearance time:
- * 47 minutes" would be more impressive and would be a fabrication - there is no
- * model behind this, there is a count from a state DOT and a division - so it
- * says what it has and stops.
- */
-function buildEgressPanel(view, egress) {
-  let ready = null;
-
-  const num = (n) => n.toLocaleString("en-US");
-
-  function paint({ sums }) {
-    els.egressYear.textContent = sums.year ? `${sums.year} counts` : "";
-    // The sentence is the finding. Spelling out the division rather than
-    // presenting the answer alone is what lets somebody disagree with the
-    // occupancy figure instead of with the app.
-    els.egressSum.replaceChildren(
-      strong(num(sums.seats)),
-      text(" seats. At "),
-      strong(`${sums.per}`),
-      text(" people to a vehicle that is about "),
-      strong(num(sums.cars)),
-      text(" cars, nearly all of them leaving inside half an hour — onto roads "
-           + `where ${sums.full === 1 ? "one is" : `${sums.full} are`} already `
-           + "over capacity at the design hour on an ordinary day.")
-    );
-
-    els.egressRing.replaceChildren(...sums.ring.map((r) => {
-      const row = document.createElement("div");
-      row.className = "egrow";
-      const name = document.createElement("span");
-      name.className = "egrow__name";
-      name.textContent = r.name;
-      name.title = r.also || r.name;
-      const bar = document.createElement("span");
-      bar.className = "egrow__bar";
-      const fill = document.createElement("span");
-      fill.className = "egrow__fill";
-      // Capped at the full width, with the overspill said in the number rather
-      // than drawn: a bar that ran past its own track would read as a rendering
-      // fault, and 1.17 is a fact about the road, not about the chart.
-      fill.style.width = `${Math.min(1, r.vc) * 100}%`;
-      fill.style.background = rgb(colorFor(r.vc));
-      bar.appendChild(fill);
-      const vc = document.createElement("span");
-      vc.className = "egrow__vc";
-      vc.textContent = r.vc.toFixed(2);
-      if (r.vc >= 1) vc.classList.add("over");
-      const aadt = document.createElement("span");
-      aadt.className = "egrow__aadt";
-      aadt.textContent = num(r.aadt);
-      row.append(name, bar, vc, aadt);
-      return row;
-    }));
-
-    els.egressKey.replaceChildren(...egress.breaks.map((b) => {
-      const k = document.createElement("span");
-      k.className = "egkey";
-      const dot = document.createElement("span");
-      dot.className = "egkey__dot";
-      dot.style.background = rgb(b.color);
-      const t = document.createElement("span");
-      t.textContent = b.label;
-      k.append(dot, t);
-      return k;
-    }));
-
-    els.egressNote.textContent =
-      `Volume over capacity at the design hour, and vehicles a day — ${sums.source}. `
-      + "An annual average of all days, not a game day: what it shows is the "
-      + "baseline the crowd leaves into, and how little of it is spare.";
-  }
-
-  const text = (t) => document.createTextNode(t);
-  const strong = (t) => {
-    const e = document.createElement("strong");
-    e.textContent = t;
-    return e;
-  };
-  const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
-  const colorFor = (vc) =>
-    (egress.breaks.find((b) => vc < b.max) ?? egress.breaks[3]).color;
-
-  async function open() {
-    els.egressPanel.hidden = false;
-    els.egress.classList.add("active");
-    await egress.show(true);
-    try {
-      ready = ready ?? egress.data();
-      paint(await ready);
-    } catch (err) {
-      els.egressSum.textContent =
-        "The traffic counts are not here. They are generated from CDOT rather "
-        + "than shipped with the code — see tools/build_traffic.py.";
-      console.warn("[venue] egress:", err.message);
-    }
-  }
-
-  function close() {
-    els.egressPanel.hidden = true;
-    els.egress.classList.remove("active");
-    egress.show(false);
-  }
-
-  els.egressClose.addEventListener("click", close);
-  return { open, close, toggle: () => (els.egressPanel.hidden ? open() : close()) };
-}
-
 function wireTools(view, surfacesReady,
-                   { captureDefaults, replayDefaults, slides = [], tour,
-                     egress } = {}) {
+                   { captureDefaults, replayDefaults, slides = [], tour } = {}) {
   const start = view.camera.clone();
   els.home.addEventListener("click", () =>
     view.goTo(start, { duration: 1800, easing: "in-out-cubic" }).catch(() => {}));
@@ -5145,10 +5007,6 @@ function wireTools(view, surfacesReady,
   const liveAction = buildLiveAction(view, surfacesReady, stage, slides);
   liveAction.wire();
   const seats = buildSeats(view, surfacesReady, () => liveAction.repaint());
-  // Built eagerly, loaded lazily: the module is cheap and the counts are not
-  // fetched until somebody opens the panel, so a viewer who never asks about
-  // getting out never pays for the answer.
-  const egressPanel = buildEgressPanel(view, egress);
   liveAction.useSeats(seats);
   // The way back to the chooser once a seat has been taken, next to Draw Play
   // where the other replay options are.
@@ -5157,22 +5015,17 @@ function wireTools(view, surfacesReady,
   // One panel at a time, and the outgoing one is properly torn down rather than
   // just hidden — a hidden measurement widget leaves its analysis on the view.
   els.measure.addEventListener("click", () => {
-    timeOfDay.close(); liveAction.close(); egressPanel.close(); measure.toggle();
+    timeOfDay.close(); liveAction.close(); measure.toggle();
   });
   els.timeOfDay.addEventListener("click", () => {
-    measure.close(); liveAction.close(); egressPanel.close(); timeOfDay.toggle();
+    measure.close(); liveAction.close(); timeOfDay.toggle();
   });
   els.live.addEventListener("click", () => {
-    measure.close(); timeOfDay.close(); egressPanel.close(); liveAction.group();
-  });
-  els.egress.addEventListener("click", () => {
-    measure.close(); timeOfDay.close(); liveAction.close(); egressPanel.toggle();
+    measure.close(); timeOfDay.close(); liveAction.group();
   });
   // The chooser's own items are wired where they are built; they only need the
-  // other panels shut on the way past.
-  liveAction.onPick(() => {
-    measure.close(); timeOfDay.close(); egressPanel.close();
-  });
+  // other two panels shut on the way past.
+  liveAction.onPick(() => { measure.close(); timeOfDay.close(); });
 
   // Where a flight to a replay view should finish: the broadcast camera for
   // whichever play that view opens. Awaited rather than computed inline because
@@ -5205,7 +5058,7 @@ function wireTools(view, surfacesReady,
   });
 
   els.hud.addEventListener("click", () => document.body.classList.toggle("hud-off"));
-  return { measure, timeOfDay, liveAction, seats, egressPanel };
+  return { measure, timeOfDay, liveAction, seats };
 }
 
 /**
@@ -5236,7 +5089,6 @@ function wireKeys(view, tour, tools) {
       case "a": case "A": tools.liveAction.toggle("gridiron"); break;
       case "g": case "G": tools.liveAction.toggle("football"); break;
       case "h": case "H": els.home.click(); break;
-      case "e": case "E": els.egress.click(); break;
       // Only where it means something. The chooser lives inside the replay
       // now, and opening it from anywhere else leaves a viewer sitting in a
       // stand with the panel still reading Broadcast and no way back to the

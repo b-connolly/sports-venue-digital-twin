@@ -43,10 +43,6 @@ replays driven by actual sports tracking data.
   where you are sitting rather than to move; the view follows the ball gently
   and hands back the moment you take hold of it
 - **Analysis** — distance, area, volume and elevation profile tools
-- **Getting out** — the roads the crowd leaves on, from CDOT's own published
-  counts, coloured by how much room they have left. The answer is almost none:
-  I-25 and US 6 are over capacity at the design hour before a single car leaves
-  the lot. A sellout adds about 29,000 vehicles to that inside half an hour
 - **Time of day** — scrub the sun; the floodlights come on by themselves after
   dark and can be switched on by hand at any hour, because a bowl is its own
   shade and a low morning sun still leaves the ground dim. `‹ ›` step the day,
