@@ -27,6 +27,10 @@ Run them with the Python that has Pillow, from this folder.
 | `nightcheck.py` | nothing | The night views arrive at night, with the ground lit. |
 | `flycheck.py` | nothing | The walk from Night Sky to the statues stays outside the stadium, and walks the sun home rather than snapping it. |
 | `forecastcheck.py` | nothing | The clock reaches days that have not happened, the sky follows it there, and the chip says which it is showing. |
+| `playfield.py` | nothing | The field transform, ported from `js/play.js`. Imported by the two below. |
+| `simulate_play.py` | nothing | Replays a tracked passage on a clock and posts it as events, for an ArcGIS Velocity feed. See [`docs/VELOCITY.md`](../docs/VELOCITY.md). |
+| `mockreceiver.py` | nothing | A local stand-in for a Velocity HTTP Receiver, so the feed can be built without an org. |
+| `simcheck.py` | nothing | The ported transform still agrees with the app, to the centimetre, on both sports. |
 | `digitise_chart.py` | `tools/bearings.json` | Reads the section bearings off `seating_chart.png`. Rerun it if the chart changes. |
 
 ## Getting the source data
