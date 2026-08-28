@@ -45,9 +45,13 @@ replays driven by actual sports tracking data.
 - **Analysis** — distance, area, volume and elevation profile tools
 - **Time of day** — scrub the sun; the floodlights come on by themselves after
   dark and can be switched on by hand at any hour, because a bowl is its own
-  shade and a low morning sun still leaves the ground dim
+  shade and a low morning sun still leaves the ground dim. `‹ ›` step the day,
+  up to a week ahead
 - **Conditions** — live weather at the venue drives the sky, or pick your own:
-  clear, cloudy, rain, snow that lies, fog
+  clear, cloudy, rain, snow that lies, fog. Step the clock past today and the
+  sky follows the hourly forecast there — so the venue can be seen under the
+  conditions it is going to have, labelled as a forecast rather than as a
+  reading
 
 ## Built with
 

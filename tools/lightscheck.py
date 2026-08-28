@@ -111,8 +111,30 @@ try:
     st = json.loads(c.js(STATE))
     ok("at one in the afternoon the switch is still offered",
        st["offered"] is True, st)
-    ok("but the lights are not on by themselves in daylight",
-       st["on"] is False, st)
+
+    # Start from a known state rather than from whatever the wall clock left.
+    #
+    # This used to assert the lights were simply off here, which quietly assumed
+    # the run happened in daylight at the venue. Opening a replay after dark
+    # switches them on - correctly, that is the whole of `afterDark` in
+    # api2.open - and set_clock takes the clock manual, which by design stops
+    # the automatic dawn transition from taking them back off: the sun decides
+    # what the lights *default* to and never overrides a hand. So the same app,
+    # behaving correctly, gave opposite answers depending on the hour the suite
+    # was started, and the failure looked like a lighting bug rather than a test
+    # that had made an assumption about the time of day.
+    #
+    # What is actually being claimed is that the *clock* does not put the lights
+    # on in daylight. That is checked by putting them off by hand and watching
+    # the ticks leave them alone, which is true at any hour.
+    if st["on"]:
+        c.js("document.getElementById('lightsBtn').click()")
+        time.sleep(3)
+        st = json.loads(c.js(STATE))
+    ok("they can be put out in daylight", st["on"] is False, st)
+    time.sleep(5)
+    st = json.loads(c.js(STATE))
+    ok("and the clock does not put them on by itself", st["on"] is False, st)
 
     # The morning case: a bowl is its own shade, so this has to be possible.
     c.js("document.getElementById('lightsBtn').click()")

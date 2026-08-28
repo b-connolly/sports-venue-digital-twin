@@ -947,6 +947,38 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 /* thin divider between the local clock and the next sun event */
 .weather__sun::before { content: "·"; margin-right: 0.34rem; color: var(--paper-faint); }
 .weather__sun { font-size: 0.5rem; opacity: 0.72; }
+/* Forecast, not measurement.
+   Reads as a label rather than as a reading: outlined instead of filled, so it
+   sits beside the temperature without competing with it, and in the accent so
+   it is plainly the app talking rather than the venue. */
+.weather__tag {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.36rem; border-radius: 999px;
+  border: 1px solid rgba(251,79,20,0.5);
+  font-size: 0.46rem; font-weight: 600; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--accent-2); white-space: nowrap;
+}
+.weather__tag[hidden] { display: none; }
+/* The clock is showing an hour that has not happened, so the divider before the
+   sun line would otherwise read as separating two facts. */
+.weather.ahead .weather__time { color: var(--accent-2); }
+
+/* Stepping the day, in the time panel's title bar. */
+.dock__day { display: flex; align-items: center; gap: 0.15rem; flex: 0 0 auto; }
+.dock__daybtn {
+  width: 20px; height: 20px; display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 5px;
+  background: transparent; color: var(--paper-faint);
+  font: inherit; font-size: 0.85rem; line-height: 1;
+  cursor: pointer; transition: background .15s, color .15s, opacity .15s;
+}
+.dock__daybtn:hover { background: rgba(244,241,234,0.12); color: var(--paper); }
+.dock__daybtn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+/* Dimmed rather than hidden at the ends of what is known. A control that
+   disappears takes its own explanation with it; one that greys out says there
+   is nothing further that way, which is the actual fact - the forecast runs
+   out, and there is no yesterday to fetch. */
+.dock__daybtn:disabled { opacity: 0.25; cursor: default; background: none; }
 /* after dark the chip cools off, and the icon picks up moonlight */
 .weather.night .weather__icon { color: #cfe0ff; }
 .weather.night { border-color: rgba(180, 205, 255, 0.22); }

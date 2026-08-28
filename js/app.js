@@ -713,6 +713,7 @@ const els = {
   tools: $("tools"), home: $("home"), measure: $("measure"), hud: $("hud"),
   timeOfDay: $("timeOfDay"), tpanel: $("timePanel"), thost: $("timeHost"),
   tlive: $("timeLive"), tclose: $("timeClose"), treadout: $("timeReadout"),
+  tdayPrev: $("timeDayPrev"), tdayNext: $("timeDayNext"),
   shadowToggle: $("shadowToggle"),
   mpanel: $("measurePanel"), mhost: $("measureHost"),
   mclear: $("measureClear"), mclose: $("measureClose"),
@@ -726,7 +727,7 @@ const els = {
   pclose: $("playClose"), prestart: $("playRestart"),
   precenter: $("playRecenter"),
   weather: $("weather"), wxIcon: $("wxIcon"), wxTemp: $("wxTemp"),
-  wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"),
+  wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"), wxTag: $("wxTag"),
   wxLive: $("wxLive"), wxPick: $("wxPick"), wxMenu: $("wxMenu"),
 };
 
@@ -1621,6 +1622,10 @@ let liveOwner = () => {};
  * midnight and stays there, because manual mode stops the clock correcting it.
  */
 let sliderOwner = () => {};
+// Set once the time panel is built. The day stepper's bounds depend on where
+// the clock is, and the clock is moved from half a dozen places that have no
+// business knowing the panel exists.
+let dayPainter = () => {};
 
 let viewRef = null;
 
@@ -1801,6 +1806,7 @@ function buildTour(view, slides, captures) {
       setLights(view, false);
       stopFollowingLight();
       sky.manual = true;
+      sky.travelling = true;
       // Onto today first. The walk is only ever about the time of day, and a
       // clock that has picked up somebody else's date - see dayBounds - would
       // otherwise have the sun cross every month between here and now. Measured
@@ -1811,7 +1817,7 @@ function buildTour(view, slides, captures) {
       const t0 = performance.now();
       let last = 0;
       const step = (now) => {
-        if (stale()) { done(); return; }
+        if (stale()) { sky.travelling = false; done(); return; }
         const raw = Math.min(1, (now - t0) / ms);
         // The same ease the camera is on, so the sun and the shot start and
         // stop together instead of the light sliding under a settled camera.
@@ -1826,6 +1832,7 @@ function buildTour(view, slides, captures) {
         // Home. The clock is handed back to the live one, which puts the date
         // on the true instant rather than the day-ahead one the walk arrived
         // at, and leaves tickClock advancing it a second at a time again.
+        sky.travelling = false;
         sky.manual = false;
         view.environment.lighting.date = new Date();
         tickClock(view);
@@ -2604,7 +2611,43 @@ const sky = {
   // scene shows what the venue is actually under.
   imposed: null,
   picked: null,
-  live: null               // the last fetched conditions, to come back to
+  live: null,              // the last fetched conditions, to come back to
+  /**
+   * The hourly forecast, and how far it reaches.
+   *
+   * This is the whole of the app's future tense. Everything else it shows is
+   * either the state of the world now - live weather, the real sun - or a
+   * record of something that already happened: the captures, the tracked
+   * replays. A view of the venue under conditions that have not arrived yet is
+   * a different kind of claim, and it is the one that separates a model of a
+   * place from a twin of it.
+   *
+   * `forecast` is what is actually being shown, when that is not the live
+   * reading. Read by the chip, so the app can say which it is: a temperature
+   * offered as a measurement and one offered as a prediction should not look
+   * the same, whatever else they do.
+   */
+  hours: [],               // [{ t, kind, text, code, cloud, precip, temp }]
+  horizon: null,           // the last instant the forecast covers
+  forecast: null,          // the hour being shown, if it is not now
+  /**
+   * The clock is being driven as an animation rather than set.
+   *
+   * Two things do that - the night view's sweep towards midnight, and the walk
+   * home from it - and both cross most of a day in about twenty seconds. The
+   * sun moving is the whole effect and it should; the weather is a different
+   * matter. Following the forecast hour by hour through a transit would rebuild
+   * the sky sixteen times in nineteen seconds, each one a transition the SDK
+   * starts and the next one interrupts, and it would flash "forecast" across
+   * the chip for the length of a shot that is meant to be the calmest in the
+   * app. None of that is information: nobody is asking what Tuesday at 4 a.m.
+   * looks like while the camera is sweeping past it.
+   *
+   * So the sky holds through the transit and the clock alone moves. Where it
+   * lands is a state somebody is actually looking at, and that is where the
+   * question is worth answering.
+   */
+  travelling: false
 };
 
 /**
@@ -2641,10 +2684,20 @@ function makeWeather(kind, cloud, precip, code = 0) {
 /** Network only — kept separate so it can be started before the scene loads. */
 function fetchConditions() {
   const { lat, lon } = CONFIG.site;
+  // A week of hourly, which is what makes a future state possible at all.
+  //
+  // The endpoint has always been the forecast one - only the current reading was
+  // ever taken off it - so this costs one query parameter and no extra request.
+  // A week rather than a day because of the question this is actually for: not
+  // "what is it like tomorrow" but "what is it like at kickoff", and kickoff is
+  // a fixture on a calendar. Seven days reaches the next home game from most of
+  // the week. It is 168 hours of four numbers - the payload is smaller than one
+  // of the icons.
   const url = "https://api.open-meteo.com/v1/forecast" +
     `?latitude=${lat}&longitude=${lon}` +
     "&current=temperature_2m,cloud_cover,precipitation,weather_code,is_day" +
-    "&daily=sunrise,sunset&forecast_days=2&timezone=auto" +
+    "&hourly=temperature_2m,cloud_cover,precipitation,weather_code" +
+    "&daily=sunrise,sunset&forecast_days=7&timezone=auto" +
     "&temperature_unit=fahrenheit";
   return fetch(url, { cache: "no-store" }).then((res) => {
     if (!res.ok) throw new Error(`weather ${res.status}`);
@@ -2676,6 +2729,33 @@ function applyConditions(view, data) {
   sky.sunrise = stamp(day.sunrise?.[0]);
   sky.sunset  = stamp(day.sunset?.[0]);
   sky.nextRise = stamp(day.sunrise?.[1]);
+
+  /**
+   * The forecast, in exactly the shape the live reading is in.
+   *
+   * Same fields, same units, same classification, so everything downstream can
+   * take either without asking which it has - see conditionsAt. An hour of
+   * forecast and the current observation are the same kind of thing to a sky:
+   * the only difference is how much anybody should trust it, and that is a
+   * labelling question rather than a rendering one.
+   *
+   * Hours arrive as local wall-clock strings with `timezone=auto`, the same as
+   * sunrise and sunset, so they get the same offset stamped on to become
+   * absolute instants.
+   */
+  const hr = data.hourly ?? {};
+  sky.hours = (hr.time ?? []).map((iso, i) => {
+    const code = hr.weather_code?.[i];
+    const { kind, text } = classify(code);
+    return {
+      t: new Date(`${iso}:00${offsetSuffix(sky.offsetHours)}`).getTime(),
+      kind, text, code,
+      cloud: Math.min(1, Math.max(0, (hr.cloud_cover?.[i] ?? 0) / 100)),
+      precip: Math.min(1, Math.max(0.15, (hr.precipitation?.[i] ?? 0) / 2.5)),
+      temp: Math.round(hr.temperature_2m?.[i] ?? 0)
+    };
+  });
+  sky.horizon = sky.hours.length ? sky.hours[sky.hours.length - 1].t : null;
 
   els.weather.hidden = false;
   paintSky(view);
@@ -2725,19 +2805,78 @@ function ownSky(view) {
  * picking, a view imposing - so there is one place that knows the order of
  * precedence and nowhere else that writes `environment.weather`.
  */
-function paintSky(view) {
+/**
+ * The conditions at the instant the app is showing.
+ *
+ * Live if that instant is now, and the forecast for the hour if it is not.
+ *
+ * The clock was already scrubbable to any hour of the day and the sun already
+ * followed it; the weather did not, so a scene set to nine tomorrow morning
+ * showed tomorrow's sun under today's sky. That is not a small inconsistency
+ * dressed up - it is the difference between a model that can only show the
+ * present and one that can be asked a question about a day that has not
+ * happened. A venue is asked that question constantly: what will it be like
+ * here on Sunday.
+ *
+ * Half an hour of slack around live, because the hourly series is stamped on
+ * the hour and the observation is not. Inside that window the measurement wins:
+ * it is the better number, and a chip that flickers between "measured" and
+ * "predicted" as the minutes tick past would be worse than either.
+ */
+const LIVE_SLACK_MS = 30 * 60 * 1000;
+
+function conditionsAt(when) {
+  const t = +when;
+  if (!Number.isFinite(t)) return sky.live;
+  if (sky.travelling) return sky.live;        // see sky.travelling
+  if (Math.abs(t - Date.now()) < LIVE_SLACK_MS) return sky.live;
+  if (!sky.hours.length) return sky.live;
+  // Past the end of the forecast, or before it starts, the honest answer is
+  // that nothing is known - so the live reading stands and is labelled as
+  // itself rather than being quietly restamped as a prediction.
+  if (t < sky.hours[0].t - 36e5 || t > sky.horizon + 36e5) return sky.live;
+  let best = sky.hours[0];
+  for (const h of sky.hours) {
+    if (Math.abs(h.t - t) < Math.abs(best.t - t)) best = h;
+  }
+  return best;
+}
+
+/**
+ * The sky last actually written to the view.
+ *
+ * Assigning `environment.weather` is not free - the SDK takes a new Weather
+ * object as a change to transition to - and the clock now drives the sky, which
+ * means this is reachable eight times a second while a sun is being walked and
+ * on every frame of a slider drag. So the tick asks for `ifChanged` and gets a
+ * repaint only when the hour it lands in is a different hour.
+ *
+ * Everything else still asks unconditionally, because the other callers are
+ * putting the sky back after something took it: applying a slide installs its
+ * own environment wholesale, and an assignment skipped there is a scene left
+ * showing the weather the author saved rather than the weather it should have.
+ */
+let skyShown = null;
+
+function paintSky(view, { ifChanged = false } = {}) {
   const chosen = sky.imposed ?? sky.picked;
   const p = chosen && WEATHER_PICKS.find((w) => w.kind === chosen);
+  // What the sky would be if nobody had overridden it: the live reading, or
+  // the forecast for whatever hour the clock has been moved to.
+  const real = conditionsAt(nowDate(view));
+  sky.forecast = real && real !== sky.live ? real : null;
   if (p) {
     sky.kind = p.kind;
     sky.weather = makeWeather(p.kind, p.cloud, p.precip);
-  } else if (sky.live) {
-    sky.kind = sky.live.kind;
-    sky.weather = makeWeather(sky.live.kind, sky.live.cloud, sky.live.precip, sky.live.code);
+  } else if (real) {
+    sky.kind = real.kind;
+    sky.weather = makeWeather(real.kind, real.cloud, real.precip, real.code);
   } else {
     return;                                   // nothing known yet
   }
-  view.environment.weather = sky.weather;
+  const key = p ? `pick:${p.kind}` : `real:${real.t ?? "live"}:${real.code}`;
+  if (!ifChanged || key !== skyShown) view.environment.weather = sky.weather;
+  skyShown = key;
 
   // The temperature follows a sky the viewer picked, and does not follow one a
   // view imposed.
@@ -2751,9 +2890,9 @@ function paintSky(view) {
   // temperature does not contradict itself.
   const shown = sky.picked && !sky.imposed
     ? WEATHER_PICKS.find((w) => w.kind === sky.picked)?.tempF
-    : sky.live?.temp;
+    : real?.temp;
   if (shown != null) els.wxTemp.textContent = `${shown}°F`;
-  els.wxDesc.textContent = p ? PICK_TEXT[p.kind] : (sky.live?.text ?? "");
+  els.wxDesc.textContent = p ? PICK_TEXT[p.kind] : (real?.text ?? "");
   for (const b of els.wxMenu.querySelectorAll("button")) {
     b.classList.toggle("on", b.dataset.kind === chosen);
   }
@@ -2772,13 +2911,36 @@ function paintSky(view) {
  */
 function paintLive() {
   const off = sky.manual || !!sky.picked || !!sky.imposed || sky.lit;
-  els.wxLive.textContent = off ? "Live" : "Live";
+  // A forecast is not a measurement and the chip has to say so. It is the one
+  // number on screen that could be mistaken for an observation - the sun and
+  // the sky are plainly a rendering, and the temperature is plainly a reading -
+  // so a scene set to Sunday afternoon showing "84°F" beside a Live pip would
+  // be the app quietly asserting something it does not know.
+  //
+  // Only when the forecast is what is actually being shown: a viewer who has
+  // picked their own weather is looking at their choice, and saying "forecast"
+  // over the top of it would be a second wrong answer.
+  const ahead = !!sky.forecast && !sky.picked && !sky.imposed;
+  els.wxLive.textContent = "Live";
   els.wxLive.classList.toggle("on", !off);
   els.weather.classList.toggle("manual", off);
+  els.weather.classList.toggle("ahead", ahead);
   els.wxLive.disabled = !off;
   els.wxLive.title = off
     ? "Back to the conditions and the time at the venue right now"
     : "Showing the venue's live conditions";
+  if (els.wxTag) {
+    els.wxTag.hidden = !ahead;
+    els.wxTag.textContent = ahead ? tagFor(sky.forecast.t) : "";
+  }
+}
+
+/** "Forecast" and how far out, so the number carries its own confidence. */
+function tagFor(t) {
+  const h = Math.round((t - Date.now()) / 36e5);
+  if (h <= 0) return "Forecast";
+  if (h < 24) return `Forecast · +${h} h`;
+  return `Forecast · +${Math.round(h / 24)} d`;
 }
 
 /**
@@ -2895,6 +3057,11 @@ function tickClock(view) {
   const now = nowDate(view);
 
   if (!sky.tz) return;
+  // The sky follows the clock. Scrubbing to nine tomorrow morning used to move
+  // the sun and leave today's weather under it, which is a model that can only
+  // ever show the present wearing a different light.
+  paintSky(view, { ifChanged: true });
+  dayPainter();
   const hhmm = clockAt(sky.tz, { hour: "numeric", minute: "2-digit" });
   els.wxTime.textContent = hhmm.format(now);
   els.treadout.textContent = clockAt(sky.tz,
@@ -3163,6 +3330,7 @@ function buildTimeOfDay(view) {
   function stopSweep() {
     if (sweepRaf) cancelAnimationFrame(sweepRaf);
     sweepRaf = null;
+    sky.travelling = false;
   }
   // So the rail can stand a sweep down as it leaves, before the next flight.
   sweepOwner = stopSweep;
@@ -3175,6 +3343,7 @@ function buildTimeOfDay(view) {
     const to = localInstant(sky.tz, hh, mm, new Date(from)).getTime();
     if (!(to > from)) return;                 // already past it; nothing to do
     sky.manual = true;
+    sky.travelling = true;                    // see sky.travelling
     const t0 = performance.now();
     let wrote = 0;
     const frame = (now) => {
@@ -3191,6 +3360,8 @@ function buildTimeOfDay(view) {
       }
       if (u < 1) { sweepRaf = requestAnimationFrame(frame); return; }
       sweepRaf = null;
+      sky.travelling = false;
+      paintSky(view);
       close();
     };
     sweepRaf = requestAnimationFrame(frame);
@@ -3264,6 +3435,70 @@ function buildTimeOfDay(view) {
   };
   els.shadowToggle.addEventListener("click", shadows);
   els.shadowToggle.classList.toggle("on", !!view.environment.lighting.directShadowsEnabled);
+
+  /**
+   * A day forward, or a day back.
+   *
+   * This is the app's future tense and it is deliberately a small control.
+   * Everything else here shows the world as it is or as it was: live weather,
+   * the real sun, captures of a morning that has been and gone, replays of
+   * passages that were actually played. Stepping to tomorrow asks a different
+   * question - what will it be like here then - and a venue is asked that one
+   * constantly. It is also the question a 3D model cannot answer and a twin
+   * can, which is rather the point.
+   *
+   * Bounded by what is actually known, in both directions and for different
+   * reasons. Forward, the forecast runs out; past its last hour the app would
+   * be showing a sun over a sky it has no basis for. Back, there is no
+   * yesterday - the endpoint is a forecast service and this app does not fetch
+   * history - so the floor is today. Both ends grey the button out rather than
+   * clamping silently, because a control that quietly refuses reads as broken.
+   */
+  const DAY_MS = 864e5;
+
+  function dayFloor() {
+    return dayBounds()[0].getTime();          // midnight at the venue, today
+  }
+
+  function canStep(by) {
+    const to = nowDate(view).getTime() + by * DAY_MS;
+    if (by < 0) return to >= dayFloor() - 1;
+    return sky.horizon == null ? false : to <= sky.horizon;
+  }
+
+  function paintDays() {
+    if (!els.tdayPrev || !els.tdayNext) return;
+    els.tdayPrev.disabled = !canStep(-1);
+    els.tdayNext.disabled = !canStep(1);
+    els.tdayNext.title = sky.horizon == null
+      ? "No forecast loaded"
+      : canStep(1) ? "A day later — the forecast"
+        : "The forecast does not reach any further";
+  }
+
+  function stepDay(by) {
+    if (!canStep(by)) return;
+    // The panel owns the clock while it is open, the same as a slider drag or a
+    // sweep does. Without this the next tick would put the wall clock straight
+    // back over the day just chosen.
+    setLights(view, false);
+    stopSweep();
+    sky.manual = true;
+    const when = new Date(nowDate(view).getTime() + by * DAY_MS);
+    view.environment.lighting.date = when;
+    sliderOwner(when);
+    tickClock(view);
+    paintSky(view);
+    paintDays();
+  }
+
+  els.tdayPrev?.addEventListener("click", () => stepDay(-1));
+  els.tdayNext?.addEventListener("click", () => stepDay(1));
+  // The buttons have to re-decide whenever anything else moves the clock - a
+  // slider drag across midnight, a view that imposes an hour, the walk home
+  // from the night sky - so the tick repaints them along with everything else.
+  dayPainter = paintDays;
+  paintDays();
 
   els.tlive.addEventListener("click", live);
   els.tclose.addEventListener("click", close);

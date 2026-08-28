@@ -181,7 +181,19 @@
 <section id="timePanel" class="dock" hidden aria-label="Time of day">
   <header class="dock__bar">
     <span class="dock__h">Time of day</span>
-    <span id="timeReadout" class="dock__now"></span>
+    <!-- The track is one day long and stays that way: a slider that spanned
+         three days would need dates on its ticks and would make the ordinary
+         job - move the sun a couple of hours - a game of precision. The day is
+         stepped instead, which keeps the familiar 24-hour scrub and makes
+         "which day" an explicit choice rather than something you discover by
+         dragging off the end. -->
+    <span class="dock__day">
+      <button id="timeDayPrev" class="dock__daybtn" type="button"
+              aria-label="A day earlier" title="A day earlier">&#8249;</button>
+      <span id="timeReadout" class="dock__now"></span>
+      <button id="timeDayNext" class="dock__daybtn" type="button"
+              aria-label="A day later" title="A day later — the forecast">&#8250;</button>
+    </span>
     <button id="timeLive" class="dock__btn" type="button" title="Resume tracking the real clock">Live</button>
     <button id="timeClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
   </header>
@@ -282,6 +294,10 @@
       <span id="wxDesc" class="weather__desc">&nbsp;</span>
     </span>
     <span class="weather__sub">
+      <!-- Next to the clock, because the clock is the thing that has been
+           moved: a temperature offered as a prediction sits beside the hour it
+           is a prediction for. -->
+      <span id="wxTag" class="weather__tag" hidden></span>
       <span id="wxTime" class="weather__time"></span>
       <span id="wxSun" class="weather__sun"></span>
     </span>

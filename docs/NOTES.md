@@ -412,6 +412,52 @@ one produced a *plausible* wrong answer rather than an obvious one:
     while the readout above it went on counting. `sliderOwner` now moves the
     day under the handle.
 
+### A day that has not happened
+
+Everything else this app shows is the world as it is or as it was: live weather,
+the real sun, captures of a morning that has been and gone, replays of passages
+that were actually played. None of it is a prediction, and a model that can only
+show the present wearing a different light is a 3D model with a clock on it.
+
+The clock was already scrubbable to any hour and the sun already followed it.
+The weather did not — nine tomorrow morning showed tomorrow's sun under today's
+sky — so the fetch now asks for a week of hourly alongside the current reading
+it was already taking off the same endpoint. A week rather than a day because
+of the question this is for: not "what is it like tomorrow" but "what is it like
+at kickoff", and kickoff is a fixture on a calendar.
+
+`conditionsAt(when)` answers with the live reading if the instant is now and the
+forecast hour if it is not, in the same shape, so nothing downstream has to ask
+which it has. Half an hour of slack around live, because the hourly series is
+stamped on the hour and the observation is not, and inside that window the
+measurement wins.
+
+Three things are worth knowing:
+
+  * **The day is stepped, not scrubbed.** The track stays one day long: a slider
+    spanning a week would need dates on its ticks and would make the ordinary
+    job — move the sun a couple of hours — a game of precision. `‹ ›` either
+    side of the readout move the day, bounded by what is known. Forward, the
+    forecast runs out. Back, there is no yesterday: the endpoint is a forecast
+    service and this app does not fetch history. Both ends grey the button out
+    rather than clamping silently.
+  * **The chip says which it is.** A temperature offered as a measurement and
+    one offered as a prediction must not look the same, or the app is quietly
+    asserting something it does not know. `FORECAST · +3 D` sits beside the
+    clock — beside the thing that has been moved — and the Live pip goes cold.
+  * **The sky holds through a transit.** The sweep towards midnight and the walk
+    home from it both cross most of a day in about twenty seconds. Following the
+    forecast hour by hour through that would rebuild the sky sixteen times,
+    each transition interrupting the last, and flash "forecast" across the chip
+    during the calmest shot in the app. `sky.travelling` holds it; where the
+    clock lands is a state somebody is actually looking at, and that is where
+    the question is worth answering.
+
+Assigning `environment.weather` is not free, so `paintSky` takes `ifChanged` and
+the tick uses it — the sky is rebuilt only when the hour it lands in is a
+different hour. Everything else still asks unconditionally, because the other
+callers are putting the sky back after a slide installed its own.
+
 ### Holding on the replays
 
 The slideshow stops on each of the two replay views. Every other view is a
