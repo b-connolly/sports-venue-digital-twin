@@ -661,6 +661,9 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
   font-size: 0.58rem; line-height: 1.4; color: var(--paper-faint);
 }
 .dock__hint[hidden] { display: none; }
+/* Shorter in the column than it was in the dock: the panel now shares a screen
+   edge with whatever else is open rather than owning the bottom of it. */
+.side #measureHost { max-height: min(46vh, 300px); }
 #measureHost, #timeHost {
   padding: 0 0.3rem 0.3rem;
   /* Hard ceiling. Whatever the widget reserves internally, the dock cannot
@@ -998,18 +1001,36 @@ body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6
   .credit { display: none; }
 }
 
+/* -------------------------------------------------------- right-hand column
+   Contextual panels, stacked, inboard of the tool strip. It mirrors .rail on
+   the left and exists because both of its tenants were previously somewhere
+   worse: the player card floated over the player it described, which on a
+   pitch covered the half of the move worth watching, and Analysis was a dock
+   along the bottom that could only be opened by closing the replay.
+
+   The column itself is not a click target, or it would swallow drags over the
+   empty space below whichever panels happen to be open. */
+.side {
+  position: fixed; z-index: 11;
+  top: var(--pad);
+  /* Inboard of the tools: one 38px button plus a gap. */
+  right: calc(var(--pad) + 38px + 10px);
+  width: min(268px, 58vw);
+  display: flex; flex-direction: column; gap: 0.6rem;
+  max-height: calc(100vh - 2 * var(--pad));
+  pointer-events: none;
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+.side > * { pointer-events: auto; }
+body.hud-off .side { opacity: 0; pointer-events: none; transform: translateY(6px); }
+
 /* ------------------------------------------------------------- player card
-   Pinned to a person and positioned by transform, so moving it every frame
-   costs a compositor operation rather than a layout. translate() puts its
-   anchor point at the player's head; the card itself is lifted clear of that
-   point by its own margin, and the stem bridges the gap. */
+   Docked rather than pinned. Which player it is about is said on the field by
+   an orange ring on the ground - see the halo in play.js - because a card that
+   has to point at somebody has to be next to them, and next to them is exactly
+   where it is in the way. */
 .pcard {
-  position: fixed; top: 0; left: 0; z-index: 13;
-  /* The anchor is the player's head. JS writes the screen position and then a
-     percentage translate that stands the card on it - see placeCard. */
-  will-change: transform;
-  pointer-events: auto;
-  min-width: 11.5rem;
+  position: relative;
   padding: 0.6rem 0.75rem 0.5rem;
   background: var(--glass);
   border: 1px solid var(--line); border-radius: 12px;
@@ -1019,24 +1040,10 @@ body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6
   animation: pcard-in 0.16s var(--ease);
 }
 .pcard[hidden] { display: none; }
-/* Behind the camera or off the edge: put away rather than parked in a corner
-   claiming to point at somebody. */
-.pcard.away { opacity: 0; pointer-events: none; }
 
 @keyframes pcard-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* A short stem down to the head, so the card is plainly *about* someone. */
-.pcard__stem {
-  position: absolute; left: 50%; bottom: -9px; width: 1px; height: 9px;
-  background: linear-gradient(to bottom, var(--line), transparent);
-}
-.pcard__stem::after {
-  content: ""; position: absolute; left: -2px; bottom: -2px;
-  width: 5px; height: 5px; border-radius: 50%;
-  background: var(--accent);
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
 }
 
 .pcard__x {
@@ -1056,10 +1063,12 @@ body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6
   font-family: Fraunces, Georgia, serif; font-size: 1.05rem; line-height: 1;
   color: var(--paper);
 }
-/* Which side, carried by a stripe rather than a word: the card is small and
-   the kit colour on the field already says it. */
-.pcard.off .pcard__name { border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
-.pcard.def .pcard__name { border-bottom: 2px solid #8fa6c4; padding-bottom: 2px; }
+/* The ring on the field is the app's accent, so the name it belongs to carries
+   the same colour: the two have to read as one thing across the screen. */
+.pcard.off .pcard__name,
+.pcard.def .pcard__name {
+  border-bottom: 2px solid var(--accent); padding-bottom: 2px;
+}
 .pcard__tag {
   padding: 0.1rem 0.36rem; border-radius: 999px;
   border: 1px solid rgba(251,79,20,0.5);
@@ -1089,11 +1098,38 @@ body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6
 }
 .pcard__row--top dd { color: var(--paper-dim); }
 
-body.hud-off .pcard { opacity: 0; pointer-events: none; }
+/* ------------------------------------------------------------- side panel
+   Analysis, in the same column and the same glass as the card above it. */
+.sidepanel {
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--shadow); overflow: hidden;
+  display: flex; flex-direction: column; min-height: 0;
+  animation: pcard-in 0.16s var(--ease);
+}
+.sidepanel[hidden] { display: none; }
+.sidepanel__bar {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.42rem 0.4rem 0.42rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+}
+.sidepanel__h {
+  flex: 1 1 auto;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--paper-faint); white-space: nowrap;
+}
+/* The four modes do not fit across a 268px column on one line at the dock's
+   sizing, and shrinking the type to make them would put a 9px label on a
+   control. Two by two instead. */
+.side .mseg { flex-wrap: wrap; padding: 0.45rem 0.5rem 0; }
+.side .mseg button { flex: 1 1 44%; font-size: 0.58rem; letter-spacing: 0.1em; }
 
-@media (max-width: 780px) {
-  .pcard { min-width: 9.5rem; padding: 0.5rem 0.6rem 0.4rem; }
-  .pcard__row dt { font-size: 0.48rem; }
+@media (max-width: 780px), (max-height: 500px) {
+  /* Below the tool strip rather than beside it: on a phone the strip is most
+     of the height available and there is nothing to be inboard of. */
+  .side { top: calc(var(--pad) + 46px); width: min(268px, 66vw); }
 }
 
 /* ------------------------------------------------------- the play's numbers

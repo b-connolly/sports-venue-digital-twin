@@ -460,6 +460,40 @@ Three decisions worth recording:
     feed's space and are scaled onto the marked surface; rotation preserves
     distance, and a separation is a distance.
 
+#### The right-hand column
+
+Two panels live in it, and both were previously somewhere worse. It mirrors
+`.rail` on the left and sits inboard of the tool strip.
+
+**The player card** was pinned to the player it described, which was the obvious
+way to say who it was about and the wrong one. On a pitch a hundred metres
+across it sat squarely over the half of the move worth watching, and there is no
+position for a card that is both next to a running man and out of the way of a
+running man. So the field says *who* and the card says *what*.
+
+**Analysis** was a 740 px dock along the bottom that could only be opened by
+closing the replay — which made it useless for the one scene in this app worth
+measuring. It now opens over a running passage. The four modes go two-by-two in
+a 268 px column rather than four across; shrinking the type to fit one line
+would have put a 9 px label on a control.
+
+#### The ring on the field
+
+An orange annulus, three centimetres above the surface, under whoever is being
+watched. Built once out of quads by `meshkit.ring()` and moved by a
+`MeshTransform` exactly as the players are — a ring whose geometry was rebuilt
+sixty times a second would be the most expensive thing in the scene, for a shape
+that never changes.
+
+On the ground rather than over the head, because a marker above a player covers
+the player and the players are the point. It reads off the same interpolated
+position the actor was just placed at rather than sampling the tracking again: a
+ring half a step behind the man in it looks like a bug in the data.
+
+A mark on the ground is how sport has always done this, and for the reason that
+applies here — it survives the thing it marks being behind somebody else, off
+the edge of a close shot, or one of twenty-two.
+
 #### Clicking a player
 
 The strip answers *what is happening*; clicking somebody answers *what about

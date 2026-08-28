@@ -1273,7 +1273,10 @@ async function main() {
     }
     const play = CONFIG.play.plays.find((p) => p.key === opens);
     if (play) {
-      tools.measure.close();
+      // Analysis is deliberately left alone: it lives in the right-hand column
+      // now, it does not fight the replay for room, and shutting a ruler
+      // somebody opened by hand because the show moved on is exactly the
+      // behaviour that made it useless during a passage.
       tools.timeOfDay.close();
       autoOpened = "play";
       // No reframing: the flight has already landed on the broadcast camera,
@@ -1288,7 +1291,6 @@ async function main() {
     }
     tools.liveAction.close();
     if (opens === "time") {
-      tools.measure.close();
       autoOpened = "time";
       const v = viewAt(n);
       // This one does not wait. A replay is a burst of movement that a
@@ -4100,14 +4102,15 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
    * have read it the moment has gone. Pinned, it can be watched through a run,
    * scrubbed back over, and left up while the camera moves.
    *
-   * Positioned by projecting the player's own mesh transform, not the tracking
-   * data - see playerEN in play.js. The renderer interpolates between source
-   * frames; asking the data again at the same instant agrees to a few
-   * centimetres when nobody is moving and disagrees visibly during a sprint,
-   * which is exactly when somebody is looking at it.
+   * It is docked rather than pinned to the player on screen. Floating over him
+   * was the obvious way to say who it was about and the wrong one: on a pitch
+   * a hundred metres across the card sat squarely over the half of the move
+   * worth watching, and there is no position for it that is both next to a
+   * running man and out of the way of a running man. So the field says who -
+   * an orange ring on the ground, which survives him being behind somebody, off
+   * the edge of a close shot, or one of twenty-two - and the card says what.
    */
   let card = -1;                 // the player the card is pinned to, or -1
-  let cardRaf = null;
   /**
    * The viewer has had their own opinion about the card during this passage.
    *
@@ -4173,54 +4176,9 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
   function showCard(i) {
     card = i;
     els.pcard.hidden = i < 0;
-    if (i < 0) {
-      if (cardRaf) cancelAnimationFrame(cardRaf);
-      cardRaf = null;
-      return;
-    }
-    paintCard();
-    if (!cardRaf) cardRaf = requestAnimationFrame(followCard);
-  }
-
-  /**
-   * The card follows on its own frame loop rather than on the transport's.
-   *
-   * The transport only ticks while a passage is running, and the card has to
-   * keep its place while the play is paused and the camera is being moved
-   * around a frozen moment - which is most of what anybody does with it.
-   */
-  function followCard() {
-    cardRaf = card >= 0 ? requestAnimationFrame(followCard) : null;
-    if (card < 0) return;
-    placeCard();
-  }
-
-  function placeCard() {
-    const en = api?.playerEN?.(card);
-    if (!en) { els.pcard.hidden = true; return; }
-    const [lon, lat] = api.toLonLat(en[0], en[1]);
-    // Above the head rather than at the feet, so the card does not sit on top
-    // of the person it is describing.
-    const sp = view.toScreen(new Point({
-      longitude: lon, latitude: lat, z: api.surfaceZ + 2.1,
-      spatialReference: { wkid: 4326 }
-    }));
-    // Behind the camera, or off the side of it. toScreen still returns a point
-    // for both and it is a nonsense one, so the card is simply put away rather
-    // than parked in a corner claiming to point at somebody.
-    const off = !sp || !Number.isFinite(sp.x) || !Number.isFinite(sp.y)
-      || sp.x < -60 || sp.y < -60
-      || sp.x > view.width + 60 || sp.y > view.height + 60;
-    els.pcard.classList.toggle("away", off);
-    if (off) return;
-    // The second translate is in percentages of the card's own size, so its
-    // bottom edge sits centred on the head whatever the card grows to - a
-    // margin cannot do that once an inline transform is on the element, and
-    // measuring the card to offset it in pixels would be a layout read every
-    // frame for something the compositor already knows.
-    els.pcard.style.transform =
-      `translate(${Math.round(sp.x)}px, ${Math.round(sp.y)}px)`
-      + " translate(-50%, calc(-100% - 10px))";
+    // The field says who; the card only says what. See the ring in play.js.
+    api?.watch?.(i);
+    if (i >= 0) paintCard();
   }
 
   function paintCard() {
@@ -5315,20 +5273,31 @@ function wireTools(view, surfacesReady,
   // where the other replay options are.
   els.playSeat.addEventListener("click", () => seats.open());
 
-  // One panel at a time, and the outgoing one is properly torn down rather than
-  // just hidden — a hidden measurement widget leaves its analysis on the view.
-  els.measure.addEventListener("click", () => {
-    timeOfDay.close(); liveAction.close(); measure.toggle();
-  });
+  /**
+   * One dock at a time, but Analysis is no longer one of them.
+   *
+   * The clock and the replay both want the bottom of the screen and are both
+   * about the scene as a whole, so they still take turns. Analysis moved to the
+   * right-hand column and now opens over either of them, which is the point:
+   * measuring the distance a receiver covered, or the height of the stand he
+   * ran past, means having the replay on screen while you do it. Closing the
+   * thing you want to measure in order to reach the ruler was the old
+   * behaviour, and it made the tool useless for the one scene worth measuring.
+   *
+   * It is still torn down properly on close - a hidden measurement widget
+   * leaves its analysis drawn on the view - which is why `close()` rather than
+   * a hidden attribute does that job.
+   */
+  els.measure.addEventListener("click", () => measure.toggle());
   els.timeOfDay.addEventListener("click", () => {
-    measure.close(); liveAction.close(); timeOfDay.toggle();
+    liveAction.close(); timeOfDay.toggle();
   });
   els.live.addEventListener("click", () => {
-    measure.close(); timeOfDay.close(); liveAction.group();
+    timeOfDay.close(); liveAction.group();
   });
   // The chooser's own items are wired where they are built; they only need the
-  // other two panels shut on the way past.
-  liveAction.onPick(() => { measure.close(); timeOfDay.close(); });
+  // clock shut on the way past.
+  liveAction.onPick(() => { timeOfDay.close(); });
 
   // Where a flight to a replay view should finish: the broadcast camera for
   // whichever play that view opens. Awaited rather than computed inline because

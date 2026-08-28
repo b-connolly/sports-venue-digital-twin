@@ -36,7 +36,7 @@ import SpatialReference from "https://js.arcgis.com/5.0/@arcgis/core/geometry/Sp
 import MeshTransform from "https://js.arcgis.com/5.0/@arcgis/core/geometry/support/MeshTransform.js";
 import MeshSymbol3D from "https://js.arcgis.com/5.0/@arcgis/core/symbols/MeshSymbol3D.js";
 import FillSymbol3DLayer from "https://js.arcgis.com/5.0/@arcgis/core/symbols/FillSymbol3DLayer.js";
-import { Builder, block, spheroid, finish, DEG } from "./meshkit.js";
+import { Builder, block, spheroid, ring, finish, DEG } from "./meshkit.js";
 import { addGoals } from "./goals.js";
 import { addChalk } from "./chalk.js";
 
@@ -347,6 +347,34 @@ export async function addPlay(view, cfg, spec) {
     };
   });
 
+  /**
+   * The ring under whoever is being watched.
+   *
+   * The card used to say who by being attached to them. Docked out of the way
+   * it cannot, so the field has to - and a mark on the ground is the way sport
+   * has always done it, because it survives the thing it marks being behind
+   * somebody else, off the edge of a close shot, or in a crowd of twenty-two.
+   *
+   * On the ground rather than over the head: a marker above a player covers the
+   * player, and this is a scene where the players are the point. Three
+   * centimetres up, which is enough to beat the z-fighting against a painted
+   * surface and not enough to look like it is floating.
+   */
+  const haloBuild = Builder(1);
+  ring(haloBuild, 0, 0.03, 0.78, 1.02, 48);
+  const haloMesh = finish(haloBuild,
+    [{ color: [251, 79, 20], alpha: 0.85, doubleSided: true }], origin, sr);
+  haloMesh.transform = new MeshTransform({
+    translation: [0, 0, 0], rotationAxis: [0, 0, 1], rotationAngle: 0
+  });
+  const halo = new Graphic({
+    geometry: haloMesh,
+    symbol: new MeshSymbol3D({ symbolLayers: [new FillSymbol3DLayer()] })
+  });
+  halo.visible = false;
+  layer.add(halo);
+  let watching = -1;
+
   const radius = data.ball.radius ?? 0.11;
   const ballMesh = ballMeshFor(code, radius, origin, sr);
   ballMesh.transform = new MeshTransform({
@@ -422,6 +450,14 @@ export async function addPlay(view, cfg, spec) {
       tr.translation = [e[0], e[1], bob];
       tr.rotationAxis = aa.axis;
       tr.rotationAngle = aa.angle;
+    }
+
+    if (watching >= 0 && actors[watching]) {
+      // Read off the same interpolated position the actor was just placed at,
+      // rather than sampled again - a ring half a step behind the man in it
+      // reads as a bug in the tracking.
+      const t3 = actors[watching].mesh.transform.translation;
+      haloMesh.transform.translation = [t3[0], t3[1], 0];
     }
 
     const b = map.toEN(sample(data.ball.x, f), sample(data.ball.y, f));
@@ -512,6 +548,19 @@ export async function addPlay(view, cfg, spec) {
       const t3 = a.mesh.transform?.translation;
       return t3 ? [t3[0], t3[1]] : [a.pe[0], a.pn[0]];
     },
+    /**
+     * Put the ring under a player, or nobody with -1.
+     *
+     * Posed immediately rather than at the next tick, so it lands under them
+     * while the play is paused - which is when somebody is most likely to be
+     * clicking one.
+     */
+    watch(i) {
+      watching = Number.isInteger(i) && i >= 0 && i < actors.length ? i : -1;
+      halo.visible = watching >= 0;
+      if (watching >= 0) poseAt(t);
+    },
+    get watching() { return watching; },
     /** Who the tracked players are, in the order hit tests report them. */
     roster() {
       return actors.map((a) => ({

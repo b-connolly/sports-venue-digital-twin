@@ -217,7 +217,9 @@ try:
           ball: document.getElementById('pcardBall').textContent.trim(),
           covered: document.getElementById('pcardCovered').textContent.trim(),
           top: document.getElementById('pcardTop').textContent.trim(),
-          xform: document.getElementById('playerCard').style.transform})"""))
+          right: Math.round(innerWidth -
+            document.getElementById('playerCard').getBoundingClientRect().right),
+          watching: window.__play ? window.__play.watching : -1})"""))
 
     # Opened by hand, with the show stopped: nothing should have been chosen on
     # the viewer's behalf. Somebody with a mouse picks their own player, and
@@ -258,17 +260,26 @@ try:
     ok("while the passage's top speed does not, because it is a total",
        after["top"] == before["top"], after["top"])
 
-    # And it follows the player rather than sitting where it was drawn.
-    moved = json.loads(c.js("""(function(){
-      var c0 = document.getElementById('playerCard').style.transform;
-      var C = window.__view.camera.clone();
-      C.heading = (C.heading + 25) % 360;
-      window.__view.camera = C;
-      return JSON.stringify({before: c0});})()"""))
+    # Which player it is about is said on the field, not by where the card sits.
+    # That is the whole reason it could be docked: a card that has to point at
+    # somebody has to be next to them, and next to them is in the way - on a
+    # pitch it covered the half of the move worth watching.
+    ok("a ring on the field marks the player it is about",
+       cardstate()["watching"] == where["i"],
+       "watching %s, wanted %s" % (cardstate()["watching"], where["i"]))
+
+    # And the card holds its dock while the camera moves, rather than chasing
+    # the player across the screen.
+    before_right = cardstate()["right"]
+    c.js("""(function(){ var C = window.__view.camera.clone();
+      C.heading = (C.heading + 25) % 360; window.__view.camera = C;})()""")
     time.sleep(1.5)
-    ok("and it follows when the camera moves",
-       cardstate()["xform"] != moved["before"],
-       "%s -> %s" % (moved["before"][:28], cardstate()["xform"][:28]))
+    after = cardstate()
+    ok("and the card stays docked while the camera moves",
+       after["right"] == before_right and after["open"] is True,
+       "%s px from the right, was %s" % (after["right"], before_right))
+    ok("the ring is still under him after the camera moved",
+       after["watching"] == where["i"], after["watching"])
 
     # Ways out.
     click(where["x"], where["y"])
@@ -278,7 +289,9 @@ try:
     c.js("""window.dispatchEvent(new KeyboardEvent('keydown',
       {key:'Escape', bubbles:true}));""")
     time.sleep(0.8)
-    ok("and Escape closes it too", cardstate()["open"] is False)
+    esc = cardstate()
+    ok("and Escape closes it too", esc["open"] is False)
+    ok("and the ring goes with it", esc["watching"] == -1, esc["watching"])
 
     # Having dismissed one, the viewer is not argued with: the show does not
     # get to put another up over the top of that decision.
@@ -290,6 +303,31 @@ try:
     time.sleep(2)
     ok("and a dismissed card is not put back up",
        cardstate()["open"] is False, str(touched))
+
+    # ------------------------------------------------- measuring during a play
+    # Analysis used to be a dock along the bottom that could only be opened by
+    # closing the replay, which made it useless for the one scene in this app
+    # worth measuring. It lives in the right-hand column now and opens over the
+    # top of a running passage.
+    print("")
+    print("-- Analysis, over a running replay --")
+    c.js("document.getElementById('measure').click()")
+    time.sleep(2.5)
+    both = json.loads(c.js("""JSON.stringify({
+      measure: !document.getElementById('measurePanel').hidden,
+      replay: !document.getElementById('playPanel').hidden,
+      modes: document.querySelectorAll('#measurePanel .mseg button').length,
+      inSide: !!document.getElementById('measurePanel').closest('#side')})"""))
+    ok("Analysis opens", both["measure"] is True)
+    ok("without closing the replay", both["replay"] is True)
+    ok("and it sits in the right-hand column, not across the bottom",
+       both["inSide"] is True)
+    ok("with its four modes", both["modes"] == 4, both["modes"])
+    c.js("document.getElementById('measureClose').click()")
+    time.sleep(1.5)
+    ok("closing it leaves the replay alone", json.loads(c.js("""JSON.stringify({
+      measure: !document.getElementById('measurePanel').hidden,
+      replay: !document.getElementById('playPanel').hidden})"""))["replay"] is True)
 
     # ------------------------------------------------------- the other sport
     print("")

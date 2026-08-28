@@ -70,6 +70,29 @@ export function block(b, g, px, py, pz, len, w, d, pitch = 0, roll = 0) {
  * on top of something else, which is the common case; centring would bury half
  * of it.
  */
+/**
+ * A flat annulus, lying in the xy plane: a ring on the ground.
+ *
+ * Built out of the same quads as everything else so it finishes into the same
+ * vertex buffer, and built once - it is moved by a MeshTransform like the
+ * players are, rather than having its geometry rebuilt as it follows one. A
+ * ring redrawn sixty times a second would be the most expensive thing in the
+ * scene, for a shape that never changes.
+ *
+ * Wound so the face points up: with `a` on the inner edge and `c` directly
+ * outboard of it, the cross product of the two edges comes out +z.
+ */
+export function ring(b, g, cz, rIn, rOut, seg = 48) {
+  for (let i = 0; i < seg; i++) {
+    const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
+    const c0 = Math.cos(a0), s0 = Math.sin(a0);
+    const c1 = Math.cos(a1), s1 = Math.sin(a1);
+    quad(b, g,
+      [rIn * c0, rIn * s0, cz], [rOut * c0, rOut * s0, cz],
+      [rOut * c1, rOut * s1, cz], [rIn * c1, rIn * s1, cz]);
+  }
+}
+
 export function box(b, g, cx, cy, cz, sx, sy, sz) {
   block(b, g, cx, cy, cz + sz, sz, sx, sy);
 }

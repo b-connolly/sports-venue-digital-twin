@@ -169,15 +169,6 @@
   </article>
 </div>
 
-<section id="measurePanel" class="dock" hidden aria-label="Measure">
-  <header class="dock__bar">
-    <span class="dock__h">Analysis</span>
-    <button id="measureClear" class="dock__btn" type="button">Clear</button>
-    <button id="measureClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
-  </header>
-  <div id="measureHost" class="panelhost"></div>
-</section>
-
 <section id="timePanel" class="dock" hidden aria-label="Time of day">
   <header class="dock__bar">
     <span class="dock__h">Time of day</span>
@@ -297,13 +288,19 @@
   <p id="playCaption" class="playcap"></p>
 </section>
 
-<!-- Pinned to whoever was clicked, and it stays pinned.
+<!-- The right-hand column: contextual panels, stacked, clear of the play.
 
-     Positioned by hand rather than with the SDK's own popup, for the same
-     reason every other control here is bespoke - see `ui: { components: [] }`.
-     An Esri popup would arrive with its own typography, its own chrome and its
-     own idea of where to sit, in the middle of a scene that has spent a lot of
-     effort not looking like a GIS application. -->
+     It mirrors the rail on the left and sits inboard of the tool strip. Both of
+     its tenants used to be somewhere worse - the player card floated over the
+     player it described, which on a pitch covered the half of the move worth
+     watching, and Analysis was a 740px dock along the bottom that could only be
+     opened by closing the replay. Neither is a panel that wants the middle of
+     the screen; both are things you glance at while watching something else. -->
+<div id="side" class="side">
+
+<!-- Whose numbers these are is said on the field rather than here - see the
+     ring in play.js. A card that has to point at somebody has to be next to
+     them, and next to them is exactly where it is in the way. -->
 <div id="playerCard" class="pcard" hidden role="dialog" aria-label="Player">
   <button id="pcardClose" class="pcard__x" type="button" aria-label="Close">&times;</button>
   <div class="pcard__head">
@@ -317,8 +314,22 @@
     <div class="pcard__row"><dt>Ground covered</dt><dd id="pcardCovered">&mdash;</dd></div>
     <div class="pcard__row pcard__row--top"><dt>Top this passage</dt><dd id="pcardTop">&mdash;</dd></div>
   </dl>
-  <span class="pcard__stem" aria-hidden="true"></span>
 </div>
+
+  <!-- Analysis, opening beside the button that asks for it rather than as a
+       740px bar along the bottom. It used to be a dock, which meant it could
+       only be opened by closing the replay - and a measurement you cannot take
+       while the thing you want to measure is on screen is a measurement of an
+       empty field. -->
+  <section id="measurePanel" class="sidepanel" hidden aria-label="Measure">
+    <header class="sidepanel__bar">
+      <span class="sidepanel__h">Analysis</span>
+      <button id="measureClear" class="dock__btn" type="button">Clear</button>
+      <button id="measureClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
+    </header>
+    <div id="measureHost" class="panelhost"></div>
+  </section>
+</div><!-- /side -->
 
 <!-- Shown only when Player Highlight has handed the camera over because the
      viewer took hold of it. Floating rather than in the dock: the dock is

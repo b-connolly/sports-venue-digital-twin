@@ -42,10 +42,11 @@ replays driven by actual sports tracking data.
   front row of the lower bowl to the back of the 500s. Drag to look around from
   where you are sitting rather than to move; the view follows the ball gently
   and hands back the moment you take hold of it
-- **Analysis** — distance, area, volume and elevation profile tools
+- **Analysis** — distance, area, volume and elevation profile tools, in the
+  right-hand column so they open over a running replay rather than closing it
 - **The play's numbers** — who has the ball and how fast, who is nearest and
-  whether the gap is closing. Click any player for a card that pins to him and
-  stays: speed, acceleration, distance to the ball, ground covered, top speed.
+  whether the gap is closing. Click any player for a card, docked clear of the
+  play with an orange ring on the turf marking who it is about. It stays: speed, acceleration, distance to the ball, ground covered, top speed.
   Left to play itself, the show picks the player the passage is about — the
   receiver who scores, the goalscorer — and puts the card up as the ball is
   committed to them, never at the start and never over a viewer who has clicked
