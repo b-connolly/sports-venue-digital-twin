@@ -963,6 +963,41 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
    sun line would otherwise read as separating two facts. */
 .weather.ahead .weather__time { color: var(--accent-2); }
 
+/* ----------------------------------------------------------------- credit
+   Named `credit` rather than `esri`: this stylesheet already carries a dozen
+   `.esri-*` overrides for the SDK's own widgets, and a bare `.esri` of ours
+   sitting among them reads as one of those. It is not - it is the app's own
+   attribution, and a class selector matches exactly, so the two would never
+   have collided; the confusion would have been entirely for the reader.
+
+   Bottom right, and quiet: an attribution, not a control. Same small-caps
+   tracking as the masthead's subtitle so it reads as part of the same voice,
+   at the weight of the faintest text in the app - it should be findable when
+   looked for and invisible when not.
+
+   No panel behind it. Nothing else sits in that corner, so it has to hold
+   against whatever the sky is doing on its own, which a soft dark halo does
+   for the cost of one shadow - the same trick the app title uses. */
+.credit {
+  position: fixed; z-index: 10;
+  right: var(--pad); bottom: var(--pad);
+  font-size: 0.5rem; font-weight: 600;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--paper-faint); text-decoration: none;
+  text-shadow: 0 1px 6px rgba(4, 6, 10, 0.7);
+  transition: color .2s, opacity .8s var(--ease), transform .8s var(--ease);
+}
+.credit:hover { color: var(--paper-dim); }
+.credit:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6px); }
+
+/* Not on a phone. The bottom edge there is already carrying the weather chip
+   and whichever dock is open, and a corner that is crowded is a corner where a
+   credit reads as clutter rather than as a credit. */
+@media (max-width: 780px), (max-height: 500px) {
+  .credit { display: none; }
+}
+
 /* ------------------------------------------------------------- player card
    Pinned to a person and positioned by transform, so moving it every frame
    costs a compositor operation rather than a layout. translate() puts its
@@ -1097,31 +1132,9 @@ body.hud-off .pcard { opacity: 0; pointer-events: none; }
 .pstat__n.closing { color: #e8735f; }
 .pstat__n.opening { color: var(--paper-faint); }
 
-/* The provenance label.
-   Outlined and quiet, like the forecast pill and for the same reason: a figure
-   derived from a recording must not look like one measured live. It is a
-   button because the explanation has somewhere to be, and a caveat nobody can
-   follow up is decoration. */
-.pstat__src {
-  margin-left: auto;
-  padding: 0.16rem 0.5rem; border-radius: 999px;
-  border: 1px solid var(--line);
-  background: none; color: var(--paper-faint);
-  font: inherit; font-size: 0.46rem; font-weight: 600;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  white-space: nowrap; cursor: pointer;
-  transition: color .16s, border-color .16s, background .16s;
-}
-.pstat__src:hover {
-  color: var(--paper); border-color: var(--paper-faint);
-  background: rgba(244,241,234,0.06);
-}
-.pstat__src:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
-
 @media (max-width: 780px) {
   .pstats { gap: 0.3rem 0.9rem; }
   .pstat--top { display: none; }      /* the two live readings earn the room */
-  .pstat__src { margin-left: 0; }
 }
 
 /* Stepping the day, in the time panel's title bar. */

@@ -733,7 +733,7 @@ const els = {
   pcardCovered: $("pcardCovered"), pcardTop: $("pcardTop"),
   pstats: $("playStats"), statCarrier: $("statCarrier"),
   statCarrierSpeed: $("statCarrierSpeed"), statChaser: $("statChaser"),
-  statSep: $("statSep"), statTop: $("statTop"), statSource: $("statSource"),
+  statSep: $("statSep"), statTop: $("statTop"),
   precenter: $("playRecenter"),
   weather: $("weather"), wxIcon: $("wxIcon"), wxTemp: $("wxTemp"),
   wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"), wxTag: $("wxTag"),
@@ -4600,9 +4600,6 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       window.addEventListener("keydown", (ev) => {
         if (ev.key === "Escape" && card >= 0) showCard(-1);
       });
-      // The provenance label opens the page that explains it. A caveat nobody
-      // can follow up is decoration.
-      els.statSource.addEventListener("click", () => els.info.click());
       // Clicking away closes the flyout, the way a menu should.
       document.addEventListener("pointerdown", (e) => {
         if (els.liveMenu.hidden) return;

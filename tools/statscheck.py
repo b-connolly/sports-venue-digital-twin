@@ -59,8 +59,7 @@ READ = """(function(){
     closing: g('statSep').classList.contains('closing'),
     opening: g('statSep').classList.contains('opening'),
     top: g('statTop').textContent.trim(),
-    src: g('statSource').textContent.trim(),
-    srcTip: g('statSource').getAttribute('title') || ''
+    credit: (g('credit') || {}).textContent
   });})()"""
 
 
@@ -145,20 +144,17 @@ try:
     # ------------------------------------------------- and what they are not
     print("")
     print("-- what the app says they are --")
-    ok("the numbers carry a label saying where they came from",
-       "browser" in s["src"].lower() or "derived" in s["src"].lower(), s["src"])
-    tip = s["srcTip"].lower()
-    ok("which says the tracking is real and recorded",
-       "recorded" in tip or "real" in tip, s["srcTip"][:60])
-    ok("and that the figures are not measured by sensors",
-       "not measured" in tip or "sensor" in tip, s["srcTip"][:80])
-
-    c.js("document.getElementById('statSource').click()")
+    # The strip itself no longer carries a label - the panel is the busiest
+    # thing on screen and the sheet says it properly - so what is asserted is
+    # that the sheet still does, and that it is still reachable. The route is
+    # now the "How this was made" button in the rail, which is where anybody
+    # would look for it anyway.
+    c.js("document.getElementById('info').click()")
     time.sleep(1.5)
     sheet = json.loads(c.js("""JSON.stringify({
       open: !document.getElementById('infoSheet').hidden,
       text: document.getElementById('infoSheet').textContent})"""))
-    ok("pressing the label opens the explanation", sheet["open"] is True)
+    ok("the explanation is reachable from the rail", sheet["open"] is True)
     body = " ".join(sheet["text"].split()).lower()
     def says(phrase):
         """The sentence around a phrase, so a pass shows what it matched."""
@@ -172,6 +168,10 @@ try:
        says("no live feed"))
     ok("and names what a real deployment would use",
        "velocity" in body, says("velocity"))
+    ok("and that the figures are not sensor readings",
+       "not sensor readings" in body, says("not sensor readings"))
+    ok("the Esri credit is in the corner",
+       "powered by esri" in (s.get("credit") or "").lower(), s.get("credit"))
     c.js("document.getElementById('infoClose').click()")
     time.sleep(1)
 

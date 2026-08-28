@@ -253,11 +253,12 @@
        and the plays because it belongs to the passage rather than to the
        choosing of one, and it reads across as the play runs.
 
-       The last item is not decoration. These numbers are computed in the
-       browser from a recording, and a figure derived from a recording must not
-       look like one measured live - so the label rides with them, and pressing
-       it opens the page that explains exactly what is real here and what a live
-       deployment would use instead. -->
+       Where these numbers come from is set out in step 05 of "How this was
+       made" - that the tracking is real and recorded, that the analysis is done
+       here in the browser, that there is no live feed behind it, and what a
+       venue would actually run instead. It carried a label here for a while as
+       well; the panel is the busiest thing on screen and the sheet says it
+       properly, so the strip is left to the numbers. -->
   <div id="playStats" class="pstats" hidden>
     <div class="pstat">
       <span class="pstat__k">Carrier</span>
@@ -273,10 +274,6 @@
       <span class="pstat__k">Top speed</span>
       <span id="statTop" class="pstat__v">&mdash;</span>
     </div>
-    <button id="statSource" class="pstat__src" type="button"
-            title="Real recorded tracking. The speeds and distances are worked out in your browser, not measured by sensors — press for what that means.">
-      Derived in browser
-    </button>
   </div>
 
   <!-- The plays of whichever sport is open. Filled from CONFIG.play.plays;
@@ -518,6 +515,12 @@
     </div>
   </article>
 </div>
+
+<!-- Bottom right, which is the one corner nothing else uses: the weather chip
+     has the left, the tools the top right, and the docks the middle. Opens in
+     its own tab, so a stray click during a demo cannot take the scene away. -->
+<a id="credit" class="credit" href="https://www.esri.com" target="_blank"
+   rel="noopener">Powered by Esri</a>
 
 <div class="rotate" aria-hidden="true"><p>Rotate your device</p></div>
 

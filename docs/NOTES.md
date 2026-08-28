@@ -412,6 +412,22 @@ one produced a *plausible* wrong answer rather than an obvious one:
     while the readout above it went on counting. `sliderOwner` now moves the
     day under the handle.
 
+### Powered by Esri
+
+Bottom right, which is the one corner nothing else uses: the weather chip has
+the left, the tools the top right, the docks the middle. Small caps at the
+weight of the faintest text in the app, no panel behind it — a soft dark halo
+holds it against whatever the sky is doing, the same trick the title uses. It
+goes with the rest of the interface when the HUD is hidden, opens in its own tab
+so a stray click during a demo cannot take the scene away, and is not shown on a
+phone, where the bottom edge is already carrying the weather chip and whichever
+dock is open.
+
+Its class is `credit`, not `esri`: the stylesheet already carries a dozen
+`.esri-*` overrides for the SDK's own widgets, and a bare `.esri` sitting among
+them reads as one of those. A class selector matches exactly so the two could
+never have collided — the confusion would have been entirely for the reader.
+
 ### The numbers on the replay
 
 While a passage runs the panel reads out who has the ball and how fast they are
@@ -484,11 +500,21 @@ is most of what anybody does with it.
 #### Saying what they are
 
 These are computed in a browser from a recording. They are not sensor readings
-and the app must not let anybody think otherwise, so the caveat rides beside the
-numbers rather than living in a footnote — the same rule the forecast pill
-follows. `DERIVED IN BROWSER` sits on the strip, its tooltip says the tracking is
-real and recorded but the figures are not measured, and pressing it opens the
-info sheet, because a caveat nobody can follow up is decoration.
+and the app must not let anybody think otherwise.
+
+The strip carried a `DERIVED IN BROWSER` pill for a while, on the principle the
+forecast pill follows — that a caveat belongs beside the number it qualifies.
+It was removed: the replay panel is the busiest thing on screen, and the
+explanation is a click away in the rail under **How this was made**, where
+somebody would look for it anyway. The forecast pill stays, because there the
+caveat qualifies a *single figure that would otherwise read as a measurement*;
+here the whole panel is plainly a reading of a replay, and the caption under it
+already says the positions are measured rather than invented.
+
+What is asserted, then, is that the sheet still says it and is still reachable —
+`tools/statscheck.py` opens it from the rail and checks the words, because a
+promise about honesty that nothing checks is a promise that quietly stops being
+true.
 
 The distinction the copy is careful about: **the tracking is real and recorded,
 the analysis is real and local, and neither is live.** Step 05 of the info sheet
