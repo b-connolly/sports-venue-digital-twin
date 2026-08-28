@@ -726,6 +726,11 @@ const els = {
   ppicks: $("playPicks"), pchalk: $("playChalk"),
   pcams: [...document.querySelectorAll("#playCams .camseg__b")],
   pclose: $("playClose"), prestart: $("playRestart"),
+  pcard: $("playerCard"), pcardClose: $("pcardClose"),
+  pcardName: $("pcardName"), pcardTag: $("pcardTag"),
+  pcardSpeed: $("pcardSpeed"), pcardAccel: $("pcardAccel"),
+  pcardAccelK: $("pcardAccelK"), pcardBall: $("pcardBall"),
+  pcardCovered: $("pcardCovered"), pcardTop: $("pcardTop"),
   pstats: $("playStats"), statCarrier: $("statCarrier"),
   statCarrierSpeed: $("statCarrierSpeed"), statChaser: $("statChaser"),
   statSep: $("statSep"), statTop: $("statTop"), statSource: $("statSource"),
@@ -4050,9 +4055,159 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     els.ptoggle.setAttribute("aria-label", st.running ? "Pause" : "Play");
     els.pphase.textContent = phaseAt(st.t);
     paintStats(st.t);
+    paintCard();
     for (const i of els.pmarks.children) {
       i.classList.toggle("hit", st.t >= parseFloat(i.dataset.at) - 0.001);
     }
+  }
+
+  /**
+   * Click a player, keep their numbers.
+   *
+   * The strip along the panel answers "what is happening"; this answers "what
+   * about him". Both come from the same place - stats.js - so a card two inches
+   * from the strip cannot disagree with it, which is the whole reason the
+   * per-player query lives there rather than being worked out again here.
+   *
+   * It stays until it is dismissed. That is the point of it: a readout that
+   * vanished when the play moved on would be a tooltip, and a tooltip cannot
+   * answer "did he actually accelerate after the catch" because by the time you
+   * have read it the moment has gone. Pinned, it can be watched through a run,
+   * scrubbed back over, and left up while the camera moves.
+   *
+   * Positioned by projecting the player's own mesh transform, not the tracking
+   * data - see playerEN in play.js. The renderer interpolates between source
+   * frames; asking the data again at the same instant agrees to a few
+   * centimetres when nobody is moving and disagrees visibly during a sprint,
+   * which is exactly when somebody is looking at it.
+   */
+  let card = -1;                 // the player the card is pinned to, or -1
+  let cardRaf = null;
+
+  /**
+   * How near a click has to be, in pixels, when it misses.
+   *
+   * A player is a person-sized object and from the broadcast camera that is
+   * about four pixels across. Asking somebody to hit that is asking them to
+   * miss: measured, a click aimed carefully at a receiver's chest landed two
+   * pixels off the mesh and selected nothing. So the exact hit is tried first
+   * and, failing that, the nearest player within a thumb's width is taken.
+   *
+   * Not larger. This has to leave somewhere to click that means "none of them",
+   * because clicking away is how everybody closes a popup, and on a crowded
+   * line of scrimmage there is not much such space to begin with.
+   */
+  const PICK_PX = 22;
+
+  /**
+   * Which player, if any, a click was aimed at.
+   *
+   * The exact test first, because it is the one that respects occlusion - a
+   * cornerback behind the west stand should not be selectable through it. The
+   * fallback does not know about occlusion and does not need to: it only runs
+   * when the precise test found nobody, and it only reaches a few pixels.
+   */
+  async function pickPlayer(e) {
+    try {
+      const r = await view.hitTest(e);
+      const hit = r.results.find((x) =>
+        x.graphic?.attributes?.kind === "player");
+      if (hit) return hit.graphic.attributes.index;
+    } catch { return null; }     // a hit test can be cancelled by navigation
+    if (!api?.roster) return null;
+
+    let best = null, near = PICK_PX * PICK_PX;
+    for (const r of api.roster()) {
+      const en = api.playerEN(r.index);
+      if (!en) continue;
+      const [lon, lat] = api.toLonLat(en[0], en[1]);
+      const sp = view.toScreen(new Point({
+        longitude: lon, latitude: lat, z: api.surfaceZ + 0.9,
+        spatialReference: { wkid: 4326 }
+      }));
+      if (!sp || !Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
+      const dx = sp.x - e.x, dy = sp.y - e.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < near) { near = d2; best = r.index; }
+    }
+    return best;
+  }
+
+  function showCard(i) {
+    card = i;
+    els.pcard.hidden = i < 0;
+    if (i < 0) {
+      if (cardRaf) cancelAnimationFrame(cardRaf);
+      cardRaf = null;
+      return;
+    }
+    paintCard();
+    if (!cardRaf) cardRaf = requestAnimationFrame(followCard);
+  }
+
+  /**
+   * The card follows on its own frame loop rather than on the transport's.
+   *
+   * The transport only ticks while a passage is running, and the card has to
+   * keep its place while the play is paused and the camera is being moved
+   * around a frozen moment - which is most of what anybody does with it.
+   */
+  function followCard() {
+    cardRaf = card >= 0 ? requestAnimationFrame(followCard) : null;
+    if (card < 0) return;
+    placeCard();
+  }
+
+  function placeCard() {
+    const en = api?.playerEN?.(card);
+    if (!en) { els.pcard.hidden = true; return; }
+    const [lon, lat] = api.toLonLat(en[0], en[1]);
+    // Above the head rather than at the feet, so the card does not sit on top
+    // of the person it is describing.
+    const sp = view.toScreen(new Point({
+      longitude: lon, latitude: lat, z: api.surfaceZ + 2.1,
+      spatialReference: { wkid: 4326 }
+    }));
+    // Behind the camera, or off the side of it. toScreen still returns a point
+    // for both and it is a nonsense one, so the card is simply put away rather
+    // than parked in a corner claiming to point at somebody.
+    const off = !sp || !Number.isFinite(sp.x) || !Number.isFinite(sp.y)
+      || sp.x < -60 || sp.y < -60
+      || sp.x > view.width + 60 || sp.y > view.height + 60;
+    els.pcard.classList.toggle("away", off);
+    if (off) return;
+    // The second translate is in percentages of the card's own size, so its
+    // bottom edge sits centred on the head whatever the card grows to - a
+    // margin cannot do that once an inline transform is on the element, and
+    // measuring the card to offset it in pixels would be a layout read every
+    // frame for something the compositor already knows.
+    els.pcard.style.transform =
+      `translate(${Math.round(sp.x)}px, ${Math.round(sp.y)}px)`
+      + " translate(-50%, calc(-100% - 10px))";
+  }
+
+  function paintCard() {
+    if (card < 0 || !api?.stats) return;
+    const d = api.stats.trackAt(card, api.time);
+    if (!d) return;
+    els.pcardName.textContent = d.label;
+    els.pcard.classList.toggle("off", d.side === "off");
+    els.pcard.classList.toggle("def", d.side === "def");
+    // The two roles worth calling out, because they are what the rest of the
+    // panel is already talking about.
+    const tag = d.carrying ? "Carrying" : d.chasing ? "Nearest" : "";
+    els.pcardTag.hidden = !tag;
+    els.pcardTag.textContent = tag;
+    els.pcardSpeed.textContent = `${d.mph.toFixed(1)} mph`;
+    // Braking is half of what a cut is, so the label follows the sign rather
+    // than the number being left to carry a minus nobody reads.
+    const slowing = d.accel < -0.15;
+    els.pcardAccelK.textContent = slowing ? "Slowing" : "Accelerating";
+    els.pcardAccel.textContent = `${Math.abs(d.accel).toFixed(1)} m/s²`;
+    els.pcardAccel.classList.toggle("slowing", slowing);
+    els.pcardBall.textContent = `${d.toBall.toFixed(1)} ${d.unit}`;
+    els.pcardCovered.textContent = `${d.covered.toFixed(0)} ${d.unit}`;
+    els.pcardTop.textContent = `${d.topMph.toFixed(1)} mph`;
   }
 
   /**
@@ -4292,6 +4447,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       for (const [k, other] of loaded) {
         if (k !== key) { other.pause(); other.show(false); }
       }
+      if (p !== api) showCard(-1);
       api = p;
       active = key;
       // So the chooser reopens this sport where it was left, and the row of
@@ -4371,6 +4527,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       // answering that question wrongly, once, at the only moment it matters.
       els.ppanel.hidden = true;
       els.pstats.hidden = true;
+      showCard(-1);
       // The lights come down with the replay that raised them. A scene left lit
       // from the camera after the thing that needed it has gone is how a viewer
       // ends up wondering why the sun has stopped moving.
@@ -4416,6 +4573,33 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
         b.addEventListener("click", () => setCam(b.dataset.cam));
       }
       els.pclose.addEventListener("click", () => this.close());
+      els.pcardClose.addEventListener("click", () => showCard(-1));
+
+      /**
+       * Picking somebody out of twenty-two.
+       *
+       * Only while a replay is up, and only the players: hitTest reports
+       * everything under the cursor including the mesh of the stadium, and a
+       * click on the west stand should not open a card about a cornerback who
+       * happens to be behind it.
+       *
+       * A click on nobody closes the card, which is what every map in the world
+       * does and what a viewer will try first. The close button is there for
+       * the case where there is nowhere empty to click - from a seat, most of
+       * the screen is other people.
+       */
+      view.on("click", async (e) => {
+        if (!shown || !api) return;
+        const i = await pickPlayer(e);
+        if (i == null) { if (card >= 0) showCard(-1); return; }
+        // Clicking the one already pinned puts it away, so the same gesture
+        // both opens and closes and nobody has to find the cross.
+        showCard(i === card ? -1 : i);
+      });
+
+      window.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape" && card >= 0) showCard(-1);
+      });
       // The provenance label opens the page that explains it. A caveat nobody
       // can follow up is decoration.
       els.statSource.addEventListener("click", () => els.info.click());

@@ -175,6 +175,26 @@ export function buildStats(data, { depthM, widthM }) {
   const topBy = vel.map((v) => Math.max(...v));
   const fastest = topBy.indexOf(Math.max(...topBy));
 
+  /**
+   * Ground covered, as a running total per player.
+   *
+   * Summed from the smoothed speed rather than from the raw positions. The two
+   * differ by about a percent over a passage and the smoothed one is the
+   * honest answer: adding up the distance between consecutive raw samples also
+   * adds up the tracking's own jitter, so a player standing still accumulates
+   * a few metres of nothing over twenty seconds.
+   */
+  const covered = vel.map((v) => {
+    const out = new Array(n);
+    let sum = 0;
+    for (let f = 0; f < n; f++) {
+      sum += v[f] / hz;
+      out[f] = sum;
+    }
+    return out;
+  });
+
+
   return {
     unit,
     /** Top speed reached by anybody in the passage, and who reached it. */
@@ -207,6 +227,42 @@ export function buildStats(data, { depthM, widthM }) {
         sep: Number.isFinite(s.sep) ? s.sep * perUnit : null,
         closing: s.closing * perUnit,
         ballMph: ballV[f] * MPH
+      };
+    },
+    /** The roster, for anything that needs to name a player it has not clicked. */
+    players: players.map((p, i) => ({
+      index: i, track: p.track, label: p.label, side: p.side, pos: p.pos,
+      topMph: topBy[i] * MPH
+    })),
+    /**
+     * One player, at a moment.
+     *
+     * Everything a popup pinned to somebody needs, and nothing that would make
+     * it a different kind of number from the strip above it: the same speeds,
+     * the same units, the same source. A readout that disagreed with the panel
+     * two inches away would be worse than no readout.
+     */
+    trackAt(i, t) {
+      const p = players[i];
+      if (!p) return null;
+      const f = Math.max(0, Math.min(n - 1, Math.round(t * hz)));
+      const s = frames[f];
+      const bx = at(data.ball.x, f), by = at(data.ball.y, f);
+      const toBall = gap(at(p.x, f), at(p.y, f), bx, by);
+      return {
+        index: i, track: p.track, label: p.label, side: p.side, pos: p.pos,
+        mph: vel[i][f] * MPH,
+        // Metres per second per second. Shown as a g-force would be shown -
+        // signed, so a viewer can see braking as well as acceleration, which
+        // is half of what a cut actually is.
+        accel: acc[i][f],
+        topMph: topBy[i] * MPH,
+        // In the feed's own unit, like every other distance here.
+        toBall: toBall * perUnit,
+        covered: covered[i][f] * perUnit,
+        carrying: s.carrier === i,
+        chasing: s.chaser === i,
+        unit
       };
     }
   };

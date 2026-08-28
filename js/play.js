@@ -300,7 +300,7 @@ export async function addPlay(view, cfg, spec) {
     return k;
   };
 
-  const actors = data.players.map((p) => {
+  const actors = data.players.map((p, index) => {
     // Skin is per player, not per team. It used to be one tone for each side,
     // which made it read as part of the strip - twenty-two people who all
     // happened to look alike. Cycling the palette rather than picking at random
@@ -314,10 +314,15 @@ export async function addPlay(view, cfg, spec) {
     mesh.transform = new MeshTransform({
       translation: [0, 0, 0], rotationAxis: [0, 0, 1], rotationAngle: 0
     });
-    layer.add(new Graphic({
+    // Carried on the graphic so a hit test can say who was clicked. A mesh in
+    // a graphics layer is otherwise anonymous: hitTest hands back the graphic
+    // and there is nothing on it to match against a row of the tracking.
+    const graphic = new Graphic({
       geometry: mesh,
-      symbol: new MeshSymbol3D({ symbolLayers: [new FillSymbol3DLayer()] })
-    }));
+      symbol: new MeshSymbol3D({ symbolLayers: [new FillSymbol3DLayer()] }),
+      attributes: { kind: "player", index, side: p.side, pos: p.pos }
+    });
+    layer.add(graphic);
     // Per source frame, once: where the player is in local metres, how fast,
     // which way they face and how quickly that is changing. poseAt then only
     // has to interpolate, instead of re-deriving all of it every render frame.
@@ -337,7 +342,7 @@ export async function addPlay(view, cfg, spec) {
       turn[i] = (((ph[b] - ph[a] + 540) % 360) - 180) / dt;
     }
     return {
-      p, mesh, pe, pn, ph, spd, turn,
+      p, mesh, graphic, index, pe, pn, ph, spd, turn,
       seed: (p.x[0] * 7.13 + p.y[0] * 3.7) % 6.283
     };
   });
@@ -492,6 +497,27 @@ export async function addPlay(view, cfg, spec) {
     onUpdate(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     /** Ball position as [east, north, up] metres from the field centre. */
     ballEN() { return ballEN; },
+    /**
+     * Where a player is standing right now, as [east, north] metres.
+     *
+     * Read off the mesh's own transform rather than recomputed from the
+     * tracking, so whatever is anchored to it cannot drift from what is drawn.
+     * poseAt interpolates between source frames; asking the data again at the
+     * same instant would agree to a few centimetres and disagree visibly during
+     * a fast run, which is exactly when somebody is watching.
+     */
+    playerEN(i) {
+      const a = actors[i];
+      if (!a) return null;
+      const t3 = a.mesh.transform?.translation;
+      return t3 ? [t3[0], t3[1]] : [a.pe[0], a.pn[0]];
+    },
+    /** Who the tracked players are, in the order hit tests report them. */
+    roster() {
+      return actors.map((a) => ({
+        index: a.index, side: a.p.side, pos: a.p.pos
+      }));
+    },
     /** Height of the playing surface, so a camera can work in absolute z. */
     surfaceZ: surface,
     /** Which of CONFIG.field.surfaces this play is laid on. */

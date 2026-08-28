@@ -44,7 +44,8 @@ replays driven by actual sports tracking data.
   and hands back the moment you take hold of it
 - **Analysis** — distance, area, volume and elevation profile tools
 - **The play's numbers** — who has the ball and how fast, who is nearest and
-  whether the gap is closing. Read off the real tracking, computed in the
+  whether the gap is closing. Click any player for a card that pins to him and
+  stays: speed, acceleration, distance to the ball, ground covered, top speed. Read off the real tracking, computed in the
   browser, and labelled as such: the movement is recorded, the analysis is
   local, and neither is live. A venue doing this for real would run
   [ArcGIS Velocity](docs/VELOCITY.md) against a live feed

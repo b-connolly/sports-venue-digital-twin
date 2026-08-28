@@ -300,6 +300,29 @@
   <p id="playCaption" class="playcap"></p>
 </section>
 
+<!-- Pinned to whoever was clicked, and it stays pinned.
+
+     Positioned by hand rather than with the SDK's own popup, for the same
+     reason every other control here is bespoke - see `ui: { components: [] }`.
+     An Esri popup would arrive with its own typography, its own chrome and its
+     own idea of where to sit, in the middle of a scene that has spent a lot of
+     effort not looking like a GIS application. -->
+<div id="playerCard" class="pcard" hidden role="dialog" aria-label="Player">
+  <button id="pcardClose" class="pcard__x" type="button" aria-label="Close">&times;</button>
+  <div class="pcard__head">
+    <span id="pcardName" class="pcard__name">&mdash;</span>
+    <span id="pcardTag" class="pcard__tag" hidden></span>
+  </div>
+  <dl class="pcard__rows">
+    <div class="pcard__row"><dt>Speed</dt><dd id="pcardSpeed">&mdash;</dd></div>
+    <div class="pcard__row"><dt id="pcardAccelK">Accelerating</dt><dd id="pcardAccel">&mdash;</dd></div>
+    <div class="pcard__row"><dt>To the ball</dt><dd id="pcardBall">&mdash;</dd></div>
+    <div class="pcard__row"><dt>Ground covered</dt><dd id="pcardCovered">&mdash;</dd></div>
+    <div class="pcard__row pcard__row--top"><dt>Top this passage</dt><dd id="pcardTop">&mdash;</dd></div>
+  </dl>
+  <span class="pcard__stem" aria-hidden="true"></span>
+</div>
+
 <!-- Shown only when Player Highlight has handed the camera over because the
      viewer took hold of it. Floating rather than in the dock: the dock is
      already the width of a phone, and this belongs where the eye is. -->

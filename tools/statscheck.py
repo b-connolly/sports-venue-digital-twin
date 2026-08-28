@@ -175,6 +175,105 @@ try:
     c.js("document.getElementById('infoClose').click()")
     time.sleep(1)
 
+    # --------------------------------------------------------- the pinned card
+    # The point of the card is that it *stays*. A readout that vanished when the
+    # play moved on would be a tooltip, and a tooltip cannot answer "did he
+    # actually accelerate after the catch" - by the time it has been read the
+    # moment is gone. So what is checked is not that it appears but that it
+    # survives: a scrub, a camera move, and the passage running on underneath.
+    print("")
+    print("-- the card pinned to a player --")
+    c.js("window.__play.seek(8.0)")
+    time.sleep(0.6)
+
+    # Aimed at the carrier, by projecting him rather than guessing a pixel.
+    where = json.loads(c.js("""(function(){
+      var p = window.__play, st = p.stats.at(p.time);
+      var who = p.stats.players.filter(function(q){
+        return st.carrier && q.track === st.carrier.track;})[0];
+      if (!who) return JSON.stringify({});
+      var en = p.playerEN(who.index), ll = p.toLonLat(en[0], en[1]);
+      var pt = window.__view.center.clone();
+      pt.longitude = ll[0]; pt.latitude = ll[1]; pt.z = p.surfaceZ + 0.9;
+      var sp = window.__view.toScreen(pt);
+      return JSON.stringify({i: who.index, label: who.label,
+        x: Math.round(sp.x), y: Math.round(sp.y)});})()"""))
+    ok("the carrier can be located on screen to aim at",
+       "x" in where, str(where))
+
+    def click(x, y):
+        for ty, btn in (("mousePressed", 1), ("mouseReleased", 0)):
+            c.send("Input.dispatchMouseEvent", type=ty, x=x, y=y,
+                   button="left", clickCount=1, buttons=btn)
+        time.sleep(1.2)
+
+    def cardstate():
+        return json.loads(c.js("""JSON.stringify({
+          open: !document.getElementById('playerCard').hidden,
+          away: document.getElementById('playerCard').classList.contains('away'),
+          name: document.getElementById('pcardName').textContent.trim(),
+          tag: document.getElementById('pcardTag').textContent.trim(),
+          speed: document.getElementById('pcardSpeed').textContent.trim(),
+          ball: document.getElementById('pcardBall').textContent.trim(),
+          covered: document.getElementById('pcardCovered').textContent.trim(),
+          top: document.getElementById('pcardTop').textContent.trim(),
+          xform: document.getElementById('playerCard').style.transform})"""))
+
+    click(where["x"], where["y"])
+    cs = cardstate()
+    ok("clicking a player opens a card for him",
+       cs["open"] is True and cs["name"] == where["label"],
+       "%s (wanted %s)" % (cs["name"], where["label"]))
+    ok("and it says he is carrying the ball", cs["tag"] == "Carrying", cs["tag"])
+    ok("with the ball right by him",
+       num(cs["ball"], 99) < 2.0, cs["ball"])
+    # The card and the strip must never disagree: they are two inches apart and
+    # read from the same place, so a discrepancy would be the app arguing with
+    # itself in front of somebody.
+    strip = at(c, 8.0)
+    again = cardstate()
+    ok("and the card agrees with the strip two inches from it",
+       again["speed"] == strip["speed"],
+       "card %s, strip %s" % (again["speed"], strip["speed"]))
+
+    # It stays, and it keeps up.
+    before = cardstate()
+    c.js("window.__play.seek(12.0)")
+    time.sleep(1.0)
+    after = cardstate()
+    ok("it is still there after scrubbing three seconds on",
+       after["open"] is True and after["name"] == before["name"],
+       "%s" % after["name"])
+    ok("and its numbers moved with the play",
+       after["speed"] != before["speed"]
+       and num(after["covered"], 0) > num(before["covered"], 0),
+       "%s -> %s, covered %s -> %s"
+       % (before["speed"], after["speed"], before["covered"], after["covered"]))
+    ok("while the passage's top speed does not, because it is a total",
+       after["top"] == before["top"], after["top"])
+
+    # And it follows the player rather than sitting where it was drawn.
+    moved = json.loads(c.js("""(function(){
+      var c0 = document.getElementById('playerCard').style.transform;
+      var C = window.__view.camera.clone();
+      C.heading = (C.heading + 25) % 360;
+      window.__view.camera = C;
+      return JSON.stringify({before: c0});})()"""))
+    time.sleep(1.5)
+    ok("and it follows when the camera moves",
+       cardstate()["xform"] != moved["before"],
+       "%s -> %s" % (moved["before"][:28], cardstate()["xform"][:28]))
+
+    # Ways out.
+    click(where["x"], where["y"])
+    ok("clicking the same player again puts it away",
+       cardstate()["open"] is False)
+    click(where["x"], where["y"])
+    c.js("""window.dispatchEvent(new KeyboardEvent('keydown',
+      {key:'Escape', bubbles:true}));""")
+    time.sleep(0.8)
+    ok("and Escape closes it too", cardstate()["open"] is False)
+
     # ------------------------------------------------------- the other sport
     print("")
     print("-- the pitch, which normalises different units --")

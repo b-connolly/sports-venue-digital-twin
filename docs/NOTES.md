@@ -444,6 +444,43 @@ Three decisions worth recording:
     feed's space and are scaled onto the marked surface; rotation preserves
     distance, and a separation is a distance.
 
+#### Clicking a player
+
+The strip answers *what is happening*; clicking somebody answers *what about
+him*. The card pins to that player, follows him in 3D, and **stays** — through a
+scrub, a camera move, and the rest of the passage. That persistence is the
+feature rather than a detail: a readout that vanished when the play moved on
+would be a tooltip, and a tooltip cannot answer "did he actually accelerate
+after the catch", because by the time it has been read the moment is gone.
+
+It shows speed, acceleration (labelled *Slowing* when negative — braking is half
+of what a cut is), distance to the ball, ground covered, and the player's own top
+speed for the passage. All from `stats.trackAt()`, the same source as the strip,
+so a card two inches from the panel cannot disagree with it.
+
+Three things worth recording:
+
+  * **Player graphics carry attributes now.** A mesh in a graphics layer is
+    otherwise anonymous — `hitTest` hands back a graphic with nothing on it to
+    match against a row of tracking.
+  * **The pick is forgiving.** From the broadcast camera a player is about four
+    pixels across; a click aimed carefully at a receiver's chest landed two
+    pixels off the mesh and selected nothing. So the exact hit test runs first —
+    it is the one that respects occlusion, and a cornerback behind the west
+    stand should not be selectable through it — and only if that finds nobody
+    does the nearest player within 22 px get taken. Not more than 22, because
+    clicking away has to keep meaning "none of them".
+  * **The card is positioned from the mesh transform, not the tracking.**
+    `playerEN()` reads where the renderer actually put him. The renderer
+    interpolates between source frames; asking the data again at the same
+    instant agrees to a few centimetres when nobody is moving and disagrees
+    visibly during a sprint — which is exactly when somebody is watching.
+
+It follows on its own rAF loop rather than on the transport's, because the
+transport only ticks while a passage runs and the card has to hold its place
+while the play is paused and the camera is moved around a frozen moment, which
+is most of what anybody does with it.
+
 #### Saying what they are
 
 These are computed in a browser from a recording. They are not sensor readings

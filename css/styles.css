@@ -963,6 +963,104 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
    sun line would otherwise read as separating two facts. */
 .weather.ahead .weather__time { color: var(--accent-2); }
 
+/* ------------------------------------------------------------- player card
+   Pinned to a person and positioned by transform, so moving it every frame
+   costs a compositor operation rather than a layout. translate() puts its
+   anchor point at the player's head; the card itself is lifted clear of that
+   point by its own margin, and the stem bridges the gap. */
+.pcard {
+  position: fixed; top: 0; left: 0; z-index: 13;
+  /* The anchor is the player's head. JS writes the screen position and then a
+     percentage translate that stands the card on it - see placeCard. */
+  will-change: transform;
+  pointer-events: auto;
+  min-width: 11.5rem;
+  padding: 0.6rem 0.75rem 0.5rem;
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 12px;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--shadow);
+  animation: pcard-in 0.16s var(--ease);
+}
+.pcard[hidden] { display: none; }
+/* Behind the camera or off the edge: put away rather than parked in a corner
+   claiming to point at somebody. */
+.pcard.away { opacity: 0; pointer-events: none; }
+
+@keyframes pcard-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* A short stem down to the head, so the card is plainly *about* someone. */
+.pcard__stem {
+  position: absolute; left: 50%; bottom: -9px; width: 1px; height: 9px;
+  background: linear-gradient(to bottom, var(--line), transparent);
+}
+.pcard__stem::after {
+  content: ""; position: absolute; left: -2px; bottom: -2px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+}
+
+.pcard__x {
+  position: absolute; top: 0.25rem; right: 0.3rem;
+  width: 18px; height: 18px; padding: 0; border: 0; border-radius: 5px;
+  background: none; color: var(--paper-faint);
+  font: inherit; font-size: 0.9rem; line-height: 1; cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.pcard__x:hover { color: var(--paper); background: rgba(244,241,234,0.1); }
+
+.pcard__head {
+  display: flex; align-items: baseline; gap: 0.45rem;
+  padding-right: 1.1rem; margin-bottom: 0.45rem;
+}
+.pcard__name {
+  font-family: Fraunces, Georgia, serif; font-size: 1.05rem; line-height: 1;
+  color: var(--paper);
+}
+/* Which side, carried by a stripe rather than a word: the card is small and
+   the kit colour on the field already says it. */
+.pcard.off .pcard__name { border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
+.pcard.def .pcard__name { border-bottom: 2px solid #8fa6c4; padding-bottom: 2px; }
+.pcard__tag {
+  padding: 0.1rem 0.36rem; border-radius: 999px;
+  border: 1px solid rgba(251,79,20,0.5);
+  font-size: 0.44rem; font-weight: 600; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--accent-2); white-space: nowrap;
+}
+.pcard__tag[hidden] { display: none; }
+
+.pcard__rows { margin: 0; display: flex; flex-direction: column; gap: 0.16rem; }
+.pcard__row { display: flex; align-items: baseline; gap: 0.6rem; }
+.pcard__row dt {
+  flex: 1 1 auto;
+  font-size: 0.53rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--paper-faint); white-space: nowrap;
+}
+.pcard__row dd {
+  margin: 0; flex: 0 0 auto;
+  font-size: 0.76rem; color: var(--paper);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.pcard__row dd.slowing { color: #8fa6c4; }
+/* The passage's own maximum is a different kind of fact from the live ones -
+   it does not change while you watch - so it sits under a rule. */
+.pcard__row--top {
+  margin-top: 0.28rem; padding-top: 0.3rem;
+  border-top: 1px solid var(--line);
+}
+.pcard__row--top dd { color: var(--paper-dim); }
+
+body.hud-off .pcard { opacity: 0; pointer-events: none; }
+
+@media (max-width: 780px) {
+  .pcard { min-width: 9.5rem; padding: 0.5rem 0.6rem 0.4rem; }
+  .pcard__row dt { font-size: 0.48rem; }
+}
+
 /* ------------------------------------------------------- the play's numbers
    A strip between the transport and the plays: three readings and the label
    that says where they came from. Sized to sit on one line at the dock's full
