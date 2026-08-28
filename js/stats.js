@@ -67,6 +67,40 @@ const REACH_M = 2.5;
 
 const MPH = 2.2369363;
 
+/**
+ * Who the passage is about, and when to say so.
+ *
+ * The slideshow has nobody clicking it. Left alone it plays six passages of
+ * real sport with a panel of numbers nobody has asked a question of, and the
+ * one thing a viewer would actually want - which of these twenty-two is the
+ * story - never gets pointed at.
+ *
+ * Both answers come out of the play's own events rather than a table of who
+ * scores in which file, because such a table is wrong the first time a passage
+ * is rebuilt or added.
+ */
+
+/** A passage ends in one of these, and whoever has the ball then is the story. */
+const SCORING = ["touchdown", "goal", "field_goal"];
+
+/**
+ * Events that mean the ball has been committed: a release, or a turnover.
+ *
+ * Deliberately not the arrivals and outcomes - `pass_arrived`,
+ * `pass_outcome_caught` - and deliberately not the snap. The snap is the start
+ * of the play and cueing there would put a card up before there is anything to
+ * watch; the outcomes are the moment the thing has already happened. What is
+ * wanted is the throw, the handoff, the interception: the point at which the
+ * passage commits to the person it is going to be about, with time left to
+ * watch them do it.
+ */
+const RELEASE = new Set(["pass_forward", "handoff", "cross", "shot", "kick",
+                         "intercept", "recover", "win", "switch",
+                         "field_goal_attempt"]);
+
+/** And it has to land far enough before the score to be worth putting up. */
+const LEAD_S = 2.5;
+
 export function buildStats(data, { depthM, widthM }) {
   const space = data.space ?? { length: 120, width: 53.333, unit: "yd" };
   const hz = Number(data.meta.hz) || 10;
@@ -175,6 +209,51 @@ export function buildStats(data, { depthM, widthM }) {
   const topBy = vel.map((v) => Math.max(...v));
   const fastest = topBy.indexOf(Math.max(...topBy));
 
+  /* ------------------------------------------------- who, and when to say so */
+  const events = data.events ?? {};
+  const scoreName = SCORING.find((k) => events[k] != null) ?? null;
+  const scoreF = scoreName == null
+    ? -1 : Math.max(0, Math.min(n - 1, events[scoreName]));
+
+  /**
+   * The protagonist: whoever has the ball when it is scored.
+   *
+   * Walked backwards when nobody does, which is not an edge case - it is the
+   * field goal. The ball is through the posts and forty metres from the nearest
+   * human at the moment it counts, so the question "who scored this" is
+   * answered a couple of seconds earlier, by whoever last had it. The same walk
+   * covers a ball still in the air at a touchdown.
+   *
+   * `carrier` is the possession already worked out per frame, so this cannot
+   * disagree with what the panel says about the same instant.
+   */
+  let protagonist = -1;
+  for (let f = scoreF; f >= 0 && protagonist < 0; f--) {
+    if (frames[f].carrier >= 0) protagonist = frames[f].carrier;
+  }
+
+  /**
+   * The cue: the last committing event that still leaves time to watch.
+   *
+   * Measured across the six passages this gives the throw on the deep pass, the
+   * handoff on the run, the kick on the field goal, the switch of play on the
+   * football, and the interception on both of the others - between two and a
+   * half and fourteen seconds of watching, and never earlier than a sixth of
+   * the way in. Where a passage names no such event the fallback is three
+   * seconds before the score, floored so it cannot land on the first moment.
+   */
+  let cueT = -1;
+  if (scoreF >= 0) {
+    const limit = scoreF / hz - LEAD_S;
+    let best = -1;
+    for (const [name, f] of Object.entries(events)) {
+      if (!RELEASE.has(name)) continue;
+      const t = f / hz;
+      if (t <= limit && t > best) best = t;
+    }
+    cueT = best >= 0 ? best : Math.max(1.5, scoreF / hz - 3);
+  }
+
   /**
    * Ground covered, as a running total per player.
    *
@@ -229,6 +308,17 @@ export function buildStats(data, { depthM, widthM }) {
         ballMph: ballV[f] * MPH
       };
     },
+    /**
+     * Who the passage is about, and the moment worth pointing at them.
+     *
+     * `cue` is a time in seconds, or null where the passage does not end in
+     * anything - in which case nothing should be put up on the viewer's behalf,
+     * because there is no answer to point at.
+     */
+    lead: protagonist >= 0 && cueT >= 0
+      ? { index: protagonist, cue: cueT,
+          label: players[protagonist].label, scored: scoreName }
+      : null,
     /** The roster, for anything that needs to name a player it has not clicked. */
     players: players.map((p, i) => ({
       index: i, track: p.track, label: p.label, side: p.side, pos: p.pos,

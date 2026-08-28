@@ -45,7 +45,11 @@ replays driven by actual sports tracking data.
 - **Analysis** — distance, area, volume and elevation profile tools
 - **The play's numbers** — who has the ball and how fast, who is nearest and
   whether the gap is closing. Click any player for a card that pins to him and
-  stays: speed, acceleration, distance to the ball, ground covered, top speed. Read off the real tracking, computed in the
+  stays: speed, acceleration, distance to the ball, ground covered, top speed.
+  Left to play itself, the show picks the player the passage is about — the
+  receiver who scores, the goalscorer — and puts the card up as the ball is
+  committed to them, never at the start and never over a viewer who has clicked
+  somebody of their own Read off the real tracking, computed in the
   browser, and labelled as such: the movement is recorded, the analysis is
   local, and neither is live. A venue doing this for real would run
   [ArcGIS Velocity](docs/VELOCITY.md) against a live feed

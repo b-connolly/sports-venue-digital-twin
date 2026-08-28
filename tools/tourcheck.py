@@ -57,7 +57,11 @@ STATE = """(function(){
     touring: b.classList.contains('on'),
     hint: b.classList.contains('hint'),
     t: p ? +p.time.toFixed(1) : null,
-    dur: p ? +p.duration.toFixed(1) : null});})()"""
+    dur: p ? +p.duration.toFixed(1) : null,
+    card: !document.getElementById('playerCard').hidden,
+    cardName: document.getElementById('pcardName').textContent.trim(),
+    lead: p && p.stats && p.stats.lead
+      ? p.stats.lead.label + '@' + p.stats.lead.cue : null});})()"""
 
 
 def st(c):
@@ -96,16 +100,22 @@ try:
     deadline = time.time() + 180
     saw_replay = False
     stopped = None
+    # Sampled on the way past, because the other thing worth knowing about this
+    # stretch cannot be seen once it is over: whether the show pointed at the
+    # player the passage is about, and whether it waited to do it.
+    seen = []
     while time.time() < deadline:
         s = st(c)
         if s["slide"].startswith("02"):
             saw_replay = True
+            if s["t"] is not None:
+                seen.append((s["t"], s["card"], s["cardName"]))
             if not s["touring"]:
                 stopped = s
                 break
         if saw_replay and not s["slide"].startswith("02"):
             break
-        time.sleep(1)
+        time.sleep(0.4)
     ok("it reached the replay view", saw_replay, s)
     ok("the show stops there rather than moving on", stopped is not None, s)
     ok("and only once the passage had run to its end",
@@ -114,6 +124,32 @@ try:
        stopped and "%s of %s" % (stopped["t"], stopped["dur"]))
     ok("the button asks to be pressed to carry on",
        stopped is not None and stopped["hint"] is True, stopped)
+
+    # --- and it pointed at somebody, without being asked --------------------
+    # The show has nobody clicking it. Left alone it used to play a passage of
+    # real sport beside a panel of numbers nobody had asked a question of.
+    lead = stopped and stopped["lead"]
+    ok("the passage knows who it is about and when to say so",
+       bool(lead), lead)
+    early = [x for x in seen if x[0] < 4.0 and x[1]]
+    ok("nothing is put up at the start of the play", not early,
+       "first at t=%s" % (early[0][0] if early else "-"))
+    up = [x for x in seen if x[1]]
+    cue = float((lead or "@0").split("@")[1] or 0)
+    ok("but a card comes up once the ball is thrown", bool(up),
+       "from t=%s, cue %s" % (up[0][0] if up else "never", cue))
+    # An upper bound as well as a lower one, or "it appeared eventually" would
+    # pass for "it appeared at the right moment". Loose, because this is sampled
+    # over a debugger connection and the first frame it is seen on is later than
+    # the frame it happened on.
+    ok("and it does so near the cue rather than at the end",
+       bool(up) and up[0][0] <= cue + 6,
+       "first seen t=%s against a cue of %s" % (up[0][0] if up else "-", cue))
+    ok("and it is pinned to the player who scores",
+       bool(up) and up[0][2] == (lead or "@").split("@")[0],
+       "%s (lead %s)" % (up[0][2] if up else "-", lead))
+    ok("it was still up at the end of the passage",
+       stopped is not None and stopped["card"] is True)
 
     # Pressing it carries on from where the show left off rather than restarting
     # it - the hold is a held breath, not a stop.

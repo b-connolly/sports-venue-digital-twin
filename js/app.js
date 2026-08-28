@@ -2298,6 +2298,8 @@ function buildTour(view, slides, captures) {
 
   return {
     count, go,
+    /** Whether the show is running itself, as against being stepped by hand. */
+    get playing() { return playing; },
     next: () => go(current + 1),
     prev: () => go(current - 1),
     stop: () => setPlaying(false),
@@ -4056,9 +4058,32 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     els.pphase.textContent = phaseAt(st.t);
     paintStats(st.t);
     paintCard();
+    autoCard(st.t);
     for (const i of els.pmarks.children) {
       i.classList.toggle("hit", st.t >= parseFloat(i.dataset.at) - 0.001);
     }
+  }
+
+  /**
+   * Point at the player the passage is about, when nobody is there to click.
+   *
+   * Only while the slideshow is running itself. Somebody who has opened a
+   * replay by hand is a person with a mouse: they can choose their own player,
+   * and having one chosen for them mid-play would be the app taking the
+   * controls. The show has no such person, which is the whole gap this fills -
+   * six passages of real sport played out beside a panel of numbers nobody has
+   * asked a question of.
+   *
+   * Once per passage, and never over the top of a viewer who has expressed a
+   * preference. See cardTouched.
+   */
+  function autoCard(t) {
+    if (cardShown || cardTouched || card >= 0) return;
+    if (!showRunning()) return;
+    const lead = api?.stats?.lead;
+    if (!lead || t < lead.cue) return;
+    cardShown = true;
+    showCard(lead.index);
   }
 
   /**
@@ -4083,6 +4108,18 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
    */
   let card = -1;                 // the player the card is pinned to, or -1
   let cardRaf = null;
+  /**
+   * The viewer has had their own opinion about the card during this passage.
+   *
+   * Set by any click on a player and by closing the card, and cleared only when
+   * a different passage opens. It is what stops the show putting a card back up
+   * over somebody who has just dismissed it, or moving it off the player they
+   * chose onto the one the play is nominally about. Automatic help that argues
+   * with a person is not help.
+   */
+  let cardTouched = false;
+  let cardShown = false;         // the show has already had its turn this play
+  let showRunning = () => false; // set from wireTools; the slideshow, not us
 
   /**
    * How near a click has to be, in pixels, when it misses.
@@ -4414,6 +4451,8 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
 
   const api2 = {
     onPick(fn) { onPick = fn; },
+    /** Told how to ask whether the show is running itself. See autoCard. */
+    autoWhen(fn) { showRunning = fn; },
     /** Hand over the seat chooser, which Fan Perspective defers to. */
     useSeats(s) { seatsRef = s; },
     /** The keyboard's way in, which is Fan Perspective's way in. */
@@ -4509,6 +4548,15 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
 
       aim = null;
       api.show(true);
+      // A fresh run of a passage starts with nothing pinned, and the show gets
+      // its turn again. Without this the cue could fire against a playback that
+      // was already running - arriving at the view from `?live`, the previous
+      // passage was past its cue, so a card went up during the flight and was
+      // still there when the passage restarted at zero. Which is precisely the
+      // thing the cue exists to avoid: a card at the start of the play.
+      showCard(-1);
+      cardTouched = false;
+      cardShown = false;
       api.seek(0);
       // Broadcast is the opening view, so the button says so rather than the
       // panel opening with nothing selected on a camera it had just moved.
@@ -4573,7 +4621,10 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
         b.addEventListener("click", () => setCam(b.dataset.cam));
       }
       els.pclose.addEventListener("click", () => this.close());
-      els.pcardClose.addEventListener("click", () => showCard(-1));
+      els.pcardClose.addEventListener("click", () => {
+        cardTouched = true;
+        showCard(-1);
+      });
 
       /**
        * Picking somebody out of twenty-two.
@@ -4591,6 +4642,9 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       view.on("click", async (e) => {
         if (!shown || !api) return;
         const i = await pickPlayer(e);
+        // Either way this is the viewer having an opinion, including a click on
+        // empty space to dismiss one. The show does not get another turn.
+        cardTouched = true;
         if (i == null) { if (card >= 0) showCard(-1); return; }
         // Clicking the one already pinned puts it away, so the same gesture
         // both opens and closes and nobody has to find the cross.
@@ -4598,7 +4652,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       });
 
       window.addEventListener("keydown", (ev) => {
-        if (ev.key === "Escape" && card >= 0) showCard(-1);
+        if (ev.key === "Escape" && card >= 0) { cardTouched = true; showCard(-1); }
       });
       // Clicking away closes the flyout, the way a menu should.
       document.addEventListener("pointerdown", (e) => {
@@ -5252,6 +5306,8 @@ function wireTools(view, surfacesReady,
     replayDefaults?.();
   };
   const liveAction = buildLiveAction(view, surfacesReady, stage, slides);
+  // Only the slideshow gets to choose a player on the viewer's behalf.
+  liveAction.autoWhen(() => !!tour?.playing);
   liveAction.wire();
   const seats = buildSeats(view, surfacesReady, () => liveAction.repaint());
   liveAction.useSeats(seats);

@@ -219,6 +219,12 @@ try:
           top: document.getElementById('pcardTop').textContent.trim(),
           xform: document.getElementById('playerCard').style.transform})"""))
 
+    # Opened by hand, with the show stopped: nothing should have been chosen on
+    # the viewer's behalf. Somebody with a mouse picks their own player, and
+    # having one picked for them mid-play would be the app taking the controls.
+    ok("nothing is pinned when the replay was opened by hand",
+       cardstate()["open"] is False)
+
     click(where["x"], where["y"])
     cs = cardstate()
     ok("clicking a player opens a card for him",
@@ -273,6 +279,17 @@ try:
       {key:'Escape', bubbles:true}));""")
     time.sleep(0.8)
     ok("and Escape closes it too", cardstate()["open"] is False)
+
+    # Having dismissed one, the viewer is not argued with: the show does not
+    # get to put another up over the top of that decision.
+    touched = c.js("""(function(){
+      var p = window.__play, l = p.stats && p.stats.lead;
+      if (!l) return 'no lead';
+      p.seek(Math.max(0, l.cue + 1));
+      return 'seeked past the cue at ' + l.cue;})()""")
+    time.sleep(2)
+    ok("and a dismissed card is not put back up",
+       cardstate()["open"] is False, str(touched))
 
     # ------------------------------------------------------- the other sport
     print("")

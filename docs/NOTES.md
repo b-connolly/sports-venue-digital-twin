@@ -497,6 +497,39 @@ transport only ticks while a passage runs and the card has to hold its place
 while the play is paused and the camera is moved around a frozen moment, which
 is most of what anybody does with it.
 
+#### Pointing at somebody, unattended
+
+The slideshow has nobody clicking it. Left alone it played six passages of real
+sport beside a panel of numbers nobody had asked a question of, and the one
+thing a viewer would want — *which of these twenty-two is the story* — never got
+pointed at. So while the show is running itself, the card comes up on its own.
+
+Both halves come out of the play's own events rather than a table of who scores
+in which file, which would be wrong the first time a passage is rebuilt:
+
+  * **Who** — whoever has the ball at the scoring event (`touchdown`, `goal`,
+    `field_goal`), walked backwards when nobody does. That is not an edge case,
+    it is the field goal: the ball is through the posts and forty metres from
+    the nearest human at the moment it counts. It reuses the possession already
+    computed per frame, so it cannot disagree with what the panel says about the
+    same instant. Measured, it resolves unambiguously in all five scoring
+    passages — the nearest offensive player is between 0.05 and 0.73 m away.
+  * **When** — the last *committing* event that still leaves time to watch:
+    `pass_forward`, `handoff`, `cross`, `intercept`, `switch` and the like.
+    Deliberately not the arrivals and outcomes, and deliberately not the snap.
+
+That gives the throw on the deep pass (4.5 s), the handoff on the run (2.7 s),
+the kick on the field goal, the switch of play on the football (20.2 s) and the
+interception on both of the others — between 2.9 and 14.2 seconds of watching,
+and never earlier than a sixth of the way into a passage.
+
+**It never argues with a person.** Any click on a player, any dismissal, and the
+show does not get another turn for that passage. And opening a passage starts
+clean — which is not housekeeping: arriving at the view from `?live`, the
+previous playback was already past its cue, so a card went up *during the
+flight* and was still there when the passage restarted at zero. Precisely the
+thing the cue exists to avoid.
+
 #### Saying what they are
 
 These are computed in a browser from a recording. They are not sensor readings
