@@ -17,6 +17,7 @@ Run them with the Python that has Pillow, from this folder.
 | `make_field.py` | `assets/field.jpg` | The painted gridiron, with the solid white out-of-bounds border outside the lines — six feet, the rulebook minimum, and `APRON_YD` if you want it wider. The midfield mark is two constants at the top (`LOGO_LEN_YD`, `LOGO_HGT_YD`). |
 | `make_pitch.py` | `assets/pitch.jpg` | The football pitch: regulation markings, no club marks, with an apron of grass around them. |
 | `bundle.py` | `../build/dist` | A bundled copy of the app, generated from these same files, for the hosted comparison. Not needed to run anything. |
+| `build_traffic.py` | `../data/traffic.json` | CDOT's traffic counts around the venue, for the egress panel. Rerun it when CDOT publishes a new year. |
 | `smoke.py` | nothing | Drives the app in headless Chrome and checks all six replays still work. Run before a deploy and again after one. |
 | `seatcheck.py` | nothing | Every section faces where the seating chart says it does. |
 | `zonecheck.py` | nothing | The same table against the club's own zone names. No browser needed. |
@@ -27,6 +28,7 @@ Run them with the Python that has Pillow, from this folder.
 | `nightcheck.py` | nothing | The night views arrive at night, with the ground lit. |
 | `flycheck.py` | nothing | The walk from Night Sky to the statues stays outside the stadium, and walks the sun home rather than snapping it. |
 | `forecastcheck.py` | nothing | The clock reaches days that have not happened, the sky follows it there, and the chip says which it is showing. |
+| `trafficcheck.py` | nothing | The egress roads are CDOT's own counts, and every number on the panel can be re-derived. |
 | `digitise_chart.py` | `tools/bearings.json` | Reads the section bearings off `seating_chart.png`. Rerun it if the chart changes. |
 
 ## Getting the source data

@@ -130,6 +130,7 @@
          answer a question nobody had asked yet. -->
     <div id="liveMenu" class="toolmenu" hidden role="menu" aria-label="Live action"></div>
   </div>
+  <button id="egress" class="tool" title="Getting out (E)" aria-label="Getting out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/><path d="M6.5 15.5 10 9l3.5 4 4-7.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <button id="info" class="tool" title="How this was made (I)" aria-label="How this was made"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="7.6" r="1.15"/><path d="M12 10.8v6.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
   <button id="hud"     class="tool" title="Hide interface (U)" aria-label="Hide interface">&#9678;</button>
 </div>
@@ -203,6 +204,23 @@
       <span class="optsw__label">Shadows</span>
       <span class="optsw__sw" aria-hidden="true"></span>
     </button>
+  </div>
+</section>
+
+<!-- Getting out. Docked with the other analysis panels rather than given a
+     sheet of its own: it is a reading of the scene, like a measurement, and it
+     wants the map visible behind it. -->
+<section id="egressPanel" class="dock" hidden aria-label="Getting out">
+  <header class="dock__bar">
+    <span class="dock__h">Getting out</span>
+    <span id="egressYear" class="dock__now dock__now--small"></span>
+    <button id="egressClose" class="dock__btn" type="button" aria-label="Close">&times;</button>
+  </header>
+  <div class="egress">
+    <p id="egressSum" class="egress__sum"></p>
+    <div id="egressRing" class="egress__ring"></div>
+    <div id="egressKey" class="egress__key"></div>
+    <p id="egressNote" class="egress__note"></p>
   </div>
 </section>
 

@@ -963,6 +963,75 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
    sun line would otherwise read as separating two facts. */
 .weather.ahead .weather__time { color: var(--accent-2); }
 
+/* --------------------------------------------------------------- getting out
+   A reading rather than a control: numbers, a row per road, and a key. Sized to
+   sit under the same dock the measurement and the clock use, so the three read
+   as one family of panels rather than three ideas. */
+.egress { padding: 0.7rem 0.9rem 0.8rem; }
+.egress__sum {
+  margin: 0 0 0.7rem;
+  font-size: 0.78rem; line-height: 1.5; color: var(--paper-dim);
+  text-wrap: pretty;
+}
+.egress__sum strong {
+  color: var(--paper); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* One row per road: name, how full, the ratio, the volume. The bar is the
+   thing the eye lands on and the numbers are there to be checked against it. */
+.egress__ring { display: flex; flex-direction: column; gap: 0.28rem; }
+.egrow {
+  display: grid;
+  grid-template-columns: 4.4rem 1fr 2.4rem 4.2rem;
+  align-items: center; gap: 0.55rem;
+  font-size: 0.62rem; letter-spacing: 0.06em;
+}
+.egrow__name { color: var(--paper); font-weight: 600; white-space: nowrap; }
+.egrow__bar {
+  position: relative; height: 6px; border-radius: 999px;
+  background: rgba(244,241,234,0.10); overflow: hidden;
+}
+.egrow__fill {
+  position: absolute; inset: 0 auto 0 0;
+  border-radius: 999px; transition: width .5s var(--ease);
+}
+.egrow__vc, .egrow__aadt {
+  text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--paper-faint);
+}
+.egrow__vc { color: var(--paper-dim); font-weight: 600; }
+/* Over capacity is the finding, so it is the one number allowed to shout. */
+.egrow__vc.over { color: #e8735f; }
+
+.egress__key {
+  display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem;
+  margin-top: 0.75rem; padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+.egkey {
+  display: flex; align-items: center; gap: 0.32rem;
+  font-size: 0.5rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--paper-faint); white-space: nowrap;
+}
+.egkey__dot { width: 7px; height: 7px; border-radius: 2px; flex: 0 0 7px; }
+
+.egress__note {
+  margin: 0.55rem 0 0;
+  font-size: 0.54rem; line-height: 1.5; color: var(--paper-faint);
+  text-wrap: pretty;
+}
+/* The year sits where the clock does in the time panel, and must not shout. */
+.dock__now--small {
+  font-family: inherit; font-size: 0.55rem; font-weight: 600;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--paper-faint); min-width: 0;
+}
+
+@media (max-width: 780px) {
+  .egrow { grid-template-columns: 3.6rem 1fr 2.2rem; }
+  .egrow__aadt { display: none; }   /* the ratio is the point; the volume is detail */
+}
+
 /* Stepping the day, in the time panel's title bar. */
 .dock__day { display: flex; align-items: center; gap: 0.15rem; flex: 0 0 auto; }
 .dock__daybtn {
