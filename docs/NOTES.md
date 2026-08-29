@@ -511,6 +511,33 @@ binaries rather than behind a feature service. What *can* be asked is the layer
     retried rather than attempted once. On a cold cache the camera arrives
     before the nodes do.
 
+#### Marking the one being read, and silencing the other panel
+
+The card names a placard. In the scene there are eighteen identical brass plates
+in a row, so the card on its own leaves a viewer looking for which. The SDK's
+popup solved that by highlighting whatever it described, and switching the popup
+off would have taken the highlight with it — so the highlight is kept and the
+popup is not.
+
+The colour is not the SDK's. Its default highlight is cyan, which is a default
+rather than anybody's choice, and this app already says *"this is the one you
+are looking at"* in Broncos orange under the watched player. The placard mark
+uses the same `#fb4f14` with a lighter halo, so the two marks mean one thing.
+
+**The popup is switched off at the view, not per layer.** Doing it layer by
+layer covers only the layers that exist at that moment: the basemap, the ground
+and the four graphics layers the app adds later all sit outside `scene.layers`,
+and a layer added to the web scene tomorrow would sit outside it too. One
+`view.popupEnabled = false` cannot be got round by adding something. The
+configuration is not wasted — `buildPlacard` still reads that popup to decide
+which fields to show, so the scene's author still governs the card. It is
+rendered by this app instead of by the widget.
+
+Clicking is then the app's own: a hit test against the placard layer, the
+attributes taken straight off the graphic it returns — no second query, so this
+reaches placards a `where` clause could not. Clicking the open one closes it,
+the same gesture the player card uses; clicking nothing closes it too.
+
 ### The right-hand column
 
 Two panels live in it, and both were previously somewhere worse. It mirrors

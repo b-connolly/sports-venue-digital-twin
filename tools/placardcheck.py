@@ -17,6 +17,13 @@ something and the whole exercise is admitting what it got wrong:
   * the confidence the reader assigned itself is on screen next to the name it
     assigned
 
+It also covers the two things that make the card the only account on screen:
+the SDK's own popup is off, so a click cannot raise a second panel describing
+the same feature in different type; and the placard being read is marked in the
+scene, in the app's orange, so the card in the corner is tied to one of eighteen
+identical brass plates. Both are asserted rather than eyeballed, because both
+are invisible when they work.
+
 Steve Atwater is the record it opens on and a good one to assert against: read
 at HIGH confidence, with two of its lines - the jersey number and the induction
 year - unreadable. Both halves in one card.
@@ -71,10 +78,19 @@ def ev(c, expr, wait=False):
     return r.get("result", {}).get("value")
 
 
+def click(c, x, y):
+    """A real click, so the app's own view handler runs rather than a stub."""
+    for kind, held in (("mousePressed", 1), ("mouseReleased", 0)):
+        c.send("Input.dispatchMouseEvent", type=kind, x=x, y=y, button="left",
+               clickCount=1, buttons=held)
+    time.sleep(2.5)
+
+
 proc, c = chrome()
 try:
     c.send("Page.enable")
     c.send("Runtime.enable")
+    c.send("Input.enable")
     c.send("Page.navigate", url=URL)
     for _ in range(400):
         if c.js("typeof window.__view === 'object'"):
@@ -159,6 +175,64 @@ try:
        "photos" in note and any(ch.isdigit() for ch in note), s["note"][:90])
     ok("and that ILLEGIBLE means unread, not absent",
        "rather than a guess" in note, s["note"][-60:])
+
+    # --- nothing else on screen describes this -------------------------------
+    ok("the SDK's own popup is off, at the view rather than per layer",
+       ev(c, "window.__view.popupEnabled") is False)
+    ok("so no popup is open behind the card",
+       ev(c, "!!(window.__view.popup && window.__view.popup.visible)") is False)
+
+    # --- the placard being read is marked in the scene -----------------------
+    hl = json.loads(ev(c, """(function(){
+      var h = window.__view.highlights.find(function(x){return x.name==='placard';});
+      return JSON.stringify(h ? {found:true, color:[h.color.r,h.color.g,h.color.b]}
+                              : {found:false});})()"""))
+    ok("a highlight is registered for the placard", hl["found"] is True)
+    # The same orange as the halo under the watched player (js/play.js), which
+    # is the app's way of saying "this is the one". The SDK's default is cyan;
+    # inheriting it would have made this the one mark in the app that matches
+    # nothing else in it.
+    ok("marked in the app's orange rather than the SDK's cyan",
+       hl.get("color") == [251, 79, 20], str(hl.get("color")))
+
+    # --- and a viewer can read a different one -------------------------------
+    # Found by hit-testing rather than by hard-coded pixels: the camera the
+    # slide sets could move and the placards with it.
+    spot = ev(c, """(function(){
+      var l = window.__view.map.allLayers.find(function(x){
+        return /Optical Character/i.test(x.title || '');});
+      var pts = [];
+      for (var x = 120; x < window.__view.width - 380; x += 40)
+        for (var y = 260; y < 520; y += 30) pts.push([x, y]);
+      return Promise.all(pts.map(function(q){
+        return window.__view.hitTest({x:q[0], y:q[1]}, {include:l}).then(function(r){
+          var h = r.results.filter(function(z){
+            return z.graphic && z.graphic.layer === l;})[0];
+          return h ? {x:q[0], y:q[1], id:h.graphic.attributes.PLACARD_ID,
+                      name:h.graphic.attributes.NAME} : null;
+        }).catch(function(){ return null; });
+      })).then(function(a){
+        var f = a.filter(Boolean).filter(function(z){ return z.id !== '%s'; });
+        return JSON.stringify(f[0] || null);});})()""" % WANT_ID, wait=True)
+    other = json.loads(spot) if spot and not str(spot).startswith("EXC") else None
+    ok("there is a second placard on screen to click", other is not None, spot)
+    if other:
+        click(c, other["x"], other["y"])
+        after = json.loads(c.js(CARD))
+        ok("clicking another placard moves the card to it",
+           after["name"] == other["name"], "%s vs %s" % (after["name"], other["name"]))
+        ok("and still no popup came with it",
+           ev(c, "!!(window.__view.popup && window.__view.popup.visible)") is False)
+        click(c, other["x"], other["y"])
+        ok("clicking the open one again puts it away",
+           json.loads(c.js(CARD))["open"] is False)
+        # Reopened, so the next assertion is about the view rather than about
+        # the click that came before it.
+        c.js("document.getElementById('tourList').children[%d].click()" % at)
+        for _ in range(24):
+            time.sleep(2)
+            if json.loads(c.js(CARD))["open"]:
+                break
 
     # --- it belongs to the view that opened it -------------------------------
     c.js("document.getElementById('next').click()")

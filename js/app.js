@@ -474,7 +474,20 @@ const CONFIG = {
     idField: "PLACARD_ID",
     // The reader could not make this out. Shown rather than hidden, and marked
     // rather than dressed up - see .pcard__val.illegible.
-    illegible: "ILLEGIBLE"
+    illegible: "ILLEGIBLE",
+    /**
+     * The mark on the placard being read.
+     *
+     * The SDK's own popup highlights what it is describing, in cyan, and losing
+     * that when the popup went would have been a real loss: the card is in the
+     * corner and the thing it is about is one small brass plate among eighteen.
+     * So the highlight is kept and the colour is not - cyan is the SDK's
+     * default rather than anybody's choice, and this app marks "the one you are
+     * looking at" in orange already, under the player being watched.
+     */
+    highlight: { name: "placard", color: [251, 79, 20],
+                 haloColor: [255, 168, 120], haloOpacity: 0.9,
+                 fillOpacity: 0.28 }
   },
 
   // Opening camera. The web scene's own initial viewpoint is used when this is
@@ -1137,6 +1150,27 @@ async function main() {
   }
 
   const layers = flatten(scene.layers);
+
+  /**
+   * Nothing here opens the SDK's own popup.
+   *
+   * Every control in this app is drawn by it - see `ui: { components: [] }` -
+   * and a layer carrying a popup configured in the web scene breaks that the
+   * moment anybody clicks: a second panel arrives with its own typography, its
+   * own chrome and its own idea of where to sit, describing the same feature
+   * the app is already describing in the corner.
+   *
+   * The configuration is not wasted. buildPlacard reads that same popup to
+   * decide which fields to show, so what the scene's author chose still
+   * governs - it is rendered by this app instead of by the widget.
+   *
+   * Switched off at the view rather than per layer. Doing it layer by layer
+   * covers only the layers that exist at this moment: the basemap, the ground
+   * and the four graphics layers the app adds later are all outside
+   * `scene.layers`, and a layer added tomorrow would be outside it too. One
+   * switch on the view cannot be got round by adding something.
+   */
+  view.popupEnabled = false;
   const captures = buildCaptures(layers);
 
   // Open on the drone splat alone: splat on, all three meshes off — which also
@@ -5267,6 +5301,27 @@ function buildPlacard(view) {
   const spec = CONFIG.placard;
   let layer = null;
   let tries = 0;
+  let lit = null;               // the highlight handle, so it can be undone
+  let openId = null;            // the placard the card is currently about
+
+  // Registered once. The view keeps a collection of named highlight styles and
+  // a layer view is asked for one by name; six is the limit and this is the
+  // app's only one.
+  if (spec.highlight && view.highlights
+      && !view.highlights.some((h) => h.name === spec.highlight.name)) {
+    view.highlights.push({ ...spec.highlight });
+  }
+
+  /** Mark the placard the card is about, and unmark whatever it was before. */
+  async function mark(target) {
+    if (lit) { lit.remove(); lit = null; }
+    const l = find();
+    if (!l || target == null) return;
+    try {
+      const lv = await view.whenLayerView(l);
+      lit = lv.highlight(target, { name: spec.highlight?.name });
+    } catch { /* not drawn yet; the card still stands on its own */ }
+  }
 
   const find = () => (layer ??= view.map.allLayers.find((l) =>
     l.type === "scene" && (l.title || "").toLowerCase()
@@ -5302,6 +5357,7 @@ function buildPlacard(view) {
     .replace(/^./, (m) => m.toUpperCase());
 
   function paint(a, fields) {
+    openId = a[spec.idField] ?? null;
     els.placardName.textContent = a.NAME || "Unread";
     const conf = a.CONFIDENCE;
     els.placardConf.hidden = !conf;
@@ -5358,7 +5414,7 @@ function buildPlacard(view) {
       let a = null;
       try { a = await read(); } catch { /* not drawn yet */ }
       if (els.placardCard.hidden) return;        // closed while we waited
-      if (a) { paint(a, configured(l)); return; }
+      if (a) { paint(a, configured(l)); mark(a.OBJECTID ?? null); return; }
       await new Promise((done) => setTimeout(done, 900));
     }
     els.placardName.textContent = "Not read";
@@ -5368,10 +5424,44 @@ function buildPlacard(view) {
 
   function close() {
     els.placardCard.hidden = true;
+    openId = null;
+    mark(null);
+  }
+
+  /**
+   * Reading a placard the viewer picked rather than the one the view names.
+   *
+   * The staged view opens on one placard; everything else here is somebody
+   * exploring, and eighteen of these have something worth reading on them. The
+   * hit test hands back the graphic with its attributes already on it, so no
+   * second query is needed - which also means this works for placards the
+   * layer view has drawn but a `where` clause could not reach.
+   *
+   * Clicking the one already open closes it, the same gesture the player card
+   * uses, and a click on nothing closes it too.
+   */
+  async function pick(e) {
+    const l = find();
+    if (!l || !l.visible) return false;
+    let hit = null;
+    try {
+      const r = await view.hitTest(e, { include: l });
+      hit = r.results.find((x) => x.graphic?.layer === l);
+    } catch { return false; }
+    if (!hit) {
+      if (!els.placardCard.hidden) close();
+      return false;
+    }
+    const a = hit.graphic.attributes || {};
+    if (a[spec.idField] && a[spec.idField] === openId) { close(); return true; }
+    els.placardCard.hidden = false;
+    paint(a, configured(l));
+    mark(hit.graphic);
+    return true;
   }
 
   els.placardClose.addEventListener("click", close);
-  return { open, close };
+  return { open, close, pick };
 }
 
 function wireTools(view, surfacesReady,
@@ -5536,6 +5626,18 @@ function wireTools(view, surfacesReady,
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.infoSheet.hidden) showInfo(false);
   });
+
+  /**
+   * Clicking a placard opens its card.
+   *
+   * Registered here rather than inside buildPlacard because the replay has a
+   * click handler of its own, and the two must not both answer: a click on a
+   * placard is not a click on a player. The placard is offered first only
+   * because it can say no cheaply - it looks in one layer, and returns false
+   * the moment that layer is not on screen, which it is not for eight of the
+   * ten views.
+   */
+  view.on("click", (e) => { placard.pick(e); });
 
   els.hud.addEventListener("click", () => document.body.classList.toggle("hud-off"));
   return { measure, timeOfDay, liveAction, seats, placard };

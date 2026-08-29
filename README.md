@@ -54,7 +54,8 @@ replays driven by actual sports tracking data.
   `ILLEGIBLE` rather than a guess. It is the same handheld capture used to build
   the mesh rather than a survey flown for the purpose, so not every photo is
   looking at a placard and plenty of the readings are poor. That is the point of
-  showing it
+  showing it. Click any placard to read it — the one being read is marked in the
+  scene, so the card in the corner is tied to one plate out of eighteen
 
 - **The play's numbers** — who has the ball and how fast, who is nearest and
   whether the gap is closing. Click any player for a card, docked clear of the
