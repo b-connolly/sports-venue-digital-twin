@@ -69,6 +69,27 @@ import { dressSelects } from "./selectmenu.js";
 // Widget icons, workers and localisation are fetched relative to this path.
 esriConfig.assetsPath = "https://js.arcgis.com/5.0/@arcgis/core/assets";
 
+/**
+ * Never ask anybody to sign in.
+ *
+ * This app is anonymous by design - a public web scene, three public hosts, and
+ * a link somebody can open cold. Nothing in it has a use for a credential, and
+ * nothing in it can do anything useful with one.
+ *
+ * Left to itself the SDK disagrees. A layer the viewer cannot read makes it
+ * raise the identity manager's sign-in dialog, and that dialog is modal: it
+ * covers the whole page, including the Explore button, so the app cannot be
+ * entered at all. One layer added to the scene without being shared publicly
+ * takes down every copy of the app for every visitor, with no error in the
+ * console to say why - the layer simply never finishes loading and a Calcite
+ * dialog sits on top of everything. Measured, on all three deployments at once.
+ *
+ * With identity off, a secured layer fails on its own and the rest of the scene
+ * carries on without it. That is the right failure: the thing that is wrong
+ * breaks, and nothing else does.
+ */
+esriConfig.request.useIdentity = false;
+
 const CONFIG = {
   webSceneId: "2ecd0214d1c940fca2789d0146069786",
 
@@ -132,7 +153,12 @@ const CONFIG = {
     // when the scene was retitled and nothing said so: the views went on
     // working, they were simply never warmed, and the only symptom was that the
     // hand-held captures were slow again.
-    views: ["Pix4DCatch", "Broncos Alumni", "Built with ArcGIS"],
+    // Matched loosely on the slide's own title - see slidesNamed. "Broncos
+    // Alumni" was here until that slide was renamed to the text-extraction one,
+    // at which point it silently matched nothing and the third view stopped
+    // being warmed. The app said so in the console and carried on, which is the
+    // right behaviour and easy to miss; "Optical Character" is the name now.
+    views: ["Pix4DCatch", "Optical Character", "Built with ArcGIS"],
     // How many of those must be warm before Explore opens. The rest are warmed
     // behind a curtain that is only still up because nobody has clicked yet,
     // and are abandoned the moment somebody does - warming means moving the
