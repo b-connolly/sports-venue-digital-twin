@@ -30,6 +30,7 @@ Run them with the Python that has Pillow, from this folder.
 | `playfield.py` | nothing | The field transform, ported from `js/play.js`. Imported by the two below. |
 | `simulate_play.py` | nothing | Replays a tracked passage on a clock and posts it as events, for an ArcGIS Velocity feed. See [`docs/VELOCITY.md`](../docs/VELOCITY.md). |
 | `mockreceiver.py` | nothing | A local stand-in for a Velocity HTTP Receiver, so the feed can be built without an org. |
+| `placardcheck.py` | nothing | The placard card shows the layer's own configured fields, and says ILLEGIBLE where the reader could not read. |
 | `statscheck.py` | nothing | The play's numbers describe the play, and the app says where they came from. |
 | `simcheck.py` | nothing | The ported transform still agrees with the app, to the centimetre, on both sports. |
 | `digitise_chart.py` | `tools/bearings.json` | Reads the section bearings off `seating_chart.png`. Rerun it if the chart changes. |

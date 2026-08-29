@@ -460,7 +460,58 @@ Three decisions worth recording:
     feed's space and are scaled onto the marked surface; rotation preserves
     distance, and a separation is a distance.
 
-#### The right-hand column
+#### Reading the placards
+
+The alumni statues carry engraved placards. They were photographed with a phone,
+an optical character recognition model was run over the images, and the readings
+were attached to boxes in a 3D object layer standing where the placards stand.
+The layer's own fields say how: positions by *"least-squares intersection of rays
+from all contributing views"*, poses by *"COLMAP bundle adjustment,
+ICP-registered to mesh"*. That ray intersection is the image-space to
+ground-space transform an oriented imagery data model carries; the imagery
+itself is not published in this scene, so what is shown is the result rather
+than the route.
+
+Arriving at the staged view opens a card for one placard — Steve Atwater, read
+at HIGH confidence with two of its lines unreadable, which is the whole story in
+one record. It uses the same card as the player analytics, in the same column,
+because it is the same kind of thing: a few figures about one object, read while
+looking at something else.
+
+**Which fields it shows is not decided in this code.** The layer carries a popup
+configured in the web scene and `buildPlacard` reads that configuration, so the
+card shows what somebody chose it should show, in their order, and changing it
+is done where such things are normally done. A list written here would be a
+second opinion that quietly goes stale.
+
+#### Showing what it got wrong
+
+Confidence is graded HIGH / MEDIUM / LOW / ILLEGIBLE and the pill is coloured to
+match, because "HIGH" and "ILLEGIBLE" should not look alike on a card whose
+point is that some of it worked and some did not. A field the reader could not
+make out shows `ILLEGIBLE` in italic — marked, not hidden and not guessed.
+Across the 36 placards the names include `TELU LACKSON`, `LERRESSA SESTEURAREST
+CHAM` and several straight `ILLEGIBLE`s. It is the same handheld capture used to
+build the mesh rather than a survey flown for the purpose, so not every photo is
+looking at a placard. Showing that honestly is the exercise.
+
+#### Why it cannot just query the layer
+
+A 3D object scene layer has no query endpoint of its own — asking it returns
+`scenelayer:query-not-available`, because the attributes live in the i3s node
+binaries rather than behind a feature service. What *can* be asked is the layer
+**view**: the features the renderer has actually loaded. Two consequences:
+
+  * **`outFields` has to be set before the layer view builds.** Without it the
+    query answers with the right number of features and every attribute `null`,
+    which reads as a layer with no data rather than a layer whose data was never
+    asked for. That cost an hour.
+  * **It can only read placards that are on screen**, which is fine because the
+    view it opens on is standing in front of them — and it is why the read is
+    retried rather than attempted once. On a cold cache the camera arrives
+    before the nodes do.
+
+### The right-hand column
 
 Two panels live in it, and both were previously somewhere worse. It mirrors
 `.rail` on the left and sits inboard of the tool strip.

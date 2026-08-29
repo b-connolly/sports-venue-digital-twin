@@ -439,9 +439,43 @@ const CONFIG = {
       // view for the better part of a minute.
       opens: "gridiron", dwellMs: 16000 },
     { title: ["Gameday Experience (Football)", "Fan Perspective (Football)"],
-      opens: "football", dwellMs: 44000 }
+      opens: "football", dwellMs: 44000 },
+    // The placard view. Two names because the slide was called "Broncos Alumni"
+    // before the text-extraction layer was added to it, and a title is what the
+    // author chose while they are still choosing.
+    { title: ["Text Extraction with Optical Character Recognition",
+              "Optical Character", "Broncos Alumni"],
+      opens: "placard" }
   ],
 
+
+  /**
+   * One placard, read by a machine, shown as it was read.
+   *
+   * The alumni statues carry engraved placards. They were photographed with a
+   * phone, run through optical character recognition, and the results attached
+   * to boxes in a 3D object layer standing where the placards stand. Some of it
+   * came out clean and a lot of it did not, and the point of showing it is that
+   * both are on screen: a field the reader could not make out says ILLEGIBLE
+   * rather than a guess, and the confidence it assigned itself is shown next to
+   * the name it assigned.
+   *
+   * Which fields appear is not decided here. The layer carries a popup
+   * configured in the web scene, and this reads that configuration - so the
+   * card shows what somebody chose it should show, and changing it is done
+   * where such things are normally done rather than in this file.
+   */
+  placard: {
+    // Matched loosely on the layer's title, like everything else here.
+    layer: "Optical Character",
+    // The one the staged view is about: Steve Atwater, read at HIGH confidence
+    // with two of its lines unreadable, which is the whole story in one record.
+    id: "20130219_t06",
+    idField: "PLACARD_ID",
+    // The reader could not make this out. Shown rather than hidden, and marked
+    // rather than dressed up - see .pcard__val.illegible.
+    illegible: "ILLEGIBLE"
+  },
 
   // Opening camera. The web scene's own initial viewpoint is used when this is
   // null. Press C in the running app to print the current camera, then paste it
@@ -745,6 +779,9 @@ const els = {
   mpanel: $("measurePanel"), mhost: $("measureHost"),
   mclear: $("measureClear"), mclose: $("measureClose"),
   info: $("info"), infoSheet: $("infoSheet"),
+  placardCard: $("placardCard"), placardClose: $("placardClose"),
+  placardName: $("placardName"), placardConf: $("placardConf"),
+  placardRows: $("placardRows"), placardNote: $("placardNote"),
   live: $("live"), liveMenu: $("liveMenu"),
   ppanel: $("playPanel"), ptoggle: $("playToggle"),
   picon: $("playIcon"), pscrub: $("playScrub"), pmarks: $("playMarks"),
@@ -1273,7 +1310,8 @@ async function main() {
   // exactly as the toolbar buttons enforce it - two docks would sit on top of
   // each other.
   let autoOpened = null;              // what a view opened, so a plain view can shut it
-  const shut = { play: () => tools.liveAction.close(),
+  const shut = { placard: () => tools.placard.close(),
+                 play: () => tools.liveAction.close(),
                  time: () => tools.timeOfDay.close(),
                  measure: () => tools.measure.close() };
   // Each arrival takes a ticket. Anything waiting on an older one has been
@@ -1316,6 +1354,11 @@ async function main() {
       return;
     }
     tools.liveAction.close();
+    if (opens === "placard") {
+      autoOpened = "placard";
+      tools.placard.open();
+      return;
+    }
     if (opens === "time") {
       autoOpened = "time";
       const v = viewAt(n);
@@ -5193,6 +5236,144 @@ function buildSeats(view, surfacesReady, onTaken) {
   };
 }
 
+/**
+ * The placard reader's own account of one placard.
+ *
+ * ## Why this cannot simply query the layer
+ *
+ * A 3D object scene layer has no query endpoint of its own: asking it directly
+ * returns `scenelayer:query-not-available`, because the attributes live in the
+ * i3s node binaries rather than behind a feature service. What can be asked is
+ * the *layer view* - the features the renderer has actually loaded - which is
+ * why this waits for the view rather than the layer, and why the fields have to
+ * be requested up front with `outFields`. Without that the query answers with
+ * the right number of features and every attribute null, which looks like a
+ * layer with no data in it rather than a layer whose data was never asked for.
+ *
+ * The consequence worth knowing: it can only read placards that are on screen.
+ * That is acceptable here because the view this opens on is standing in front
+ * of them, and it is why the read is retried rather than attempted once - on a
+ * cold cache the camera arrives before the nodes do.
+ *
+ * ## Why the fields are not listed here
+ *
+ * The layer carries a popup configured in the web scene. Reading that
+ * configuration means the card shows what somebody chose it should show, in the
+ * order they chose, and that changing it is done in the scene rather than in
+ * this file. A list written here would be a second opinion that quietly goes
+ * stale.
+ */
+function buildPlacard(view) {
+  const spec = CONFIG.placard;
+  let layer = null;
+  let tries = 0;
+
+  const find = () => (layer ??= view.map.allLayers.find((l) =>
+    l.type === "scene" && (l.title || "").toLowerCase()
+      .includes(spec.layer.toLowerCase())) ?? null);
+
+  /** The fields the web scene's popup says to show, in its order. */
+  function configured(l) {
+    const t = l.popupTemplate;
+    const el = t?.content?.find?.((e) => e.type === "fields")
+      ?? (Array.isArray(t?.content) ? null : null);
+    const infos = el?.fieldInfos?.length ? el.fieldInfos
+      : (t?.fieldInfos ?? []).filter((f) => f.visible);
+    return infos
+      .filter((f) => f.visible !== false)
+      .map((f) => ({ name: f.fieldName, label: f.label || f.fieldName }));
+  }
+
+  async function read() {
+    const l = find();
+    if (!l) return null;
+    // Asked for before the layer view builds; see above.
+    if (!l.outFields || !l.outFields.length) l.outFields = ["*"];
+    const lv = await view.whenLayerView(l);
+    const where = `${spec.idField} = '${String(spec.id).replace(/'/g, "''")}'`;
+    const r = await lv.queryFeatures({
+      where, outFields: ["*"], returnGeometry: false
+    });
+    return r.features[0]?.attributes ?? null;
+  }
+
+  const pretty = (s) => String(s)
+    .replace(/_/g, " ").toLowerCase()
+    .replace(/^./, (m) => m.toUpperCase());
+
+  function paint(a, fields) {
+    els.placardName.textContent = a.NAME || "Unread";
+    const conf = a.CONFIDENCE;
+    els.placardConf.hidden = !conf;
+    els.placardConf.textContent = conf || "";
+    els.placardConf.className = "pcard__tag conf-" + String(conf || "")
+      .toLowerCase();
+
+    els.placardRows.replaceChildren(...fields
+      // The name is the heading; repeating it as a row would be the card
+      // saying the same thing twice in a column 268px wide.
+      .filter((f) => f.name !== "NAME" && f.name !== "CONFIDENCE")
+      .map((f) => {
+        const row = document.createElement("div");
+        row.className = "pcard__row";
+        const dt = document.createElement("dt");
+        dt.textContent = pretty(f.label);
+        const dd = document.createElement("dd");
+        const v = a[f.name];
+        const missing = v == null || v === "";
+        dd.textContent = missing ? "—" : String(v);
+        // Marked rather than hidden. A reader that could not make out a line is
+        // the honest half of this and the half worth seeing.
+        dd.classList.toggle("illegible",
+          !missing && String(v).toUpperCase() === spec.illegible);
+        dd.classList.toggle("missing", missing);
+        row.append(dt, dd);
+        return row;
+      }));
+
+    // Said in the card rather than left to the info sheet: this is the one
+    // place in the app showing a machine's reading of something, and a viewer
+    // is entitled to know that is what they are looking at without going
+    // hunting for it.
+    const views = a.N_VIEWS, read = a.N_READ;
+    els.placardNote.textContent = views
+      ? `Read by optical character recognition from ${views} handheld photos,`
+        + ` ${read} of which produced text. Lines it could not make out say`
+        + ` ${spec.illegible} rather than a guess.`
+      : "Read by optical character recognition from the handheld capture."
+        + ` Lines it could not make out say ${spec.illegible} rather than a guess.`;
+  }
+
+  async function open() {
+    const l = find();
+    if (!l) return;
+    els.placardCard.hidden = false;
+    els.placardName.textContent = "Reading…";
+    els.placardConf.hidden = true;
+    els.placardRows.replaceChildren();
+    els.placardNote.textContent = "";
+    // Retried: on a cold cache the camera arrives before the nodes it is
+    // looking at, and a layer view can only answer for what it has drawn.
+    for (tries = 0; tries < 12; tries++) {
+      let a = null;
+      try { a = await read(); } catch { /* not drawn yet */ }
+      if (els.placardCard.hidden) return;        // closed while we waited
+      if (a) { paint(a, configured(l)); return; }
+      await new Promise((done) => setTimeout(done, 900));
+    }
+    els.placardName.textContent = "Not read";
+    els.placardNote.textContent =
+      "The placard layer has not drawn this one yet.";
+  }
+
+  function close() {
+    els.placardCard.hidden = true;
+  }
+
+  els.placardClose.addEventListener("click", close);
+  return { open, close };
+}
+
 function wireTools(view, surfacesReady,
                    { captureDefaults, replayDefaults, slides = [], tour } = {}) {
   const start = view.camera.clone();
@@ -5294,6 +5475,7 @@ function wireTools(view, surfacesReady,
   liveAction.autoWhen(() => !!tour?.playing);
   liveAction.wire();
   const seats = buildSeats(view, surfacesReady, () => liveAction.repaint());
+  const placard = buildPlacard(view);
   liveAction.useSeats(seats);
   // The way back to the chooser once a seat has been taken, next to Draw Play
   // where the other replay options are.
@@ -5356,7 +5538,7 @@ function wireTools(view, surfacesReady,
   });
 
   els.hud.addEventListener("click", () => document.body.classList.toggle("hud-off"));
-  return { measure, timeOfDay, liveAction, seats };
+  return { measure, timeOfDay, liveAction, seats, placard };
 }
 
 /**

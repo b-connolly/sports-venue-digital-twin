@@ -1098,6 +1098,51 @@ body.hud-off .side { opacity: 0; pointer-events: none; transform: translateY(6px
 }
 .pcard__row--top dd { color: var(--paper-dim); }
 
+/* ------------------------------------------------------- the placard reader
+   The same card as the player's, because it is the same kind of thing: a few
+   figures about one object, read while looking at something else. What differs
+   is that some of these figures are a machine's guesses, and the card has to
+   say which. */
+.pcard--ocr .pcard__name {
+  /* A name a reader produced, not one anybody wrote down. It keeps the accent
+     rule the player card uses so the two read as one family, and the serif so
+     it is plainly a name rather than a value. */
+  font-size: 0.95rem; line-height: 1.15;
+  border-bottom: 2px solid var(--accent); padding-bottom: 2px;
+}
+/* Confidence, in the reader's own words. Graded, because "HIGH" and
+   "ILLEGIBLE" should not look alike on a card whose whole point is that some of
+   it worked and some of it did not. */
+.pcard__tag.conf-high { border-color: rgba(122,184,132,0.6); color: #8fcf9c; }
+.pcard__tag.conf-medium { border-color: rgba(226,189,92,0.6); color: #e2bd5c; }
+.pcard__tag.conf-low { border-color: rgba(232,130,58,0.6); color: #e8823a; }
+.pcard__tag.conf-illegible { border-color: var(--line); color: var(--paper-faint); }
+
+/* A line the reader could not make out. Marked rather than dressed up: the
+   value is shown exactly as the data holds it, and the styling only says "this
+   is the machine admitting something", which is the honest half of this and the
+   half worth seeing. */
+.pcard--ocr .pcard__row dd.illegible {
+  color: var(--paper-faint); font-style: italic;
+  font-size: 0.66rem; letter-spacing: 0.08em;
+}
+.pcard--ocr .pcard__row dd.missing { color: var(--paper-faint); }
+/* Values here are read text rather than numbers, so they wrap instead of
+   running off the card, and the label keeps its own column. */
+.pcard--ocr .pcard__row { align-items: start; }
+.pcard--ocr .pcard__row dt { flex: 0 0 5.6rem; padding-top: 0.1rem; }
+.pcard--ocr .pcard__row dd {
+  flex: 1 1 auto; min-width: 0; text-align: right;
+  white-space: normal; overflow-wrap: anywhere;
+  font-size: 0.72rem; line-height: 1.3;
+}
+.pcard__note {
+  margin: 0.5rem 0 0; padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.52rem; line-height: 1.5; color: var(--paper-faint);
+  text-wrap: pretty;
+}
+
 /* ------------------------------------------------------------- side panel
    Analysis, in the same column and the same glass as the card above it. */
 .sidepanel {

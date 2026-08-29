@@ -44,6 +44,18 @@ replays driven by actual sports tracking data.
   and hands back the moment you take hold of it
 - **Analysis** — distance, area, volume and elevation profile tools, in the
   right-hand column so they open over a running replay rather than closing it
+- **Reading the placards** — the alumni statues carry engraved placards. They
+  were photographed with a phone (Pix4Dcatch), an **optical character
+  recognition** model was run over those images, and each reading was placed in
+  the scene by intersecting rays from every view that saw it — the image-space
+  to ground-space transform that an oriented imagery data model carries — then
+  tied to the captured mesh. The results are shown as they came out: confidence
+  is graded HIGH to ILLEGIBLE, and a line the reader could not make out says
+  `ILLEGIBLE` rather than a guess. It is the same handheld capture used to build
+  the mesh rather than a survey flown for the purpose, so not every photo is
+  looking at a placard and plenty of the readings are poor. That is the point of
+  showing it
+
 - **The play's numbers** — who has the ball and how fast, who is nearest and
   whether the gap is closing. Click any player for a card, docked clear of the
   play with an orange ring on the turf marking who it is about. It stays: speed, acceleration, distance to the ball, ground covered, top speed.

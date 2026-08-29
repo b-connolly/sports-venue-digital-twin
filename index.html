@@ -316,6 +316,23 @@
   </dl>
 </div>
 
+  <!-- What the reader made of one placard. Same column, same card, because it
+       is the same kind of thing as the player card: a few figures about one
+       object, read while looking at something else.
+
+       Filled from the layer's own popup configuration rather than a list
+       written here - see CONFIG.placard - so the fields it shows are the ones
+       chosen in the web scene. -->
+  <div id="placardCard" class="pcard pcard--ocr" hidden role="dialog" aria-label="Placard">
+    <button id="placardClose" class="pcard__x" type="button" aria-label="Close">&times;</button>
+    <div class="pcard__head">
+      <span id="placardName" class="pcard__name">&mdash;</span>
+      <span id="placardConf" class="pcard__tag" hidden></span>
+    </div>
+    <dl id="placardRows" class="pcard__rows"></dl>
+    <p id="placardNote" class="pcard__note"></p>
+  </div>
+
   <!-- Analysis, opening beside the button that asks for it rather than as a
        740px bar along the bottom. It used to be a dock, which meant it could
        only be opened by closing the replay - and a measurement you cannot take
