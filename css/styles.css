@@ -984,14 +984,23 @@ body.hud-off .dock { opacity: 0; pointer-events: none; transform: translateX(-50
 .credit {
   position: fixed; z-index: 10;
   right: var(--pad); bottom: var(--pad);
+  /* Stacked and right-aligned, so both lines end on the same edge as the
+     tool strip above them. */
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
   font-size: 0.5rem; font-weight: 600;
   letter-spacing: 0.2em; text-transform: uppercase;
-  color: var(--paper-faint); text-decoration: none;
+  color: var(--paper-faint);
   text-shadow: 0 1px 6px rgba(4, 6, 10, 0.7);
-  transition: color .2s, opacity .8s var(--ease), transform .8s var(--ease);
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
 }
-.credit:hover { color: var(--paper-dim); }
-.credit:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+/* Both lines carry the same weight. The temptation is to set authorship a step
+   quieter so the platform line stays the one the eye lands on, but these are
+   two credits of the same kind - who made it, and what it was made with - and
+   dimming one of them makes it read as a footnote to the other. */
+.credit__by { color: inherit; }
+.credit__esri { color: inherit; text-decoration: none; transition: color .2s; }
+.credit__esri:hover { color: var(--paper-dim); }
+.credit__esri:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
 body.hud-off .credit { opacity: 0; pointer-events: none; transform: translateY(6px); }
 
 /* Not on a phone. The bottom edge there is already carrying the weather chip
