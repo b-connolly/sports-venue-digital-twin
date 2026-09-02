@@ -517,6 +517,16 @@ the button's own `disabled` state — those used to be the same question, and a
 signed-out viewer would otherwise sit in front of a finished scene being told
 to wait.
 
+**Remembered per session, not for good.** `sessionStorage` rather than
+`localStorage` — the obvious choice and the wrong one. Remembering forever
+means the person who set this up stops being asked on their own machine, and
+that is exactly the machine the demo is given from: the gate goes invisible to
+the one person who needs to know it is still there. It produced a bug report
+that way round — the login "not appearing" on Pages — against an app that was
+working correctly, and a clean browser was being shown the box 2.2 s after
+load. A reload part way through a demo still does not ask; closing the tab
+forgets.
+
 **The form is wired on load, not in `boot()`.** Built after `scene.load()`, a
 slow or failed scene left it inert — typing into it and pressing the button did
 nothing at all, which from the outside cannot be told apart from a rejected
