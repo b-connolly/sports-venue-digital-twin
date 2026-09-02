@@ -84,8 +84,8 @@ def chrome(signin=True):
     Explore waits on two things now - the scene being ready and somebody having
     signed in - and every check here drives it by waiting for the button to
     come alive. Rather than teach a dozen files to fill a form, the credential
-    is seeded into localStorage before any page script runs, which is the same
-    state a returning viewer arrives in.
+    is seeded into sessionStorage before any page script runs, which is the
+    same state a viewer who signed in earlier this session arrives in.
 
     `signin=False` leaves the gate standing, which is what gatecheck.py wants:
     a bypass that is always on is a bypass that hides the thing it bypasses.
@@ -120,8 +120,8 @@ def chrome(signin=True):
                     # has no usable storage, hence the try.
                     c.send("Page.enable")
                     c.send("Page.addScriptToEvaluateOnNewDocument", source=(
-                        "try{localStorage.setItem("
-                        "'venue.gate','checks@esri.com');}catch(e){}"))
+                        "try{sessionStorage.setItem("
+                        "'venue.gate','checks@example.com');}catch(e){}"))
                 return proc, c
         except Exception:
             pass
