@@ -31,7 +31,7 @@ Run them with the Python that has Pillow, from this folder.
 | `simulate_play.py` | nothing | Replays a tracked passage on a clock and posts it as events, for an ArcGIS Velocity feed. See [`docs/VELOCITY.md`](../docs/VELOCITY.md). |
 | `mockreceiver.py` | nothing | A local stand-in for a Velocity HTTP Receiver, so the feed can be built without an org. |
 | `placardcheck.py` | nothing | The placard card shows the layer's own configured fields, says ILLEGIBLE where the reader could not read, marks the placard it is about, and is the only panel a click can raise. |
-| `gatecheck.py` | nothing | Clicking Explore asks for a username and the shared password, refuses each half distinctly, and lets any domain through with the right password. The one check that does not take `chrome()`'s sign-in bypass. |
+| `gatecheck.py` | nothing | The login is asked for on arrival, the scene loads behind it, and Explore opens only once both have happened. Refuses each half distinctly and lets any domain through with the right password. The one check that does not take `chrome()`'s sign-in bypass. |
 | `statscheck.py` | nothing | The play's numbers describe the play, and the app says where they came from. |
 | `simcheck.py` | nothing | The ported transform still agrees with the app, to the centimetre, on both sports. |
 | `digitise_chart.py` | `tools/bearings.json` | Reads the section bearings off `seating_chart.png`. Rerun it if the chart changes. |

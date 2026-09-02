@@ -9,8 +9,8 @@ replays driven by actual sports tracking data.
 
 **Live:** https://b-connolly.github.io/sports-venue-digital-twin/
 
-Explore asks for a username and a shared password. It is a doormat rather than
-a lock — the check runs in the browser and the scene's layers are public
+It opens on a username and a shared password, with the scene loading behind
+the box so the two waits overlap. It is a doormat rather than a lock — the check runs in the browser and the scene's layers are public
 services — and it is there to keep the link from being wandered into, not to
 protect anything.
 

@@ -1124,18 +1124,22 @@ body.hud-off .side { opacity: 0; pointer-events: none; transform: translateY(6px
   to   { opacity: 1; transform: none; }
 }
 
-/* ------------------------------------------------ the player card's own spot
-   Lower left, directly above the weather chip, rather than in the right-hand
-   column with the placard. That column is for things you consult; this is a
-   thing you watch while the play runs, and on the right it was easy to miss.
-   The lower left is already where the eye goes for a live reading because the
-   weather chip has trained it to, so the two live readouts share a column and
-   the play keeps the middle of the screen.
+/* ----------------------------------------------------------- the lower-left
+   Both readouts live here, directly above the weather chip: the player's
+   numbers during a replay, and the placard reading at the statues. They are
+   never up together - one belongs to a replay, the other to a view of the
+   Ring of Fame - so they share the spot rather than stacking.
 
-   Larger than the panels it left behind, for the same reason: a readout meant
-   to be caught at a glance during a moving play cannot be set at the size of
-   something you lean in to read. */
-#playerCard {
+   They were both in the right-hand column and both easy to miss there. That
+   column is for things you consult; these are things you glance at while
+   watching something else, and the lower left is already where the eye goes
+   for a live reading because the weather chip has spent the session training
+   it to. So the readouts share a column with it and the middle of the screen
+   stays clear.
+
+   Larger than the column they left, for the same reason: something caught at
+   a glance cannot be set at the size of something you lean in to read. */
+#playerCard, #placardCard {
   position: fixed; z-index: 11;
   left: var(--pad);
   /* Clear of the weather chip, which measures 57px at the default type size.
@@ -1151,15 +1155,27 @@ body.hud-off .side { opacity: 0; pointer-events: none; transform: translateY(6px
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
-/* It used to inherit this from .side; outside that column it needs its own. */
-body.hud-off #playerCard { opacity: 0; pointer-events: none; transform: translateY(6px); }
+/* They used to inherit this from .side; outside that column they need it. */
+body.hud-off #playerCard,
+body.hud-off #placardCard { opacity: 0; pointer-events: none; transform: translateY(6px); }
 
-#playerCard .pcard__name { font-size: 1.18rem; }
-#playerCard .pcard__head { margin-bottom: 0.55rem; }
-#playerCard .pcard__rows { gap: 0.22rem; }
-#playerCard .pcard__row dt { font-size: 0.58rem; }
-#playerCard .pcard__row dd { font-size: 0.88rem; }
-#playerCard .pcard__tag { font-size: 0.48rem; }
+#playerCard .pcard__name, #placardCard .pcard__name { font-size: 1.18rem; }
+#playerCard .pcard__head, #placardCard .pcard__head { margin-bottom: 0.55rem; }
+#playerCard .pcard__rows, #placardCard .pcard__rows { gap: 0.22rem; }
+#playerCard .pcard__row dt, #placardCard .pcard__row dt { font-size: 0.58rem; }
+#playerCard .pcard__row dd, #placardCard .pcard__row dd { font-size: 0.88rem; }
+#playerCard .pcard__tag, #placardCard .pcard__tag { font-size: 0.48rem; }
+
+/* The placard card carries eight rows and a note where the player's carries
+   five values, so it is the taller of the two by some way. Anchored at the
+   bottom it grows upward, which is the right direction here - away from the
+   weather chip and into empty sky rather than down over it - but it still
+   needs a ceiling on a short window, and its own scroll rather than pushing
+   itself off the top of the screen. */
+#placardCard {
+  max-height: calc(100vh - var(--pad) * 2 - 57px - 16px);
+  overflow-y: auto;
+}
 
 .pcard__x {
   position: absolute; top: 0.25rem; right: 0.3rem;

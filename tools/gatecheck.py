@@ -1,16 +1,20 @@
 """Does the gate actually hold Explore shut, and let the right people through?
 
-Clicking Explore asks for a username - any email address - and the shared
-password, and does not lift the curtain until it gets both. This is the one check that does *not* take smoke.chrome()'s bypass - the
+The app asks for a username - any email address - and the shared password
+on arrival, and holds Explore shut until it gets them. The scene loads
+behind the box, so the two waits overlap instead of queueing. This is the one check that does *not* take smoke.chrome()'s bypass - the
 rest of the suite seeds the credential into localStorage so it can get on with
 testing the scene, and a bypass that is always on is a bypass that hides the
 thing it bypasses.
 
 What is worth asserting, in order of how badly it would go unnoticed:
 
-  * The click is what asks. Explore itself opens on the scene alone, so the
-    failure to fear is not a missing form but a curtain that lifts anyway -
-    the sign-in intercepts the reveal rather than disabling the button.
+  * It is asked before the scene is ready, not after. The point of the
+    order is that the login and the loading run at the same time, so the
+    thing to catch is a regression to asking once everything is warm -
+    which still works, and wastes the twenty seconds it was meant to use.
+  * Explore waits on both. It opens when the scene is ready AND the login
+    is answered, in whichever order those land.
   * The loading message still tells the truth. It used to read the button's own
     disabled state, which now stays true for a reason that has nothing to do
     with loading - so a signed-out viewer would have sat in front of a finished
@@ -79,53 +83,25 @@ try:
             break
         time.sleep(0.5)
 
-    # Wait for the app's own readiness, which is the whole point: an Explore
-    # button that is shut because nothing has loaded proves nothing.
-    #
-    # `__door.ready`, not `view.ready`. The latter is true within seconds of
-    # the view existing, long before the first view has been warmed, so a
-    # check resting on it asserts against a scene that is still arriving and
-    # reads the resulting "Loading" as a bug.
-    ready = False
-    for _ in range(150):
-        time.sleep(1)
-        if c.js("!!(window.__door && window.__door.ready)"):
-            ready = True
+    # --- asked on arrival, before anything is ready --------------------------
+    up = None
+    for _ in range(80):
+        time.sleep(0.25)
+        if c.js("!!document.getElementById('signin') && "
+                "!document.getElementById('signin').hidden"):
+            up = True
             break
-    ok("the scene got ready, so the gate is what is holding it", ready)
-
-    ok("Explore is offered as soon as the scene is ready",
-       c.js("document.getElementById('enter').disabled") is False)
-    ok("and nothing is asked before it is clicked",
-       c.js("document.getElementById('signin').hidden") is True)
-
-    # The curtain's message used to be driven off the button's own disabled
-    # state. That was the same question once and is not any more.
-    for _ in range(20):
-        time.sleep(1)
-        if "loading" not in (c.js(
-                "document.getElementById('loadmsg').textContent") or "").lower():
-            break
-    ok("the curtain does not claim to still be loading",
-       "loading" not in (c.js("document.getElementById('loadmsg').textContent")
-                         or "").lower(),
-       c.js("document.getElementById('loadmsg').textContent"))
-
-    # --- the click is what asks ----------------------------------------------
-    c.js("document.getElementById('enter').click()")
-    time.sleep(1.5)
-    ok("clicking Explore asks to sign in",
-       c.js("document.getElementById('signin').hidden") is False)
-    ok("and the curtain has not lifted",
-       c.js("document.getElementById('intro').classList.contains('gone')")
-       is False)
+    ok("the login is asked for on arrival", up is True)
+    ok("before the scene is anywhere near ready",
+       c.js("!!(window.__door && window.__door.ready)") is False)
+    ok("and Explore is shut meanwhile",
+       c.js("document.getElementById('enter').disabled") is True)
 
     # --- what is refused -----------------------------------------------------
     submit(c, "not-an-address", GOOD_PASS)
     msg = c.js("document.getElementById('gateMsg').textContent")
     ok("something that is not an address is refused",
-       c.js("document.getElementById('intro').classList.contains('gone')")
-       is False)
+       c.js("document.getElementById('signin').hidden") is False)
     ok("with the username marked, not the password",
        c.js("document.getElementById('gateEmail').classList.contains('bad')")
        is True, msg)
@@ -133,8 +109,7 @@ try:
     submit(c, GOOD_MAIL, "wrongpassword")
     msg = c.js("document.getElementById('gateMsg').textContent")
     ok("a wrong password is refused",
-       c.js("document.getElementById('intro').classList.contains('gone')")
-       is False)
+       c.js("document.getElementById('signin').hidden") is False)
     ok("and says password rather than username",
        "password" in (msg or "").lower(), msg)
     ok("with the password marked, not the username",
@@ -149,13 +124,37 @@ try:
 
     # --- the password is the gate, not the domain ----------------------------
     # GOOD_MAIL is deliberately not an esri.com address. The rule is the
-    # password now, and a check that only ever tried one domain would not
-    # notice if the domain quietly started mattering again.
+    # password, and a check that only ever tried one domain would not notice
+    # if the domain quietly started mattering again.
     submit(c, GOOD_MAIL, GOOD_PASS)
-    time.sleep(1.5)
-    ok("any address with the right password gets in",
+    time.sleep(1)
+    ok("any address with the right password is accepted",
        c.js("document.getElementById('signin').hidden") is True, GOOD_MAIL)
-    ok("and the curtain lifts",
+    ok("the curtain stays up - signing in is not entering",
+       c.js("document.getElementById('intro').classList.contains('gone')")
+       is False)
+
+    # --- the loading carried on behind it ------------------------------------
+    # The whole point of the order. If the bar has not moved by here, the
+    # login was blocking the load rather than overlapping it.
+    width = c.js("document.getElementById('loadfill').style.width") or "0%"
+    moved = float(width.replace("%", "") or 0)
+    ok("the scene was loading behind the box", moved > 5, width)
+
+    # --- and Explore opens on its own once the scene is ready ----------------
+    for _ in range(150):
+        time.sleep(1)
+        if c.js("document.getElementById('enter').disabled") is False:
+            break
+    ok("Explore opens once the scene is ready",
+       c.js("document.getElementById('enter').disabled") is False)
+    ok("offered, not merely enabled",
+       c.js("document.getElementById('enter').classList.contains('ready')")
+       is True)
+
+    c.js("document.getElementById('enter').click()")
+    time.sleep(2)
+    ok("and the click goes straight in, with nothing else asked",
        c.js("document.getElementById('intro').classList.contains('gone')")
        is True)
 
@@ -165,19 +164,15 @@ try:
         if c.js("typeof window.__view === 'object'"):
             break
         time.sleep(0.5)
+    time.sleep(2)
+    ok("a reload does not ask again",
+       c.js("document.getElementById('signin').hidden") is True)
     for _ in range(150):
         time.sleep(1)
         if c.js("document.getElementById('enter').disabled") is False:
             break
-    ok("Explore comes back after a reload",
+    ok("and Explore comes back on the scene alone",
        c.js("document.getElementById('enter').disabled") is False)
-    c.js("document.getElementById('enter').click()")
-    time.sleep(1.5)
-    ok("and does not ask a second time",
-       c.js("document.getElementById('signin').hidden") is True)
-    ok("it just goes straight in",
-       c.js("document.getElementById('intro').classList.contains('gone')")
-       is True)
 
     print("")
     print("  errors:", c.errs or "none")

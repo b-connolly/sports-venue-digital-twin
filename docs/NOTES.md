@@ -488,39 +488,45 @@ either — a short known word falls to a dictionary instantly — it just keeps 
 from sitting in the bundle as a string that turns up on the first search for
 the obvious.
 
-#### Why it comes after Explore
+#### Why it comes first
 
-It was on the curtain first, sharing the space with the title, the lede, the
-loading bar and the button. Squeezed in among those it read as one more
-obstacle before the thing you came for, and it looked it. Shown after the
-click it is the only thing on screen, which is the whole of what makes it feel
-simple.
+The obvious order is to let people look at the curtain and ask when they press
+Explore. It was built that way, and it is wrong — for a reason that is only
+obvious once you watch someone use it.
 
-That also simplified what Explore waits on. The button opens on the scene
-alone, as it always did; `gate.ask(reveal)` intercepts the *reveal*, and runs
-its continuation straight through when this browser has been signed in before.
-The click handler lost its `{once:true}` in the process — a click that only
-opens the login must not be the one click the button had.
+The scene takes about twenty seconds to become worth looking at. A login is the
+one part of this that costs the *viewer* time rather than the network. Asked
+first, the two are spent together: by the time a password is typed the stadium
+is most of the way there, and Explore opens onto a scene that is ready.
+Measured at the point of signing in, the progress bar is already at 90%. Asked
+second, they queue — the viewer waits twenty seconds, then is asked to do
+something, then waits again.
 
-Two things learned building it, both of which cost a test run:
+It also removes a race that was never going to be won. Asking on the click put
+an unbounded pause between the click and the reveal, and the warm-up went on
+flying the camera to other views for the length of it. Putting the camera back
+afterwards meant writing one while `applyTo` had another in flight, and
+whichever settled last won — four placements of that restore, none of which
+held. Asked on arrival, the click and the reveal are the same moment again and
+there is nothing to put back.
 
-  * **The form is wired on load, not in `boot()`.** Built after `scene.load()`,
-    as it first was, a slow or failed scene left it inert — typing into it and
-    pressing the button did nothing at all, which from the outside cannot be
-    told apart from a rejected password.
-  * **`view.ready` is not the app's readiness.** It is true within seconds of
-    the view existing, while the app's own idea of ready is a warmed first view
-    some twenty seconds later. `window.__door` exposes the real pair, because a
-    check resting on `view.ready` asserts against a still-arriving scene and
-    reads the honest "Loading…" as a bug.
+Explore therefore waits on two flags, `door.ready` and `door.admitted`, which
+land in either order; `admit()` is called from both sides and does nothing
+until both are true. `door.ready` also drives the curtain's message rather than
+the button's own `disabled` state — those used to be the same question, and a
+signed-out viewer would otherwise sit in front of a finished scene being told
+to wait.
 
-`tools/gatecheck.py` is the one check that does not take `smoke.chrome()`'s
-bypass. The other twelve seed the credential into `localStorage` before any
-page script runs, so they can get on with testing the scene; a bypass that is
-always on is a bypass that hides the thing it bypasses. It signs in with a
-`@gmail.com` address on purpose — the rule is the password, and a check that
-only ever tried one domain would not notice if the domain quietly started
-mattering again.
+**The form is wired on load, not in `boot()`.** Built after `scene.load()`, a
+slow or failed scene left it inert — typing into it and pressing the button did
+nothing at all, which from the outside cannot be told apart from a rejected
+password.
+
+**`view.ready` is not the app's readiness.** It is true within seconds of the
+view existing, while the app's own idea of ready is a warmed first view some
+twenty seconds later. `window.__door` exposes the real pair, because a check
+resting on `view.ready` asserts against a still-arriving scene and reads the
+honest "Loading…" as a bug.
 
 ### Where the player card sits
 

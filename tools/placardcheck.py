@@ -60,7 +60,11 @@ CARD = """(function(){
   var card = document.getElementById('placardCard');
   return JSON.stringify({
     open: !card.hidden,
-    inSide: !!card.closest('#side'),
+    lowerLeft: (function(){
+      var r = card.getBoundingClientRect();
+      var w = document.getElementById('weather').getBoundingClientRect();
+      return Math.abs(r.left - w.left) < 2 && r.bottom <= w.top + 1;
+    })(),
     name: document.getElementById('placardName').textContent.trim(),
     conf: document.getElementById('placardConf').textContent.trim(),
     confClass: document.getElementById('placardConf').className,
@@ -125,7 +129,11 @@ try:
         if s["open"] and s["rows"]:
             break
     ok("arriving at the view opens a card", s["open"] is True)
-    ok("in the right-hand column, with the analytics card", s["inSide"] is True)
+    # Lower left, above the weather chip, sharing the spot with the player
+    # card - the two are never up together, one belonging to a replay and the
+    # other to the statues. Asserted by position rather than by parentage, so
+    # it holds however the card gets there.
+    ok("in the lower left, above the weather chip", s["lowerLeft"] is True)
     ok("it read the placard it was asked for",
        s["name"] == "STEVE ATWATER", s["name"])
     ok("and shows the confidence the reader gave itself",

@@ -977,12 +977,46 @@ function buildGate() {
 }
 
 /**
- * Wired on load rather than inside boot, so the card is live whatever the
- * scene is doing. Built after `scene.load()`, as it first was, a slow or
- * failed load left the form inert - typing into it and pressing the button did
- * nothing at all, with no way to tell that apart from a rejected password.
+ * Offer Explore, once both of the things it waits on have happened.
+ *
+ * Called from either side - the scene getting ready, or the login being
+ * answered - and does nothing until both are true. The focus is deliberate
+ * but only on the transition: moving it every time either flag is touched
+ * would take the caret off whichever field is being typed in.
+ */
+function admit() {
+  const open = door.ready && door.admitted;
+  if (open === !els.enter.disabled) return;
+  els.enter.disabled = !open;
+  els.enter.classList.toggle("ready", open);
+  if (open) els.enter.focus({ preventScroll: true });
+}
+
+/**
+ * Asked on arrival, not on the way in.
+ *
+ * The obvious order is to let people look at the curtain and ask when they
+ * press Explore, and it was built that way first. It is the wrong order, for
+ * a reason that is only obvious once you watch it: the scene takes about
+ * twenty seconds to become worth looking at, and a login is the one part of
+ * this that costs the viewer time rather than the network. Asking first
+ * spends the two together - by the time a password is typed the stadium is
+ * most of the way there - where asking second spends them one after the other
+ * and then makes the viewer wait again.
+ *
+ * It also removes a race that was never going to be won. Asking on the click
+ * put an unbounded pause between the click and the reveal, during which the
+ * warm-up went on flying the camera to other views; putting it back for the
+ * reveal meant writing a camera while `applyTo` had one in flight, and
+ * whichever settled last won. Asked here, the click and the reveal are the
+ * same moment again and there is nothing to put back.
+ *
+ * Wired at load rather than inside boot so the card is live whatever the
+ * scene is doing - built after `scene.load()`, a slow or failed load left it
+ * inert, which from the outside looks exactly like a rejected password.
  */
 const gate = buildGate();
+gate.ask(admit);
 
 /**
  * Who is offering "recenter on the ball".
@@ -1110,8 +1144,7 @@ function settle(view, maxMs, quietMs, aborted = () => false) {
  * rewrites layer visibility and the lighting along with it.
  */
 async function warmUp(view, slides, restore,
-                      { aborted = () => false, onStart, afterEach,
-                        inside = () => false } = {}) {
+                      { aborted = () => false, onStart, afterEach } = {}) {
   const cfg = CONFIG.preload;
   if (!cfg.enabled || !slides.length) return;
 
@@ -1170,26 +1203,10 @@ async function warmUp(view, slides, restore,
     afterEach?.(done);
   }
 
+  // If the viewer let themselves in mid-warm, reveal() has already put the
+  // camera and the layers back - touching either now would fight it.
   if (aborted()) {
     console.info("[venue] preload cut short:", done, "of", wanted.length, "views warmed");
-    // Put the camera back here, where the loop has just let go of it.
-    //
-    // This used to return and leave it to reveal(), on the grounds that the
-    // viewer was already inside and touching the camera would fight them.
-    // That held while the click revealed the scene outright. With a login in
-    // between it does not: the click aborts this, and the viewer then spends
-    // as long as they like at the login looking at whichever view the warm-up
-    // had wandered to - and the opening splat, evicted meanwhile, re-forms in
-    // front of them the moment they get in.
-    //
-    // It has to happen *here* rather than in the caller. `applyTo` lands its
-    // viewpoint asynchronously, so a restore issued from outside the moment
-    // this promise resolves is overwritten by the move it is undoing - which
-    // is exactly what four attempts at fixing it from out there each did.
-    //
-    // `inside` is the one case where the old reasoning still applies: once the
-    // curtain is up the camera belongs to the viewer.
-    if (!inside()) { view.camera = home; restore(); }
     return;
   }
   view.camera = home;
@@ -1328,9 +1345,7 @@ async function main() {
   const unlock = () => {
     if (door.ready) return;
     door.ready = true;
-    els.enter.disabled = false;
-    els.enter.classList.add("ready");
-    els.enter.focus({ preventScroll: true });
+    admit();
   };
   // The one promise that cannot be broken. Whatever fails, hangs or never
   // settles below, the button opens by here.
@@ -1476,28 +1491,7 @@ async function main() {
   let warmHome = null;
   const entered = () => els.intro.classList.contains("gone");
 
-
-  /**
-   * Somebody has pressed Explore, whether or not they are through the login.
-   *
-   * The warm-up used to stop at `entered()`, which was the same moment as the
-   * click while the click revealed the scene outright. With a login in between
-   * it is not: the viewer presses Explore, and the warm-up carries on flying
-   * the camera to views 6, 9 and 10 for as long as they take to type. The
-   * reveal then snaps back to the opening view whose splat has since been
-   * evicted, and the first thing they see is a stadium re-forming.
-   *
-   * So the click is the commitment, and this is what the warm-up watches.
-   */
-  let comingIn = false;
-
-  /**
-   * Put the camera back where the viewer will be looking.
-   *
-   * Called on the click rather than only at the reveal, so the time spent at
-   * the login is spent streaming the opening view instead of somewhere nobody
-   * will see. Safe to call twice - the second is a no-op.
-   */
+  /** Put the camera back where the viewer will be looking. */
   const restoreHome = () => {
     if (!warmHome) return;
     view.camera = warmHome;
@@ -1522,11 +1516,11 @@ async function main() {
     if (CONFIG.preload.beforeUnlock <= 0) openTheDoor();
     await warmUp(view, slides, () => { openingState(); tickClock(view); }, {
       // Nobody can be inside before the door opens, so until then the warm-up
-      // runs to completion; after it, the first click ends it - the click,
-      // not the reveal, because the login sits between the two.
-      aborted: () => opened && (comingIn || entered()),
+      // runs to completion; after it, the first click ends it. The click and
+      // the reveal are the same moment again now that the login is asked for
+      // on arrival rather than on the way in.
+      aborted: () => opened && entered(),
       onStart: (home) => { warmHome = home; },
-      inside: entered,
       afterEach: (done) => { if (done >= CONFIG.preload.beforeUnlock) openTheDoor(); }
     });
     // warmUp puts the camera back itself when it runs to the end. When it was
@@ -1565,22 +1559,10 @@ async function main() {
       requestAnimationFrame(() => { openingState(); tickClock(view); });
     }
   };
-  // Explore asks first. Signed in already - this session, or remembered from a
-  // previous one - and `ask` runs the continuation straight through without
-  // showing anything, so the button behaves exactly as it always did.
-  //
-  // Not `{once:true}` any more: a click that only opens the sign-in card must
-  // not be the one click the button had.
-  els.enter.addEventListener("click", () => {
-    if (entered()) return;
-    // The click is the commitment, so the warm-up ends here rather than at the
-    // reveal, and the camera comes home now. Whatever happens next - typing a
-    // password, getting it wrong twice - happens with the opening view on
-    // screen behind the login, streaming what is about to be looked at instead
-    // of a view nobody will see.
-    comingIn = true;
-    gate.ask(reveal);
-  });
+  // The login is behind us by the time this can be pressed - see the call to
+  // gate.ask on arrival - so the click reveals the scene outright, and can be
+  // the one click the button gets.
+  els.enter.addEventListener("click", reveal, { once: true });
 
   const tools = wireTools(view, surfaces,
     { captureDefaults: openingState, replayDefaults: replayState, slides, tour });
