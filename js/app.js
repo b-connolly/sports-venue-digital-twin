@@ -803,8 +803,8 @@ const door = { ready: false, admitted: false };
 const $ = (id) => document.getElementById(id);
 const els = {
   intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
-  gate: $("gate"), gateEmail: $("gateEmail"), gatePass: $("gatePass"),
-  gateMsg: $("gateMsg"),
+  signin: $("signin"), gate: $("gate"), gateEmail: $("gateEmail"),
+  gatePass: $("gatePass"), gateMsg: $("gateMsg"),
   masthead: $("masthead"), captures: $("captures"),
   seatSheet: $("seatSheet"), seatSelect: $("seatSelect"), seatMap: $("seatMap"),
   playSeatLabel: $("playSeatLabel"), lightsBtn: $("lightsBtn"),
@@ -872,7 +872,12 @@ const els = {
  * find by searching it for the obvious.
  */
 const GATE = {
-  domain: "@esri.com",
+  // Any address that looks like one. The password is the gate; the username is
+  // only so the person coming in has a name, and narrowing it to one domain
+  // turned a shared password into a rule about who somebody works for - which
+  // this cannot check anyway, since nothing here verifies that the address is
+  // real or belongs to whoever typed it.
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   hash: "db3020a8cfd9264876842c36806ba6b62ecca4d8567575905dcf36fd1a12031a",
   // Remembered, so a reload part way through a demo does not ask again. Same
   // standing as the rest of this: somebody who would edit localStorage to get
@@ -887,24 +892,37 @@ async function sha256Hex(text) {
     .map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function buildGate(onAdmit) {
+/**
+ * Ask, once, and call `then` when the answer is right.
+ *
+ * `ask(then)` is what Explore calls. If this browser has been signed in before
+ * it runs `then` immediately and nothing is shown; otherwise the card comes up
+ * over the curtain and `then` waits until the pair is accepted.
+ */
+function buildGate() {
   const form = els.gate;
-  // No gate in the markup is a reason to let people in, not to shut everybody
-  // out: a missing form would otherwise make Explore unopenable for good.
-  if (!form) { door.admitted = true; onAdmit(); return; }
+  const sheet = els.signin;
+  let go = null;                    // what to run once we are let through
 
-  const open = (who) => {
-    door.admitted = true;
-    form.classList.add("gone");
-    els.gateMsg.textContent = "";
-    if (who) { try { localStorage.setItem(GATE.store, who); } catch { /* private */ } }
-    onAdmit();
+  const remembered = () => {
+    let seen = null;
+    try { seen = localStorage.getItem(GATE.store); } catch { /* blocked */ }
+    return !!seen && GATE.email.test(seen);
   };
 
-  // Signed in already on this browser.
-  let seen = null;
-  try { seen = localStorage.getItem(GATE.store); } catch { /* blocked */ }
-  if (seen && seen.toLowerCase().endsWith(GATE.domain)) { open(null); return; }
+  const pass = (who) => {
+    door.admitted = true;
+    if (sheet) sheet.hidden = true;
+    if (who) { try { localStorage.setItem(GATE.store, who); } catch { /* private */ } }
+    const next = go; go = null;
+    next?.();
+  };
+
+  // No card in the markup is a reason to let people through, not to shut
+  // everybody out: a missing form would otherwise make Explore useless.
+  if (!form || !sheet) {
+    return { ask: (then) => { door.admitted = true; then(); } };
+  }
 
   const reject = (field, why) => {
     field.classList.add("bad");
@@ -918,15 +936,15 @@ function buildGate(onAdmit) {
     els.gateEmail.classList.remove("bad");
     els.gatePass.classList.remove("bad");
 
-    const email = els.gateEmail.value.trim();
-    if (!new RegExp(`^[^\\s@]+${GATE.domain.replace(".", "\\.")}$`, "i").test(email)) {
-      reject(els.gateEmail, "An @esri.com email address is required.");
+    const user = els.gateEmail.value.trim();
+    if (!GATE.email.test(user)) {
+      reject(els.gateEmail, "Enter an email address as your username.");
       return;
     }
     // crypto.subtle exists only in a secure context. Every published copy of
     // this is https and localhost counts as secure, so this bites only when
     // somebody serves the folder over plain http on a LAN address - and a
-    // silent "wrong code" would be a horrible way to find that out.
+    // silent "wrong password" would be a horrible way to find that out.
     if (!globalThis.crypto?.subtle) {
       els.gateMsg.textContent = "Signing in needs HTTPS. Open the https:// link.";
       return;
@@ -934,9 +952,9 @@ function buildGate(onAdmit) {
     let right = false;
     try { right = (await sha256Hex(els.gatePass.value)) === GATE.hash; }
     catch { right = false; }
-    if (!right) { reject(els.gatePass, "That access code is not right."); return; }
+    if (!right) { reject(els.gatePass, "That password is not right."); return; }
 
-    open(email.toLowerCase());
+    pass(user.toLowerCase());
   });
 
   // Clearing the complaint as soon as somebody starts fixing it.
@@ -946,35 +964,25 @@ function buildGate(onAdmit) {
       els.gateMsg.textContent = "";
     });
   }
+
+  return {
+    ask(then) {
+      if (door.admitted || remembered()) { pass(null); go = null; then(); return; }
+      go = then;
+      sheet.hidden = false;
+      els.gateMsg.textContent = "";
+      els.gateEmail.focus({ preventScroll: true });
+    }
+  };
 }
 
 /**
- * Offer Explore, once both of the things it waits on have happened.
- *
- * Called from either side - the scene finishing, or the gate opening - and
- * does nothing until both are true. The focus is deliberate but only on the
- * transition: moving it every time either flag is touched would steal the
- * caret back off whichever field somebody is typing in.
+ * Wired on load rather than inside boot, so the card is live whatever the
+ * scene is doing. Built after `scene.load()`, as it first was, a slow or
+ * failed load left the form inert - typing into it and pressing the button did
+ * nothing at all, with no way to tell that apart from a rejected password.
  */
-function admit() {
-  const open = door.ready && door.admitted;
-  if (open === !els.enter.disabled) return;
-  els.enter.disabled = !open;
-  els.enter.classList.toggle("ready", open);
-  if (open) els.enter.focus({ preventScroll: true });
-}
-
-/**
- * Wired here, on load, rather than inside boot after the scene resolves.
- *
- * The gate has nothing to do with the scene and must not wait on it. Built
- * down there, a slow or failed load left the form inert - typing into it and
- * pressing the button did nothing at all, with no way to tell that apart from
- * a rejected code. Up here somebody can sign in while the stadium is still
- * arriving, which is also the natural moment to do it: there is a wait, and
- * now it has something in it.
- */
-buildGate(admit);
+const gate = buildGate();
 
 /**
  * Who is offering "recenter on the ball".
@@ -1303,7 +1311,9 @@ async function main() {
   const unlock = () => {
     if (door.ready) return;
     door.ready = true;
-    admit();
+    els.enter.disabled = false;
+    els.enter.classList.add("ready");
+    els.enter.focus({ preventScroll: true });
   };
   // The one promise that cannot be broken. Whatever fails, hangs or never
   // settles below, the button opens by here.
@@ -1500,7 +1510,16 @@ async function main() {
       requestAnimationFrame(() => { openingState(); tickClock(view); });
     }
   };
-  els.enter.addEventListener("click", reveal, { once: true });
+  // Explore asks first. Signed in already - this session, or remembered from a
+  // previous one - and `ask` runs the continuation straight through without
+  // showing anything, so the button behaves exactly as it always did.
+  //
+  // Not `{once:true}` any more: a click that only opens the sign-in card must
+  // not be the one click the button had.
+  els.enter.addEventListener("click", () => {
+    if (els.intro.classList.contains("gone")) return;
+    gate.ask(reveal);
+  });
 
   const tools = wireTools(view, surfaces,
     { captureDefaults: openingState, replayDefaults: replayState, slides, tour });

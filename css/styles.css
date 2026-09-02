@@ -129,50 +129,67 @@ html, body {
   color: var(--paper-faint);
 }
 
-/* ------------------------------------------------------------------ the gate
-   Sits between the loading message and Explore, and takes Explore's own
-   margin so the curtain keeps its rhythm whichever of the two is showing. */
-.gate {
-  display: flex; flex-direction: column; align-items: stretch;
-  gap: 0.4rem; margin: 2rem auto 0; width: min(280px, 78vw);
+/* ------------------------------------------------------------------ sign in
+   Shown after Explore, over the curtain, and on its own. On the curtain the
+   form had to share the space with a title, a lede, a loading bar and a
+   button, and squeezed in among those it read as one more obstacle rather
+   than as one small question. Alone on screen it is just the question. */
+.signin {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center;
+  padding: var(--pad);
+  background: rgba(8, 11, 18, 0.72);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  animation: signin-in 0.22s var(--ease);
+}
+.signin[hidden] { display: none; }
+@keyframes signin-in { from { opacity: 0; } to { opacity: 1; } }
+
+.signin__card {
+  display: flex; flex-direction: column;
+  width: min(272px, 88vw);
+  padding: 1.15rem 1.15rem 1rem;
+  background: var(--glass);
+  border: 1px solid var(--line); border-radius: 14px;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: var(--shadow);
   text-align: left;
 }
-.gate.gone { display: none; }
-.gate__label {
-  font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--paper-faint);
+.signin__label {
+  font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--paper-faint); margin-bottom: 0.3rem;
 }
-.gate__label + .gate__field { margin-bottom: 0.5rem; }
-.gate__field {
-  font: inherit; font-size: 0.82rem;
-  padding: 0.55rem 0.7rem;
-  color: var(--paper); background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line); border-radius: 8px;
+.signin__field {
+  font: inherit; font-size: 0.86rem;
+  padding: 0.6rem 0.75rem; margin-bottom: 0.9rem;
+  color: var(--paper); background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line); border-radius: 9px;
   transition: border-color .2s, background .2s;
 }
-.gate__field::placeholder { color: rgba(244, 241, 234, 0.28); }
-.gate__field:focus {
+.signin__field::placeholder { color: rgba(244, 241, 234, 0.26); }
+.signin__field:focus {
   outline: none; border-color: var(--accent-2);
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.08);
 }
 /* Marked only after a real attempt, never while somebody is still typing -
    :invalid on its own turns every empty field red before it has been used. */
-.gate__field.bad { border-color: var(--accent); }
-.gate__go {
-  margin-top: 0.7rem; padding: 0.6rem 1.4rem;
-  font: inherit; font-size: 0.7rem; letter-spacing: 0.2em;
+.signin__field.bad { border-color: var(--accent); }
+.signin__msg {
+  margin: 0 0 0.5rem; min-height: 1.1em;
+  font-size: 0.68rem; letter-spacing: 0.04em; color: var(--accent-2);
+}
+.signin__go {
+  padding: 0.7rem 1.4rem;
+  font: inherit; font-size: 0.72rem; letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--paper); background: transparent;
   border: 1px solid var(--line); border-radius: 999px;
   cursor: pointer; transition: background .25s, border-color .25s, color .25s;
 }
-.gate__go:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.gate__go:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
-.gate__msg {
-  margin: 0.55rem 0 0; min-height: 1.1em; text-align: center;
-  font-size: 0.66rem; letter-spacing: 0.06em;
-  color: var(--accent-2);
-}
+.signin__go:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.signin__go:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 
 .enter {
   margin-top: 2.2rem; padding: 0.85rem 2.6rem;
@@ -1106,6 +1123,43 @@ body.hud-off .side { opacity: 0; pointer-events: none; transform: translateY(6px
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* ------------------------------------------------ the player card's own spot
+   Lower left, directly above the weather chip, rather than in the right-hand
+   column with the placard. That column is for things you consult; this is a
+   thing you watch while the play runs, and on the right it was easy to miss.
+   The lower left is already where the eye goes for a live reading because the
+   weather chip has trained it to, so the two live readouts share a column and
+   the play keeps the middle of the screen.
+
+   Larger than the panels it left behind, for the same reason: a readout meant
+   to be caught at a glance during a moving play cannot be set at the size of
+   something you lean in to read. */
+#playerCard {
+  position: fixed; z-index: 11;
+  left: var(--pad);
+  /* Clear of the weather chip, which measures 57px at the default type size.
+     The 16px keeps them reading as two panels rather than one tall stack. */
+  bottom: calc(var(--pad) + 57px + 16px);
+  width: min(300px, 82vw);
+  padding: 0.75rem 0.9rem 0.65rem;
+  /* It rises into place now, because it arrives from the bottom edge. */
+  animation: pcard-up 0.18s var(--ease);
+  transition: opacity .8s var(--ease), transform .8s var(--ease);
+}
+@keyframes pcard-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+/* It used to inherit this from .side; outside that column it needs its own. */
+body.hud-off #playerCard { opacity: 0; pointer-events: none; transform: translateY(6px); }
+
+#playerCard .pcard__name { font-size: 1.18rem; }
+#playerCard .pcard__head { margin-bottom: 0.55rem; }
+#playerCard .pcard__rows { gap: 0.22rem; }
+#playerCard .pcard__row dt { font-size: 0.58rem; }
+#playerCard .pcard__row dd { font-size: 0.88rem; }
+#playerCard .pcard__tag { font-size: 0.48rem; }
 
 .pcard__x {
   position: absolute; top: 0.25rem; right: 0.3rem;

@@ -9,10 +9,10 @@ replays driven by actual sports tracking data.
 
 **Live:** https://b-connolly.github.io/sports-venue-digital-twin/
 
-Explore asks for an Esri email address and an access code. It is a doormat
-rather than a lock — the check runs in the browser and the scene's layers are
-public services — and it is there to keep the link from being wandered into,
-not to protect anything.
+Explore asks for a username and a shared password. It is a doormat rather than
+a lock — the check runs in the browser and the scene's layers are public
+services — and it is there to keep the link from being wandered into, not to
+protect anything.
 
 
 ---

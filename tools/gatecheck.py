@@ -1,23 +1,24 @@
 """Does the gate actually hold Explore shut, and let the right people through?
 
-The app asks for an @esri.com address and a shared access code before it will
-open. This is the one check that does *not* take smoke.chrome()'s bypass - the
+Clicking Explore asks for a username - any email address - and the shared
+password, and does not lift the curtain until it gets both. This is the one check that does *not* take smoke.chrome()'s bypass - the
 rest of the suite seeds the credential into localStorage so it can get on with
 testing the scene, and a bypass that is always on is a bypass that hides the
 thing it bypasses.
 
 What is worth asserting, in order of how badly it would go unnoticed:
 
-  * Explore stays shut on a fully loaded scene. The failure to fear is not
-    "the gate is missing" but "the gate is there and the button opens anyway
-    once the warm-up finishes", because the two unlock paths are separate and
-    only one of them was ever about the viewer.
+  * The click is what asks. Explore itself opens on the scene alone, so the
+    failure to fear is not a missing form but a curtain that lifts anyway -
+    the sign-in intercepts the reveal rather than disabling the button.
   * The loading message still tells the truth. It used to read the button's own
     disabled state, which now stays true for a reason that has nothing to do
     with loading - so a signed-out viewer would have sat in front of a finished
     scene being told it was still loading.
-  * A wrong domain and a wrong code are both refused, and refused distinctly.
-  * The right pair opens it, and is remembered across a reload.
+  * A username that is not an address and a wrong password are refused, and
+    refused distinctly, so it is clear which half to fix.
+  * Any domain with the right password gets in - the password is the rule -
+    and the answer is remembered across a reload.
 
 Not covered, and deliberately: that the gate cannot be circumvented. It can -
 everything it does runs in the visitor's browser out of a file they already
@@ -34,8 +35,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from smoke import chrome  # noqa: E402
 
 URL = os.environ.get("APP_URL", "http://localhost:8777/")
-GOOD_MAIL = "someone@esri.com"
-GOOD_CODE = "esrirocks"
+# Deliberately not an esri.com address: the gate is the
+# password, and the domain must not quietly start mattering.
+GOOD_MAIL = "someone@gmail.com"
+GOOD_PASS = "esrirocks"
 fails = []
 
 
@@ -91,78 +94,90 @@ try:
             break
     ok("the scene got ready, so the gate is what is holding it", ready)
 
-    ok("the form is on the curtain",
-       c.js("!!document.getElementById('gate') && "
-            "!document.getElementById('gate').classList.contains('gone')"))
-    ok("and Explore is shut behind it",
-       c.js("document.getElementById('enter').disabled") is True)
-    # The message used to be driven off the button's own disabled state, which
-    # now stays true for a reason that has nothing to do with loading - so a
-    # signed-out viewer sat in front of a finished scene being told to wait.
-    # Given a moment to catch up, since the warm-up writes it per view.
+    ok("Explore is offered as soon as the scene is ready",
+       c.js("document.getElementById('enter').disabled") is False)
+    ok("and nothing is asked before it is clicked",
+       c.js("document.getElementById('signin').hidden") is True)
+
+    # The curtain's message used to be driven off the button's own disabled
+    # state. That was the same question once and is not any more.
     for _ in range(20):
         time.sleep(1)
         if "loading" not in (c.js(
                 "document.getElementById('loadmsg').textContent") or "").lower():
             break
-    ok("the message does not claim it is still loading",
+    ok("the curtain does not claim to still be loading",
        "loading" not in (c.js("document.getElementById('loadmsg').textContent")
                          or "").lower(),
        c.js("document.getElementById('loadmsg').textContent"))
 
-    # --- the two ways to be turned away, told apart ---------------------------
-    submit(c, "someone@gmail.com", GOOD_CODE)
-    msg = c.js("document.getElementById('gateMsg').textContent")
-    ok("another domain is refused",
-       c.js("document.getElementById('enter').disabled") is True)
-    ok("and told which half was wrong", "esri.com" in (msg or "").lower(), msg)
-    ok("with the email marked, not the code",
-       c.js("document.getElementById('gateEmail').classList.contains('bad')")
-       is True)
+    # --- the click is what asks ----------------------------------------------
+    c.js("document.getElementById('enter').click()")
+    time.sleep(1.5)
+    ok("clicking Explore asks to sign in",
+       c.js("document.getElementById('signin').hidden") is False)
+    ok("and the curtain has not lifted",
+       c.js("document.getElementById('intro').classList.contains('gone')")
+       is False)
 
-    submit(c, GOOD_MAIL, "notthecode")
+    # --- what is refused -----------------------------------------------------
+    submit(c, "not-an-address", GOOD_PASS)
     msg = c.js("document.getElementById('gateMsg').textContent")
-    ok("a wrong code is refused",
-       c.js("document.getElementById('enter').disabled") is True)
-    ok("and says so distinctly", "code" in (msg or "").lower(), msg)
-    ok("with the code marked, not the email",
+    ok("something that is not an address is refused",
+       c.js("document.getElementById('intro').classList.contains('gone')")
+       is False)
+    ok("with the username marked, not the password",
+       c.js("document.getElementById('gateEmail').classList.contains('bad')")
+       is True, msg)
+
+    submit(c, GOOD_MAIL, "wrongpassword")
+    msg = c.js("document.getElementById('gateMsg').textContent")
+    ok("a wrong password is refused",
+       c.js("document.getElementById('intro').classList.contains('gone')")
+       is False)
+    ok("and says password rather than username",
+       "password" in (msg or "").lower(), msg)
+    ok("with the password marked, not the username",
        c.js("document.getElementById('gatePass').classList.contains('bad')")
        is True)
 
-    # Typing again clears the complaint rather than leaving it standing.
     c.js("""(function(){var f=document.getElementById('gatePass');
       f.value='x'; f.dispatchEvent(new Event('input',{bubbles:true}));})()""")
     time.sleep(0.4)
     ok("starting to fix it clears the complaint",
        (c.js("document.getElementById('gateMsg').textContent") or "") == "")
 
-    # --- and the pair that works ---------------------------------------------
-    submit(c, GOOD_MAIL, GOOD_CODE)
-    ok("the right address and code open Explore",
-       c.js("document.getElementById('enter').disabled") is False)
-    ok("and the form gets out of the way",
-       c.js("document.getElementById('gate').classList.contains('gone')")
-       is True)
-    ok("the button is offered, not merely enabled",
-       c.js("document.getElementById('enter').classList.contains('ready')")
+    # --- the password is the gate, not the domain ----------------------------
+    # GOOD_MAIL is deliberately not an esri.com address. The rule is the
+    # password now, and a check that only ever tried one domain would not
+    # notice if the domain quietly started mattering again.
+    submit(c, GOOD_MAIL, GOOD_PASS)
+    time.sleep(1.5)
+    ok("any address with the right password gets in",
+       c.js("document.getElementById('signin').hidden") is True, GOOD_MAIL)
+    ok("and the curtain lifts",
+       c.js("document.getElementById('intro').classList.contains('gone')")
        is True)
 
-    # --- remembered, so a reload mid-demo does not ask again ------------------
+    # --- remembered, so a reload mid-demo does not ask again -----------------
     c.send("Page.navigate", url=URL)
     for _ in range(400):
         if c.js("typeof window.__view === 'object'"):
             break
         time.sleep(0.5)
-    time.sleep(2)
-    ok("a reload does not ask again",
-       c.js("document.getElementById('gate').classList.contains('gone')")
-       is True)
-    for _ in range(120):
+    for _ in range(150):
         time.sleep(1)
         if c.js("document.getElementById('enter').disabled") is False:
             break
-    ok("and Explore opens on its own once the scene is back",
+    ok("Explore comes back after a reload",
        c.js("document.getElementById('enter').disabled") is False)
+    c.js("document.getElementById('enter').click()")
+    time.sleep(1.5)
+    ok("and does not ask a second time",
+       c.js("document.getElementById('signin').hidden") is True)
+    ok("it just goes straight in",
+       c.js("document.getElementById('intro').classList.contains('gone')")
+       is True)
 
     print("")
     print("  errors:", c.errs or "none")

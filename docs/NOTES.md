@@ -463,49 +463,88 @@ lines carry the same weight. The obvious economy is to dim the name, or to drop
 it on a short screen — but the corner credit is already hidden on a phone, so
 the curtain is the only place a phone shows who made this.
 
-### The gate on Explore
+### Signing in
 
-An @esri.com address and a shared access code, and Explore stays shut until it
-gets both.
+Clicking Explore asks for a username — any email address — and a shared
+password, and does not lift the curtain until it gets both.
 
 **It is a doormat, not a lock, and nothing in the code pretends otherwise.**
 This app is static — Pages, S3, CloudFront, no server of its own — so every
 line of the check runs in the visitor's browser out of a file they have already
 downloaded. Anyone who opens the developer tools can read the rule or set the
 flag by hand. The scene's layers are public services besides, reachable by URL
-without meeting the gate at all. It stops a demo link being wandered into,
-which is the whole of what it was asked to do. Real restriction is ArcGIS
-OAuth or signed CloudFront URLs, and either one needs the layers made private
-first.
+without meeting it at all. It stops a demo link being wandered into, which is
+the whole of what it was asked to do. Real restriction is ArcGIS OAuth or
+signed CloudFront URLs, and either one needs the layers made private first.
 
-The code is stored as a SHA-256 digest rather than in full. That is not
-cryptography either — a short known word falls to a dictionary instantly — it
-just keeps the code from sitting in the bundle as a string that turns up on the
-first search for the obvious.
+**The password is the rule; the username is only a name.** It was briefly
+limited to `@esri.com`, which sounded like a restriction and was not one —
+nothing here verifies that an address is real or belongs to whoever typed it,
+so all the domain check did was turn a shared password into a claim about
+somebody's employer. Any address that looks like an address now passes.
+
+The password is held as a SHA-256 digest rather than in full. Not cryptography
+either — a short known word falls to a dictionary instantly — it just keeps it
+from sitting in the bundle as a string that turns up on the first search for
+the obvious.
+
+#### Why it comes after Explore
+
+It was on the curtain first, sharing the space with the title, the lede, the
+loading bar and the button. Squeezed in among those it read as one more
+obstacle before the thing you came for, and it looked it. Shown after the
+click it is the only thing on screen, which is the whole of what makes it feel
+simple.
+
+That also simplified what Explore waits on. The button opens on the scene
+alone, as it always did; `gate.ask(reveal)` intercepts the *reveal*, and runs
+its continuation straight through when this browser has been signed in before.
+The click handler lost its `{once:true}` in the process — a click that only
+opens the login must not be the one click the button had.
 
 Two things learned building it, both of which cost a test run:
 
-  * **The gate is wired on load, not in `boot()`.** Built after `scene.load()`,
-    as it first was, a slow or failed scene left the form inert — typing into
-    it and pressing the button did nothing at all, which from the outside is
-    indistinguishable from a rejected code. Wired up front, somebody can sign
-    in *while* the stadium streams, which is also the natural moment: there is
-    a twenty-second wait and now it has something in it.
+  * **The form is wired on load, not in `boot()`.** Built after `scene.load()`,
+    as it first was, a slow or failed scene left it inert — typing into it and
+    pressing the button did nothing at all, which from the outside cannot be
+    told apart from a rejected password.
   * **`view.ready` is not the app's readiness.** It is true within seconds of
     the view existing, while the app's own idea of ready is a warmed first view
-    some twenty seconds later. `window.__door` exposes the real pair —
-    `ready` and `admitted` — because a check resting on `view.ready` asserts
-    against a still-arriving scene and reads the honest "Loading…" as a bug.
-
-Explore now waits on both flags, which finish in either order. `door.ready` is
-also what drives the curtain's message, rather than the button's own `disabled`
-— that used to be the same question and no longer is, and a signed-out viewer
-would otherwise have sat in front of a finished scene being told to wait.
+    some twenty seconds later. `window.__door` exposes the real pair, because a
+    check resting on `view.ready` asserts against a still-arriving scene and
+    reads the honest "Loading…" as a bug.
 
 `tools/gatecheck.py` is the one check that does not take `smoke.chrome()`'s
 bypass. The other twelve seed the credential into `localStorage` before any
 page script runs, so they can get on with testing the scene; a bypass that is
-always on is a bypass that hides the thing it bypasses.
+always on is a bypass that hides the thing it bypasses. It signs in with a
+`@gmail.com` address on purpose — the rule is the password, and a check that
+only ever tried one domain would not notice if the domain quietly started
+mattering again.
+
+### Where the player card sits
+
+Lower left, directly above the weather chip, and larger than the panels it left
+behind.
+
+It was in the right-hand column with the placard card, and it was too easy to
+miss there. That column is for things you *consult* — a placard's reading sits
+still and waits to be read. The player card is a thing you *watch*: four
+numbers changing while a play runs. The lower left is already where the eye
+goes for a live reading, because the weather chip has spent the whole session
+training it to, so the two live readouts now share a column and the play keeps
+the middle of the screen.
+
+The size followed from the same argument. A readout meant to be caught at a
+glance during a moving play cannot be set at the size of something you lean in
+to read: 300px wide against the column's 268, with the name and the values up a
+step.
+
+It is positioned against the weather chip's measured height (57px at the
+default type size) rather than stacked with it in a flex column, because the
+chip is separately positioned and separately hidden, and folding both into one
+container would have put the weather's own menu — which opens upward from the
+chip — inside a stacking context it did not ask for.
 
 ### The numbers on the replay
 

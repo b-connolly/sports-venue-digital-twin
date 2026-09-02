@@ -53,27 +53,6 @@
       <span id="loadfill" class="loadbar__fill"></span>
     </div>
     <p id="loadmsg" class="loadmsg">Loading&hellip;</p>
-
-    <!-- The gate. Explore needs the scene loaded AND this satisfied, and the
-         two finish in either order - see `door` in app.js.
-
-         Not a security boundary and not presented as one: everything here runs
-         in the visitor's own browser, so the check can be read or skipped by
-         anyone who opens the developer tools, and the scene's layers are
-         public services that a URL reaches without passing this at all. It
-         keeps a demo link from being wandered into, which is what it is for. -->
-    <form id="gate" class="gate" novalidate>
-      <label class="gate__label" for="gateEmail">Esri email address</label>
-      <input id="gateEmail" class="gate__field" type="email" required
-             placeholder="you@esri.com" autocomplete="email"
-             spellcheck="false" autocapitalize="none" />
-      <label class="gate__label" for="gatePass">Access code</label>
-      <input id="gatePass" class="gate__field" type="password" required
-             autocomplete="current-password" />
-      <button id="gateGo" class="gate__go" type="submit">Sign in</button>
-      <p id="gateMsg" class="gate__msg" role="status" aria-live="polite"></p>
-    </form>
-
     <button id="enter" class="enter" disabled>Explore</button>
   </div>
   <!-- Same two credits as the corner, in the same order, centred here because
@@ -325,24 +304,6 @@
      the screen; both are things you glance at while watching something else. -->
 <div id="side" class="side">
 
-<!-- Whose numbers these are is said on the field rather than here - see the
-     ring in play.js. A card that has to point at somebody has to be next to
-     them, and next to them is exactly where it is in the way. -->
-<div id="playerCard" class="pcard" hidden role="dialog" aria-label="Player">
-  <button id="pcardClose" class="pcard__x" type="button" aria-label="Close">&times;</button>
-  <div class="pcard__head">
-    <span id="pcardName" class="pcard__name">&mdash;</span>
-    <span id="pcardTag" class="pcard__tag" hidden></span>
-  </div>
-  <dl class="pcard__rows">
-    <div class="pcard__row"><dt>Speed</dt><dd id="pcardSpeed">&mdash;</dd></div>
-    <div class="pcard__row"><dt id="pcardAccelK">Accelerating</dt><dd id="pcardAccel">&mdash;</dd></div>
-    <div class="pcard__row"><dt>To the ball</dt><dd id="pcardBall">&mdash;</dd></div>
-    <div class="pcard__row"><dt>Ground covered</dt><dd id="pcardCovered">&mdash;</dd></div>
-    <div class="pcard__row pcard__row--top"><dt>Top this passage</dt><dd id="pcardTop">&mdash;</dd></div>
-  </dl>
-</div>
-
   <!-- What the reader made of one placard. Same column, same card, because it
        is the same kind of thing as the player card: a few figures about one
        object, read while looking at something else.
@@ -382,6 +343,32 @@
   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 1.6v3.2M12 19.2v3.2M1.6 12h3.2M19.2 12h3.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
   <span>Recenter on the ball</span>
 </button>
+
+<!-- The player's numbers, in the lower left directly above the weather chip.
+
+     Whose numbers these are is said on the field rather than here - see the
+     ring in play.js - so the card does not have to sit next to him, and next
+     to him is exactly where it is in the way.
+
+     It was in the right-hand column and too easy to miss there: that corner is
+     for things you consult, and this is a thing you watch. The lower left is
+     already where the eye goes for a live reading, because the weather chip
+     has trained it to - so the two live readouts now sit in one column, and
+     the play keeps the middle of the screen. -->
+<div id="playerCard" class="pcard" hidden role="dialog" aria-label="Player">
+  <button id="pcardClose" class="pcard__x" type="button" aria-label="Close">&times;</button>
+  <div class="pcard__head">
+    <span id="pcardName" class="pcard__name">&mdash;</span>
+    <span id="pcardTag" class="pcard__tag" hidden></span>
+  </div>
+  <dl class="pcard__rows">
+    <div class="pcard__row"><dt>Speed</dt><dd id="pcardSpeed">&mdash;</dd></div>
+    <div class="pcard__row"><dt id="pcardAccelK">Accelerating</dt><dd id="pcardAccel">&mdash;</dd></div>
+    <div class="pcard__row"><dt>To the ball</dt><dd id="pcardBall">&mdash;</dd></div>
+    <div class="pcard__row"><dt>Ground covered</dt><dd id="pcardCovered">&mdash;</dd></div>
+    <div class="pcard__row pcard__row--top"><dt>Top this passage</dt><dd id="pcardTop">&mdash;</dd></div>
+  </dl>
+</div>
 
 <div id="weather" class="weather hidden" hidden>
   <!-- The icon is the control. A separate button would need its own room on a
@@ -582,6 +569,38 @@
   <span class="credit__by">Created by Brian Connolly</span>
   <a class="credit__esri" href="https://www.esri.com" target="_blank"
      rel="noopener">Powered by Esri</a>
+</div>
+
+<!-- Asked for after Explore rather than on the curtain.
+
+     On the curtain it had to share the space with the title, the lede, the
+     loading bar and the button, and a form squeezed in among those reads as
+     one more thing to get past before the thing you came for. Here it is the
+     only thing on screen, which is the whole of what makes it feel simple.
+
+     Not a security boundary and not presented as one: everything here runs in
+     the visitor's own browser, so the check can be read or skipped by anyone
+     who opens the developer tools, and the scene's layers are public services
+     that a URL reaches without passing this at all. It keeps a demo link from
+     being wandered into, which is what it is for. -->
+<div id="signin" class="signin" hidden>
+  <!-- Two fields and a button, and nothing else on it. Every extra line here -
+       a heading, a note about who it is for, a placeholder spelling out a
+       domain - was something the viewer had to read before they could do the
+       one obvious thing, on a box whose whole job is to be obvious. -->
+  <form id="gate" class="signin__card" novalidate role="dialog"
+        aria-modal="true" aria-label="Sign in">
+    <label class="signin__label" for="gateEmail">Username</label>
+    <input id="gateEmail" class="signin__field" type="email" required
+           autocomplete="username" spellcheck="false" autocapitalize="none" />
+
+    <label class="signin__label" for="gatePass">Password</label>
+    <input id="gatePass" class="signin__field" type="password" required
+           autocomplete="current-password" />
+
+    <p id="gateMsg" class="signin__msg" role="status" aria-live="polite"></p>
+    <button id="gateGo" class="signin__go" type="submit">Sign in</button>
+  </form>
 </div>
 
 <div class="rotate" aria-hidden="true"><p>Rotate your device</p></div>
