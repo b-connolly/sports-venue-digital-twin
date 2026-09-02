@@ -1110,7 +1110,8 @@ function settle(view, maxMs, quietMs, aborted = () => false) {
  * rewrites layer visibility and the lighting along with it.
  */
 async function warmUp(view, slides, restore,
-                      { aborted = () => false, onStart, afterEach } = {}) {
+                      { aborted = () => false, onStart, afterEach,
+                        inside = () => false } = {}) {
   const cfg = CONFIG.preload;
   if (!cfg.enabled || !slides.length) return;
 
@@ -1169,10 +1170,26 @@ async function warmUp(view, slides, restore,
     afterEach?.(done);
   }
 
-  // If the viewer let themselves in mid-warm, reveal() has already put the
-  // camera and the layers back - touching either now would fight it.
   if (aborted()) {
     console.info("[venue] preload cut short:", done, "of", wanted.length, "views warmed");
+    // Put the camera back here, where the loop has just let go of it.
+    //
+    // This used to return and leave it to reveal(), on the grounds that the
+    // viewer was already inside and touching the camera would fight them.
+    // That held while the click revealed the scene outright. With a login in
+    // between it does not: the click aborts this, and the viewer then spends
+    // as long as they like at the login looking at whichever view the warm-up
+    // had wandered to - and the opening splat, evicted meanwhile, re-forms in
+    // front of them the moment they get in.
+    //
+    // It has to happen *here* rather than in the caller. `applyTo` lands its
+    // viewpoint asynchronously, so a restore issued from outside the moment
+    // this promise resolves is overwritten by the move it is undoing - which
+    // is exactly what four attempts at fixing it from out there each did.
+    //
+    // `inside` is the one case where the old reasoning still applies: once the
+    // curtain is up the camera belongs to the viewer.
+    if (!inside()) { view.camera = home; restore(); }
     return;
   }
   view.camera = home;
@@ -1459,6 +1476,36 @@ async function main() {
   let warmHome = null;
   const entered = () => els.intro.classList.contains("gone");
 
+
+  /**
+   * Somebody has pressed Explore, whether or not they are through the login.
+   *
+   * The warm-up used to stop at `entered()`, which was the same moment as the
+   * click while the click revealed the scene outright. With a login in between
+   * it is not: the viewer presses Explore, and the warm-up carries on flying
+   * the camera to views 6, 9 and 10 for as long as they take to type. The
+   * reveal then snaps back to the opening view whose splat has since been
+   * evicted, and the first thing they see is a stadium re-forming.
+   *
+   * So the click is the commitment, and this is what the warm-up watches.
+   */
+  let comingIn = false;
+
+  /**
+   * Put the camera back where the viewer will be looking.
+   *
+   * Called on the click rather than only at the reveal, so the time spent at
+   * the login is spent streaming the opening view instead of somewhere nobody
+   * will see. Safe to call twice - the second is a no-op.
+   */
+  const restoreHome = () => {
+    if (!warmHome) return;
+    view.camera = warmHome;
+    warmHome = null;
+    openingState();
+    tickClock(view);
+  };
+
   let opened = false;
   const openTheDoor = () => {
     if (opened) return;
@@ -1475,12 +1522,23 @@ async function main() {
     if (CONFIG.preload.beforeUnlock <= 0) openTheDoor();
     await warmUp(view, slides, () => { openingState(); tickClock(view); }, {
       // Nobody can be inside before the door opens, so until then the warm-up
-      // runs to completion; after it, the first click ends it.
-      aborted: () => opened && entered(),
+      // runs to completion; after it, the first click ends it - the click,
+      // not the reveal, because the login sits between the two.
+      aborted: () => opened && (comingIn || entered()),
       onStart: (home) => { warmHome = home; },
+      inside: entered,
       afterEach: (done) => { if (done >= CONFIG.preload.beforeUnlock) openTheDoor(); }
     });
-    warmHome = null;
+    // warmUp puts the camera back itself when it runs to the end. When it was
+    // cut short it does not, on the grounds that reveal() already has - which
+    // was true while the click revealed the scene outright, and is not now
+    // that a login sits in between. This is the authoritative restore: the
+    // loop has definitely let go of the camera by here, so nothing lands on
+    // top of it. Skipped once the viewer is actually inside, where the camera
+    // is theirs and yanking it home would be the app taking the controls.
+    // warmUp puts the camera back itself now, in both the finished and the
+    // cut-short cases - it is the only place sequenced after its own applyTo.
+    // warmHome stays set so reveal() can assert it once more.
     openTheDoor();                       // fewer views than asked for, or none
     if (!entered()) els.msg.textContent = "Ready";
   })().catch((err) => {
@@ -1492,12 +1550,9 @@ async function main() {
     // A warm-up may have the camera at another view with its layers switched
     // on. Put both back now, in the same frame the curtain starts lifting -
     // a frame later and the viewer sees somebody else's view slide away.
-    if (warmHome) {
-      view.camera = warmHome;
-      warmHome = null;
-      openingState();
-      tickClock(view);
-    }
+    // Usually already done, on the click; this is the case where there was no
+    // login to sit behind because the browser was signed in already.
+    restoreHome();
     els.intro.classList.add("gone");
     [els.masthead, els.tour, els.captures, els.tools, els.weather]
       .forEach((el, i) => setTimeout(() => el.classList.remove("hidden"), 200 * i));
@@ -1517,7 +1572,13 @@ async function main() {
   // Not `{once:true}` any more: a click that only opens the sign-in card must
   // not be the one click the button had.
   els.enter.addEventListener("click", () => {
-    if (els.intro.classList.contains("gone")) return;
+    if (entered()) return;
+    // The click is the commitment, so the warm-up ends here rather than at the
+    // reveal, and the camera comes home now. Whatever happens next - typing a
+    // password, getting it wrong twice - happens with the opening view on
+    // screen behind the login, streaming what is about to be looked at instead
+    // of a view nobody will see.
+    comingIn = true;
     gate.ask(reveal);
   });
 
