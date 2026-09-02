@@ -129,6 +129,51 @@ html, body {
   color: var(--paper-faint);
 }
 
+/* ------------------------------------------------------------------ the gate
+   Sits between the loading message and Explore, and takes Explore's own
+   margin so the curtain keeps its rhythm whichever of the two is showing. */
+.gate {
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: 0.4rem; margin: 2rem auto 0; width: min(280px, 78vw);
+  text-align: left;
+}
+.gate.gone { display: none; }
+.gate__label {
+  font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--paper-faint);
+}
+.gate__label + .gate__field { margin-bottom: 0.5rem; }
+.gate__field {
+  font: inherit; font-size: 0.82rem;
+  padding: 0.55rem 0.7rem;
+  color: var(--paper); background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line); border-radius: 8px;
+  transition: border-color .2s, background .2s;
+}
+.gate__field::placeholder { color: rgba(244, 241, 234, 0.28); }
+.gate__field:focus {
+  outline: none; border-color: var(--accent-2);
+  background: rgba(255, 255, 255, 0.07);
+}
+/* Marked only after a real attempt, never while somebody is still typing -
+   :invalid on its own turns every empty field red before it has been used. */
+.gate__field.bad { border-color: var(--accent); }
+.gate__go {
+  margin-top: 0.7rem; padding: 0.6rem 1.4rem;
+  font: inherit; font-size: 0.7rem; letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--paper); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px;
+  cursor: pointer; transition: background .25s, border-color .25s, color .25s;
+}
+.gate__go:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.gate__go:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.gate__msg {
+  margin: 0.55rem 0 0; min-height: 1.1em; text-align: center;
+  font-size: 0.66rem; letter-spacing: 0.06em;
+  color: var(--accent-2);
+}
+
 .enter {
   margin-top: 2.2rem; padding: 0.85rem 2.6rem;
   font: inherit; font-size: 0.78rem; letter-spacing: 0.22em; text-transform: uppercase;

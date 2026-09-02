@@ -458,6 +458,55 @@ Its class is `credit`, not `esri`: the stylesheet already carries a dozen
 them reads as one of those. A class selector matches exactly so the two could
 never have collided — the confusion would have been entirely for the reader.
 
+Authorship sits above it, on the curtain as well as in the corner, and both
+lines carry the same weight. The obvious economy is to dim the name, or to drop
+it on a short screen — but the corner credit is already hidden on a phone, so
+the curtain is the only place a phone shows who made this.
+
+### The gate on Explore
+
+An @esri.com address and a shared access code, and Explore stays shut until it
+gets both.
+
+**It is a doormat, not a lock, and nothing in the code pretends otherwise.**
+This app is static — Pages, S3, CloudFront, no server of its own — so every
+line of the check runs in the visitor's browser out of a file they have already
+downloaded. Anyone who opens the developer tools can read the rule or set the
+flag by hand. The scene's layers are public services besides, reachable by URL
+without meeting the gate at all. It stops a demo link being wandered into,
+which is the whole of what it was asked to do. Real restriction is ArcGIS
+OAuth or signed CloudFront URLs, and either one needs the layers made private
+first.
+
+The code is stored as a SHA-256 digest rather than in full. That is not
+cryptography either — a short known word falls to a dictionary instantly — it
+just keeps the code from sitting in the bundle as a string that turns up on the
+first search for the obvious.
+
+Two things learned building it, both of which cost a test run:
+
+  * **The gate is wired on load, not in `boot()`.** Built after `scene.load()`,
+    as it first was, a slow or failed scene left the form inert — typing into
+    it and pressing the button did nothing at all, which from the outside is
+    indistinguishable from a rejected code. Wired up front, somebody can sign
+    in *while* the stadium streams, which is also the natural moment: there is
+    a twenty-second wait and now it has something in it.
+  * **`view.ready` is not the app's readiness.** It is true within seconds of
+    the view existing, while the app's own idea of ready is a warmed first view
+    some twenty seconds later. `window.__door` exposes the real pair —
+    `ready` and `admitted` — because a check resting on `view.ready` asserts
+    against a still-arriving scene and reads the honest "Loading…" as a bug.
+
+Explore now waits on both flags, which finish in either order. `door.ready` is
+also what drives the curtain's message, rather than the button's own `disabled`
+— that used to be the same question and no longer is, and a signed-out viewer
+would otherwise have sat in front of a finished scene being told to wait.
+
+`tools/gatecheck.py` is the one check that does not take `smoke.chrome()`'s
+bypass. The other twelve seed the credential into `localStorage` before any
+page script runs, so they can get on with testing the scene; a bypass that is
+always on is a bypass that hides the thing it bypasses.
+
 ### The numbers on the replay
 
 While a passage runs the panel reads out who has the ball and how fast they are

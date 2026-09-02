@@ -53,6 +53,27 @@
       <span id="loadfill" class="loadbar__fill"></span>
     </div>
     <p id="loadmsg" class="loadmsg">Loading&hellip;</p>
+
+    <!-- The gate. Explore needs the scene loaded AND this satisfied, and the
+         two finish in either order - see `door` in app.js.
+
+         Not a security boundary and not presented as one: everything here runs
+         in the visitor's own browser, so the check can be read or skipped by
+         anyone who opens the developer tools, and the scene's layers are
+         public services that a URL reaches without passing this at all. It
+         keeps a demo link from being wandered into, which is what it is for. -->
+    <form id="gate" class="gate" novalidate>
+      <label class="gate__label" for="gateEmail">Esri email address</label>
+      <input id="gateEmail" class="gate__field" type="email" required
+             placeholder="you@esri.com" autocomplete="email"
+             spellcheck="false" autocapitalize="none" />
+      <label class="gate__label" for="gatePass">Access code</label>
+      <input id="gatePass" class="gate__field" type="password" required
+             autocomplete="current-password" />
+      <button id="gateGo" class="gate__go" type="submit">Sign in</button>
+      <p id="gateMsg" class="gate__msg" role="status" aria-live="polite"></p>
+    </form>
+
     <button id="enter" class="enter" disabled>Explore</button>
   </div>
   <!-- Same two credits as the corner, in the same order, centred here because

@@ -788,9 +788,23 @@ function ontoToday(when) {
   return localInstant(CONFIG.site.tz, Number(p.hour), Number(p.minute));
 }
 
+/**
+ * What Explore is waiting on.
+ *
+ * Two conditions that finish in either order and in no fixed time: the scene
+ * has to be worth looking at, and the viewer has to have got past the gate.
+ * Keeping them as separate flags rather than reading the button's own
+ * `disabled` is what lets the warm-up go on reporting honestly - a scene that
+ * is loaded but unopened should not say "Loading" merely because nobody has
+ * signed in yet.
+ */
+const door = { ready: false, admitted: false };
+
 const $ = (id) => document.getElementById(id);
 const els = {
   intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
+  gate: $("gate"), gateEmail: $("gateEmail"), gatePass: $("gatePass"),
+  gateMsg: $("gateMsg"),
   masthead: $("masthead"), captures: $("captures"),
   seatSheet: $("seatSheet"), seatSelect: $("seatSelect"), seatMap: $("seatMap"),
   playSeatLabel: $("playSeatLabel"), lightsBtn: $("lightsBtn"),
@@ -834,6 +848,133 @@ const els = {
   wxDesc: $("wxDesc"), wxTime: $("wxTime"), wxSun: $("wxSun"), wxTag: $("wxTag"),
   wxLive: $("wxLive"), wxPick: $("wxPick"), wxMenu: $("wxMenu"),
 };
+
+/**
+ * The gate on Explore.
+ *
+ * ## What this is, and what it is not
+ *
+ * It asks for an @esri.com address and a shared access code, and holds Explore
+ * shut until it gets both. That is the whole of it, and it is worth being
+ * plain about the limit: this app is static - Pages, S3, CloudFront, no server
+ * of its own - so every line of this check runs in the visitor's browser, out
+ * of a file they have already downloaded. Anyone who opens the developer tools
+ * can read the rule or set the flag by hand. The scene's layers are public
+ * services besides, reachable by URL without meeting this at all.
+ *
+ * So: a doormat, not a lock. It stops a demo link being wandered into, which
+ * is what it was asked to do. Real restriction is ArcGIS OAuth or signed
+ * CloudFront URLs, and either one needs the layers made private first.
+ *
+ * The code is stored as a SHA-256 digest rather than in full. That is not
+ * cryptography either - a short known word falls to a dictionary in seconds -
+ * it just keeps the code from sitting in the bundle as a string anybody can
+ * find by searching it for the obvious.
+ */
+const GATE = {
+  domain: "@esri.com",
+  hash: "db3020a8cfd9264876842c36806ba6b62ecca4d8567575905dcf36fd1a12031a",
+  // Remembered, so a reload part way through a demo does not ask again. Same
+  // standing as the rest of this: somebody who would edit localStorage to get
+  // in could have skipped the gate by an easier route.
+  store: "venue.gate"
+};
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function buildGate(onAdmit) {
+  const form = els.gate;
+  // No gate in the markup is a reason to let people in, not to shut everybody
+  // out: a missing form would otherwise make Explore unopenable for good.
+  if (!form) { door.admitted = true; onAdmit(); return; }
+
+  const open = (who) => {
+    door.admitted = true;
+    form.classList.add("gone");
+    els.gateMsg.textContent = "";
+    if (who) { try { localStorage.setItem(GATE.store, who); } catch { /* private */ } }
+    onAdmit();
+  };
+
+  // Signed in already on this browser.
+  let seen = null;
+  try { seen = localStorage.getItem(GATE.store); } catch { /* blocked */ }
+  if (seen && seen.toLowerCase().endsWith(GATE.domain)) { open(null); return; }
+
+  const reject = (field, why) => {
+    field.classList.add("bad");
+    els.gateMsg.textContent = why;
+    field.focus();
+    if (field === els.gatePass) field.select();
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    els.gateEmail.classList.remove("bad");
+    els.gatePass.classList.remove("bad");
+
+    const email = els.gateEmail.value.trim();
+    if (!new RegExp(`^[^\\s@]+${GATE.domain.replace(".", "\\.")}$`, "i").test(email)) {
+      reject(els.gateEmail, "An @esri.com email address is required.");
+      return;
+    }
+    // crypto.subtle exists only in a secure context. Every published copy of
+    // this is https and localhost counts as secure, so this bites only when
+    // somebody serves the folder over plain http on a LAN address - and a
+    // silent "wrong code" would be a horrible way to find that out.
+    if (!globalThis.crypto?.subtle) {
+      els.gateMsg.textContent = "Signing in needs HTTPS. Open the https:// link.";
+      return;
+    }
+    let right = false;
+    try { right = (await sha256Hex(els.gatePass.value)) === GATE.hash; }
+    catch { right = false; }
+    if (!right) { reject(els.gatePass, "That access code is not right."); return; }
+
+    open(email.toLowerCase());
+  });
+
+  // Clearing the complaint as soon as somebody starts fixing it.
+  for (const f of [els.gateEmail, els.gatePass]) {
+    f.addEventListener("input", () => {
+      f.classList.remove("bad");
+      els.gateMsg.textContent = "";
+    });
+  }
+}
+
+/**
+ * Offer Explore, once both of the things it waits on have happened.
+ *
+ * Called from either side - the scene finishing, or the gate opening - and
+ * does nothing until both are true. The focus is deliberate but only on the
+ * transition: moving it every time either flag is touched would steal the
+ * caret back off whichever field somebody is typing in.
+ */
+function admit() {
+  const open = door.ready && door.admitted;
+  if (open === !els.enter.disabled) return;
+  els.enter.disabled = !open;
+  els.enter.classList.toggle("ready", open);
+  if (open) els.enter.focus({ preventScroll: true });
+}
+
+/**
+ * Wired here, on load, rather than inside boot after the scene resolves.
+ *
+ * The gate has nothing to do with the scene and must not wait on it. Built
+ * down there, a slow or failed load left the form inert - typing into it and
+ * pressing the button did nothing at all, with no way to tell that apart from
+ * a rejected code. Up here somebody can sign in while the stadium is still
+ * arriving, which is also the natural moment to do it: there is a wait, and
+ * now it has something in it.
+ */
+buildGate(admit);
 
 /**
  * Who is offering "recenter on the ball".
@@ -994,8 +1135,10 @@ async function warmUp(view, slides, restore,
     // is open, winding it back to 78% looks like the app has come undone. And
     // while the button is still locked - which is what beforeUnlock is for -
     // it must not claim to be ready.
-    els.msg.textContent = els.enter.disabled ? "Loading…" : "Ready — still caching…";
-    if (els.enter.disabled) bar.over(99, Math.min(left, cfg.perViewMs));
+    // Keyed on the scene rather than on the button, which may still be shut
+    // because nobody has signed in - that is not the scene still loading.
+    els.msg.textContent = door.ready ? "Ready — still caching…" : "Loading…";
+    if (!door.ready) bar.over(99, Math.min(left, cfg.perViewMs));
     const t0 = performance.now();
     // The same stamp the rail makes before every flight, and for a sharper
     // reason here. Applying a slide installs its authored environment, date
@@ -1129,6 +1272,11 @@ async function main() {
     // the date and looked a moment later was reading the live clock again and
     // reporting the app broken when it was the test that was.
     window.__sky = sky;
+    // And the two things Explore waits on. `view.ready` is not the same
+    // question and answers far too early - it is true seconds in, while the
+    // app's own idea of ready is a warmed first view some twenty seconds
+    // later. A check that confuses them concludes the gate is broken.
+    window.__door = door;
     bar.over(56, 2000);
     // The web scene carries its own authored environment — a fixed
     // 2026-03-15 12:00 Denver, cloudy — and it is applied during load, which
@@ -1153,10 +1301,9 @@ async function main() {
   // feature must not leave the curtain stuck.
   bar.over(62, 1500);
   const unlock = () => {
-    if (!els.enter.disabled) return;
-    els.enter.disabled = false;
-    els.enter.classList.add("ready");
-    els.enter.focus({ preventScroll: true });
+    if (door.ready) return;
+    door.ready = true;
+    admit();
   };
   // The one promise that cannot be broken. Whatever fails, hangs or never
   // settles below, the button opens by here.

@@ -78,7 +78,18 @@ class CDP:
                 .get("result", {}).get("value"))
 
 
-def chrome():
+def chrome(signin=True):
+    """A headless browser, already past the gate unless asked otherwise.
+
+    Explore waits on two things now - the scene being ready and somebody having
+    signed in - and every check here drives it by waiting for the button to
+    come alive. Rather than teach a dozen files to fill a form, the credential
+    is seeded into localStorage before any page script runs, which is the same
+    state a returning viewer arrives in.
+
+    `signin=False` leaves the gate standing, which is what gatecheck.py wants:
+    a bypass that is always on is a bypass that hides the thing it bypasses.
+    """
     exe = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
     if not os.path.exists(exe):
         exe = os.path.expandvars(
@@ -101,8 +112,17 @@ def chrome():
                 "http://127.0.0.1:%d/json/list" % PORT, timeout=2).read())
             tgt = next((t for t in d if t["type"] == "page"), None)
             if tgt:
-                return proc, CDP(websocket.create_connection(
+                c = CDP(websocket.create_connection(
                     tgt["webSocketDebuggerUrl"], timeout=60))
+                if signin:
+                    # Runs before the page's own scripts on every navigation,
+                    # so the app finds the credential already there. about:blank
+                    # has no usable storage, hence the try.
+                    c.send("Page.enable")
+                    c.send("Page.addScriptToEvaluateOnNewDocument", source=(
+                        "try{localStorage.setItem("
+                        "'venue.gate','checks@esri.com');}catch(e){}"))
+                return proc, c
         except Exception:
             pass
         time.sleep(0.5)
