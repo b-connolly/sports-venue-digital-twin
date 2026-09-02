@@ -106,6 +106,50 @@ try:
     st = json.loads(c.js(STATE))
     ok("the replay panel is open to test against", st["panel"], st)
 
+    # --- the bloom belongs to the app, not to the slides ---------------------
+    #
+    # `environment.lighting.glow` is what the Daylight widget calls "Glow
+    # effect". Slides 4 and 5 carry 0.3 of their own, and applyTo animates the
+    # lighting towards whatever the slide holds - so the failure this guards is
+    # not "no glow" but "the glow quietly reverts to the authored value on the
+    # one view where it is the point", which is a flicker rather than an error
+    # and would go unnoticed.
+    g = json.loads(c.js("""(function(){
+      var l = window.__view.environment.lighting;
+      return JSON.stringify({glow: l.glow ? l.glow.intensity : null,
+        night: !!(window.__sky.nightLayers
+                  && window.__sky.nightLayers[0].visible)});})()"""))
+    if g["night"]:
+        ok("after dark the fixtures bloom", g["glow"] is not None, g)
+        ok("and by more than the slides ask for on their own",
+           (g["glow"] or 0) > 0.3, g)
+
+        titles = json.loads(c.js("""JSON.stringify([].map.call(
+          document.getElementById('tourList').children,
+          function(b){ return b.textContent; }))"""))
+        at4 = next((i for i, t in enumerate(titles)
+                    if "Stadium at Night" in t), None)
+        if at4 is not None:
+            was = g["glow"]
+            c.js("document.getElementById('tourList').children[%d].click()" % at4)
+            dipped = False
+            for _ in range(14):
+                time.sleep(0.6)
+                now = c.js("(function(){var l=window.__view.environment.lighting;"
+                           "return l.glow ? l.glow.intensity : null;})()")
+                if now != was:
+                    dipped = True
+            time.sleep(5)
+            after = c.js("(function(){var l=window.__view.environment.lighting;"
+                         "return l.glow ? l.glow.intensity : null;})()")
+            ok("flying to the night view never dips it to the authored value",
+               not dipped, "changed mid-flight")
+            ok("and it is unchanged on arrival", after == was,
+               "%s -> %s" % (was, after))
+    else:
+        print("  SKIP  the bloom checks want it to be dark at the venue")
+
+
     # --- daylight: no switch ------------------------------------------------
     set_clock(c, 13)
     st = json.loads(c.js(STATE))
@@ -156,6 +200,7 @@ try:
        st["on"] is False, st)
     ok("and the switch is still offered either way",
        st["offered"] is True, st)
+
 
     print("")
     print("  errors:", c.errs or "none")

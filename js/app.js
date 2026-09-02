@@ -524,7 +524,26 @@ const CONFIG = {
     // long before the sun is down - the stands are sixty metres of it - so a
     // ground has its floodlights up while the sky outside is still bright.
     // Six degrees is roughly half an hour before sunset here.
-    litBelowDeg: 6
+    litBelowDeg: 6,
+    /**
+     * How much the lit fixtures bloom after dark.
+     *
+     * `environment.lighting.glow`, which both SunLighting and VirtualLighting
+     * accept and the SDK clamps to 0-1. It is what the Daylight widget calls
+     * "Glow effect", and it works on emissive material rather than on the
+     * lights themselves - so it reaches the car park lamps and the jumbotron
+     * as well as the roof floodlights.
+     *
+     * Chosen by eye against the night view rather than picked as a round
+     * number. At 0.3 - which is what slides 4 and 5 are authored with - the
+     * rim still reads as a line of separate lamps. At 0.75 the west rim fuses
+     * into one unbroken molten band and the jumbotron's lettering starts to
+     * bloom; at 1.0 the Esri mark on it washes out altogether and every car
+     * park lamp becomes the same featureless dot. 0.5 is the most bloom that
+     * still leaves the individual fixtures countable and the board legible,
+     * which is what a floodlit ground looks like from the air.
+     */
+    glow: 0.5
   },
 
   // The field was covered when the site was captured, so it renders as a grey
@@ -1600,6 +1619,13 @@ function matchLighting(slide) {
     if (when) now.date = when;
     if (live.displayUTCOffset != null) now.displayUTCOffset = live.displayUTCOffset;
     if (live.type === now.type) now.directShadowsEnabled = live.directShadowsEnabled;
+    // The bloom is the app's to decide, for the same reason the date is. Slides
+    // 4 and 5 were authored at 0.3, and applyTo animates the lighting towards
+    // whatever the slide holds - so without this, arriving at the one view
+    // where the glow is the point drags it down to 0.3 for the length of the
+    // flight and tickClock pulls it back a moment later. A visible flicker,
+    // exactly where it would be most noticed.
+    if (live.glow) now.glow = { intensity: live.glow.intensity };
   } catch (err) {
     console.warn("[venue] could not match slide lighting:", err.message);
   }
@@ -3246,6 +3272,25 @@ function tickClock(view) {
     if (dusk) setLights(view, true);
     else if (dawn && sky.lit) setLights(view, false);
   }
+  /**
+   * The fixtures bloom only after dark.
+   *
+   * Set on every tick rather than on the night/day crossing, because two other
+   * things write the whole lighting object and would otherwise quietly win:
+   * applying a slide installs that slide's authored environment - slides 4 and
+   * 5 carry 0.3 of their own - and setLights replaces `lighting` outright when
+   * the floodlights go on, which drops the glow with it. Reasserting it here
+   * costs a comparison and means neither can leave the scene wrong.
+   *
+   * Not inside the `sky.nightLayers` guard below: the glow reaches the car
+   * park lamps and the jumbotron too, and those are there whether or not the
+   * stadium's own light layer was found by title.
+   */
+  const bloom = night ? CONFIG.nightLayers.glow : 0;
+  if ((view.environment.lighting.glow?.intensity ?? 0) !== bloom) {
+    view.environment.lighting.glow = { intensity: bloom };
+  }
+
   if (sky.nightLayers) {
     sky.nightLayers.forEach((l) => { l.visible = night; });
     paintFixtures();

@@ -391,6 +391,36 @@ move lands in daylight at the time it really is at the venue. The walk arrives a
 day ahead of the true instant and the hand-back to the live clock steps that day
 off, which is invisible — the same time of day is the same sun.
 
+#### How much the lights bloom
+
+`environment.lighting.glow` — what the Daylight widget calls "Glow effect" — is
+a `{ intensity }` on both `SunLighting` and `VirtualLighting`, clamped by the
+SDK to 0–1. It acts on emissive material rather than on light sources, so it
+reaches the car park lamps and the jumbotron as well as the roof floodlights.
+
+Slides 4 and 5 are authored with `0.3`. The app uses **0.5**, and the number was
+chosen by looking rather than by rounding: at 0.3 the rim still reads as a line
+of separate lamps; at 0.75 the west rim fuses into one unbroken molten band and
+the jumbotron's lettering starts to bloom; at 1.0 the Esri mark on the board
+washes out completely and every car park lamp becomes the same featureless dot.
+0.5 is the most bloom that still leaves individual fixtures countable and the
+board legible.
+
+**It is written on every tick, not on the day/night crossing**, because two
+other things write the whole lighting object and would otherwise win quietly.
+Applying a slide installs that slide's authored environment — so arriving at
+Stadium at Night would drag the glow down to 0.3 for the length of the flight
+and have it corrected a moment later, a flicker on the one view where the glow
+is the point. And `setLights` replaces `lighting` outright when the floodlights
+come on, which drops the glow with it. `matchLighting` writes the app's value
+onto the slide before `applyTo`, the same courtesy it already extends to the
+date and the UTC offset.
+
+The tick is `CONFIG.clockTickMs`, which is **30 seconds** — worth knowing before
+testing this, because a probe that waits four seconds for a day/night change
+sees nothing and reads as a bug in the app.
+
+
 Three bugs sat behind this and all three are worth knowing about, because each
 one produced a *plausible* wrong answer rather than an obvious one:
 
