@@ -1,5 +1,5 @@
-﻿/**
- * Sports Venue Digital Twin â€” reality mapping explorer
+/**
+ * Sports Venue Digital Twin — reality mapping explorer
  * ArcGIS Maps SDK for JavaScript 5.x, loaded as ES modules from the CDN.
  * No build step: the scene is public, so there is nothing to authenticate.
  */
@@ -492,14 +492,14 @@ const CONFIG = {
 
   // Opening camera. The web scene's own initial viewpoint is used when this is
   // null. Press C in the running app to print the current camera, then paste it
-  // here â€” this is app-side only and does not touch the web scene.
+  // here — this is app-side only and does not touch the web scene.
   home: null,
 
 
-  // Empower Field at Mile High â€” used for the live weather lookup.
+  // Empower Field at Mile High — used for the live weather lookup.
   site: { lat: 39.7439, lon: -105.0201, tz: "America/Denver" },
 
-  // Layers shown only after dark, driven by the same clock as the sky â€” so they
+  // Layers shown only after dark, driven by the same clock as the sky — so they
   // follow the time slider as well as live time. Matched on layer title; the
   // first one found wins, so several spellings can be listed.
   nightLayers: {
@@ -884,11 +884,11 @@ const GATE = {
    * ask again - and forgotten when the tab closes.
    *
    * `sessionStorage`, deliberately, where the obvious choice is localStorage.
-   * Remembering forever means the person who set this up stops being asked on
+   * Remembering for good means the person who set this up stops being asked on
    * their own machine, which is exactly the machine the demo is given from:
-   * the gate becomes invisible to the one person who needs to know it is
-   * still there. It cost a bug report that way round - "I'm not getting the
-   * login" - and the app was working perfectly.
+   * the gate goes invisible to the one person who needs to know it is still
+   * there. It cost a bug report that way round - the login "not appearing" -
+   * against an app that was showing it to a clean browser in two seconds.
    *
    * Same standing as the rest of this: somebody who would edit storage to get
    * in could have skipped the gate by an easier route.
@@ -1190,7 +1190,7 @@ async function warmUp(view, slides, restore,
     // it must not claim to be ready.
     // Keyed on the scene rather than on the button, which may still be shut
     // because nobody has signed in - that is not the scene still loading.
-    els.msg.textContent = door.ready ? "Ready â€” still cachingâ€¦" : "Loadingâ€¦";
+    els.msg.textContent = door.ready ? "Ready — still caching…" : "Loading…";
     if (!door.ready) bar.over(99, Math.min(left, cfg.perViewMs));
     const t0 = performance.now();
     // The same stamp the rail makes before every flight, and for a sharper
@@ -1271,7 +1271,7 @@ function announceBuild() {
 
 async function main() {
   announceBuild();
-  progress(3, "Loadingâ€¦");
+  progress(3, "Loading…");
   // The SDK is a thousand module requests deep and cannot report on itself, so
   // this stretch is the one that is invented - a slow drift that runs out of
   // road just as the scene usually lands.
@@ -1331,16 +1331,16 @@ async function main() {
     // later. A check that confuses them concludes the gate is broken.
     window.__door = door;
     bar.over(56, 2000);
-    // The web scene carries its own authored environment â€” a fixed
-    // 2026-03-15 12:00 Denver, cloudy â€” and it is applied during load, which
+    // The web scene carries its own authored environment — a fixed
+    // 2026-03-15 12:00 Denver, cloudy — and it is applied during load, which
     // overwrites what the SceneView constructor set. Re-assert ours here, the
     // moment the view is ready, so the sky is never the authored midday.
     ownSky(view);
   } catch (err) {
     // Esri errors carry name/details rather than a useful toString, so unpack
-    // them â€” "[object Object]" in the console is no help to anyone.
+    // them — "[object Object]" in the console is no help to anyone.
     const detail = [err?.name, err?.message, err?.details && JSON.stringify(err.details)]
-      .filter(Boolean).join(" Â· ");
+      .filter(Boolean).join(" · ");
     els.msg.textContent = "Could not load the scene.";
     console.error("[venue] scene load failed:", detail || err, err);
     return;
@@ -1392,7 +1392,7 @@ async function main() {
   view.popupEnabled = false;
   const captures = buildCaptures(layers);
 
-  // Open on the drone splat alone: splat on, all three meshes off â€” which also
+  // Open on the drone splat alone: splat on, all three meshes off — which also
   // keeps the mesh group's switch fully off rather than in its mixed state.
   // The scene's first slide saves both Pix4D meshes as visible, and applyTo()
   // rewrites visibility as it runs, so this has to be re-asserted afterwards.
@@ -1408,7 +1408,7 @@ async function main() {
   openingState();
 
   // The board is reconstructed badly in both the splat and the drone mesh, so
-  // the panel follows either of them â€” not the splat alone. The two hand-held
+  // the panel follows either of them — not the splat alone. The two hand-held
   // Pix4D meshes do not cover the board, so they do not count.
   // Not awaited: it fetches the logo and probes ground elevation, and the panel
   // appearing a moment late is far better than holding up the whole view.
@@ -1479,7 +1479,7 @@ async function main() {
 
   // Never gate entry on `view.updating`. Gaussian splat and integrated mesh
   // layers stream continuously and level-of-detail keeps refining, so that flag
-  // may never settle â€” the scene is meant to be flown while it sharpens.
+  // may never settle — the scene is meant to be flown while it sharpens.
   // Let the bar finish on its own if streaming happens to quieten down, but cap
   // the wait so the label never sits at "streaming" indefinitely.
   // Hand over as soon as the first view is real, and go on filling the cache
@@ -1787,7 +1787,7 @@ function wireGroup(head, count, group, rows, chosen) {
  * Anything that drives the camera continuously registers here. Applying a saved
  * view releases it first, so a bookmark always wins: otherwise the replay's
  * broadcast camera rewrites view.camera every frame and the slide flight is
- * cancelled the instant it starts â€” the layers switch, but the camera never
+ * cancelled the instant it starts — the layers switch, but the camera never
  * arrives, which looks exactly like broken navigation.
  */
 let cameraOwner = null;
@@ -1938,7 +1938,7 @@ function bindViews(slides) {
     // night clock - simply does not happen when a title stops matching, and
     // nothing else about the app looks broken. This cost an afternoon once.
     console.error("[venue] no slide matches: " + missed.join(", ")
-      + " â€” check CONFIG.views against the scene's slide titles");
+      + " — check CONFIG.views against the scene's slide titles");
   }
 }
 
@@ -2497,7 +2497,7 @@ function buildTour(view, slides, captures) {
         }),
         new Promise((done) => setTimeout(done, MAX_FLIGHT + 500))
       ]);
-    } catch { /* interrupted by user navigation â€” harmless */ }
+    } catch { /* interrupted by user navigation — harmless */ }
     finally { if (savedCam && seat) seat.camera = savedCam; }
     // Superseded while in the air: the move that replaced this one owns the
     // view, the latch and the dwell, and this one must not touch any of them.
@@ -2569,7 +2569,7 @@ function buildTour(view, slides, captures) {
     els.title.textContent = name;
     // The title clamps at two lines; the tooltip is what carries a name long
     // enough to be cut, so nothing is unreachable.
-    els.titleBtn.title = name ? `${name} â€” choose a view` : "Choose a view";
+    els.titleBtn.title = name ? `${name} — choose a view` : "Choose a view";
     for (const item of els.tourList.children) {
       const on = Number(item.dataset.at) === current;
       item.classList.toggle("on", on);
@@ -2676,7 +2676,7 @@ function buildMeasure(view) {
   const make = (M) => ({
     distance: () => new M.DirectLineMeasurement3D({ view }),
     area:     () => new M.AreaMeasurement3D({ view }),
-    // Volume has no widget in the SDK â€” it is an Analysis driven by a polygon.
+    // Volume has no widget in the SDK — it is an Analysis driven by a polygon.
     // Handled separately in startVolume(), so this entry is a placeholder.
     volume:   () => null,
     // Ground gives the bare terrain; View samples whatever is actually drawn,
@@ -2729,7 +2729,7 @@ function buildMeasure(view) {
   /**
    * A widget takes ownership of the element handed to it as `container`, and
    * destroy() removes that element from the DOM. Handing over the panel's own
-   * host would therefore work exactly once â€” every later tool would render into
+   * host would therefore work exactly once — every later tool would render into
    * an orphaned node and show nothing. So each widget gets a fresh child.
    */
   function mountPoint() {
@@ -2813,7 +2813,7 @@ function buildMeasure(view) {
     const fmt = (label, m) => {
       if (!m || m.value == null) return "";
       const v = m.value >= 1000 ? Math.round(m.value).toLocaleString() : m.value.toFixed(1);
-      const unit = (m.unit || "").replace("cubic-meters", "mÂ³").replace("square-meters", "mÂ²");
+      const unit = (m.unit || "").replace("cubic-meters", "m³").replace("square-meters", "m²");
       return `<div class="vol__row"><span>${label}</span><b>${v} ${unit}</b></div>`;
     };
     try {
@@ -2823,7 +2823,7 @@ function buildMeasure(view) {
         out.innerHTML = r
           ? fmt("Cut", r.cutVolume) + fmt("Fill", r.fillVolume) +
             fmt("Net", r.netVolume) + fmt("Area", r.area)
-          : `<div class="vol__row"><span>Measuringâ€¦</span></div>`;
+          : `<div class="vol__row"><span>Measuring…</span></div>`;
       };
       paint();
       reactiveUtils.watch(() => av.result, paint);
@@ -2832,7 +2832,7 @@ function buildMeasure(view) {
     }
   }
 
-  // The widget does not begin a measurement on mount â€” its "New measurement"
+  // The widget does not begin a measurement on mount — its "New measurement"
   // button calls viewModel.start(). Do the same on open and on mode switch so
   // the tool is live straight away instead of needing an extra click.
   /**
@@ -2841,7 +2841,7 @@ function buildMeasure(view) {
    * All three widget tools expose `viewModel.start()`. ElevationProfile only
    * offers its sketch button once the view model leaves "disabled" (it waits on
    * an elevation source), so wait for that rather than calling start() into the
-   * void â€” calling it too early is why Profile appeared dead.
+   * void — calling it too early is why Profile appeared dead.
    */
   function arm() {
     const w = widget;
@@ -2852,13 +2852,13 @@ function buildMeasure(view) {
       : Promise.resolve();
     Promise.resolve(ready)
       .then(() => { if (widget === w) return vm.start(); })
-      .catch(() => { /* superseded or unavailable â€” the widget's own button still works */ });
+      .catch(() => { /* superseded or unavailable — the widget's own button still works */ });
   }
 
   /**
    * Clear everything, not just the active tool. Volume analyses live on the
    * view and outlive a mode switch, so they have to be dropped whichever tool
-   * happens to be selected â€” otherwise Clear looks broken from the other tabs.
+   * happens to be selected — otherwise Clear looks broken from the other tabs.
    */
   function clear() {
     volumes.splice(0).forEach((a) => view.analyses.remove(a));
@@ -2870,7 +2870,7 @@ function buildMeasure(view) {
       return;
     }
     // ElevationProfile keeps its line until cleared, so drop it and immediately
-    // re-arm â€” Clear should leave you ready to draw the next one, not idle.
+    // re-arm — Clear should leave you ready to draw the next one, not idle.
     if (active === "profile") {
       widget?.viewModel?.clear?.();
       arm();
@@ -2901,7 +2901,7 @@ function buildMeasure(view) {
 
 /* ------------------------------------------------------- live  weather */
 /**
- * The SDK's Weather widget only *sets* conditions â€” it has no live feed. So
+ * The SDK's Weather widget only *sets* conditions — it has no live feed. So
  * fetch the real observation for the stadium and drive the scene from it:
  * conditions from the WMO code, and the sun from the actual clock.
  * Open-Meteo is keyless and CORS-open; if it fails the scene simply keeps
@@ -2919,7 +2919,7 @@ const WMO = [
   { max: 86, kind: "snowy",  text: "Snow showers" },
   { max: 99, kind: "rainy",  text: "Thunderstorm" }
 ];
-const ICON = { sunny: "â˜€", cloudy: "â˜", rainy: "â˜‚", snowy: "â„", foggy: "â‰‹" };
+const ICON = { sunny: "☀", cloudy: "☁", rainy: "☂", snowy: "❄", foggy: "≋" };
 
 /**
  * The weather a viewer can ask for, and what each one is made of.
@@ -2939,7 +2939,7 @@ const WEATHER_PICKS = [
 
 /** What a picked or imposed sky is called on the chip. */
 const PICK_TEXT = Object.fromEntries(WEATHER_PICKS.map((p) => [p.kind, p.label]));
-const NIGHT_ICON = { sunny: "â˜¾", cloudy: "â˜", rainy: "â˜‚", snowy: "â„", foggy: "â‰‹" };
+const NIGHT_ICON = { sunny: "☾", cloudy: "☁", rainy: "☂", snowy: "❄", foggy: "≋" };
 
 function classify(code) {
   return WMO.find((w) => code <= w.max) ?? { kind: "cloudy", text: "Cloudy" };
@@ -3043,7 +3043,7 @@ function makeWeather(kind, cloud, precip, code = 0) {
   }
 }
 
-/** Network only â€” kept separate so it can be started before the scene loads. */
+/** Network only — kept separate so it can be started before the scene loads. */
 function fetchConditions() {
   const { lat, lon } = CONFIG.site;
   // A week of hourly, which is what makes a future state possible at all.
@@ -3072,7 +3072,7 @@ function applyConditions(view, data) {
   const now = data.current;
   const { kind, text } = classify(now.weather_code);
   const cloud = Math.min(1, Math.max(0, (now.cloud_cover ?? 0) / 100));
-  // `precipitation` is millimetres in the last interval; the SDK wants 0â€“1.
+  // `precipitation` is millimetres in the last interval; the SDK wants 0–1.
   const precip = Math.min(1, Math.max(0.15, (now.precipitation ?? 0) / 2.5));
 
   sky.live = { kind, text, cloud, precip, code: now.weather_code,
@@ -3124,8 +3124,8 @@ function applyConditions(view, data) {
   tickClock(view);
 
   console.info(
-    `[venue] ${text}, ${Math.round(now.temperature_2m)}Â°F, ` +
-    `${now.cloud_cover}% cloud -> cover ${cloudCoverFor(kind, cloud, precip, now.weather_code).toFixed(2)} Â· ${sky.tz} (UTC${sky.offsetHours >= 0 ? "+" : ""}${sky.offsetHours}) Â· ` +
+    `[venue] ${text}, ${Math.round(now.temperature_2m)}°F, ` +
+    `${now.cloud_cover}% cloud -> cover ${cloudCoverFor(kind, cloud, precip, now.weather_code).toFixed(2)} · ${sky.tz} (UTC${sky.offsetHours >= 0 ? "+" : ""}${sky.offsetHours}) · ` +
     `sunrise ${day.sunrise?.[0]?.slice(11)} sunset ${day.sunset?.[0]?.slice(11)}`
   );
 }
@@ -3253,7 +3253,7 @@ function paintSky(view, { ifChanged = false } = {}) {
   const shown = sky.picked && !sky.imposed
     ? WEATHER_PICKS.find((w) => w.kind === sky.picked)?.tempF
     : real?.temp;
-  if (shown != null) els.wxTemp.textContent = `${shown}Â°F`;
+  if (shown != null) els.wxTemp.textContent = `${shown}°F`;
   els.wxDesc.textContent = p ? PICK_TEXT[p.kind] : (real?.text ?? "");
   for (const b of els.wxMenu.querySelectorAll("button")) {
     b.classList.toggle("on", b.dataset.kind === chosen);
@@ -3276,7 +3276,7 @@ function paintLive() {
   // A forecast is not a measurement and the chip has to say so. It is the one
   // number on screen that could be mistaken for an observation - the sun and
   // the sky are plainly a rendering, and the temperature is plainly a reading -
-  // so a scene set to Sunday afternoon showing "84Â°F" beside a Live pip would
+  // so a scene set to Sunday afternoon showing "84°F" beside a Live pip would
   // be the app quietly asserting something it does not know.
   //
   // Only when the forecast is what is actually being shown: a viewer who has
@@ -3301,8 +3301,8 @@ function paintLive() {
 function tagFor(t) {
   const h = Math.round((t - Date.now()) / 36e5);
   if (h <= 0) return "Forecast";
-  if (h < 24) return `Forecast Â· +${h} h`;
-  return `Forecast Â· +${Math.round(h / 24)} d`;
+  if (h < 24) return `Forecast · +${h} h`;
+  return `Forecast · +${Math.round(h / 24)} d`;
 }
 
 /**
@@ -3435,7 +3435,7 @@ function tickClock(view) {
   // slider is scrubbed to another date; altitude is correct for any instant.
   const sunAlt = sunAltitudeDeg(now, CONFIG.site.lat, CONFIG.site.lon);
   const night = sunAlt < CONFIG.nightLayers.sunBelowDeg;
-  els.wxIcon.textContent = (night ? NIGHT_ICON : ICON)[sky.kind] ?? "â˜";
+  els.wxIcon.textContent = (night ? NIGHT_ICON : ICON)[sky.kind] ?? "☁";
   els.weather.classList.toggle("night", !!night);
 
   // Lights only after dark. Runs on every clock tick and on every time-slider
@@ -3550,7 +3550,7 @@ function wireWeather(view) {
     b.dataset.kind = p.kind;
     const ic = document.createElement("span");
     ic.className = "toolmenu__ico";
-    ic.textContent = ICON[p.kind] ?? "â˜";
+    ic.textContent = ICON[p.kind] ?? "☁";
     const tx = document.createElement("span");
     tx.textContent = p.label;
     b.append(ic, tx);
@@ -3588,7 +3588,7 @@ function startWeather(view, inflight) {
   // second one; only fall back to a fresh fetch if that one failed.
   inflight.then((data) => (data ? apply(data) : run()));
   setInterval(run, CONFIG.weatherRefreshMs);
-  // The sun advances on its own between fetches â€” no network cost, so shadows
+  // The sun advances on its own between fetches — no network cost, so shadows
   // creep in real time rather than jumping every ten minutes.
   setInterval(() => tickClock(view), CONFIG.clockTickMs);
 }
@@ -3597,7 +3597,7 @@ function startWeather(view, inflight) {
 /**
  * A TimeSlider scrubbing one full day, driving the sun.
  *
- * Note this is *not* what TimeSlider normally does â€” bound to a view it filters
+ * Note this is *not* what TimeSlider normally does — bound to a view it filters
  * time-aware layers via `view.timeExtent` and never touches lighting. It is
  * deliberately constructed without a `view` so it has no side effects, and its
  * instant is copied onto `environment.lighting.date` instead.
@@ -3853,7 +3853,7 @@ function buildTimeOfDay(view) {
     els.tdayNext.disabled = !canStep(1);
     els.tdayNext.title = sky.horizon == null
       ? "No forecast loaded"
-      : canStep(1) ? "A day later â€” the forecast"
+      : canStep(1) ? "A day later — the forecast"
         : "The forecast does not reach any further";
   }
 
@@ -3935,8 +3935,8 @@ function describe(text) {
     // left and the receiver drifts away from you, so the word contradicts what
     // is on screen without being wrong. Keep the depth, drop the side.
     .replace(/\b(deep|short)\s+(left|right|middle)\b/gi, "$1")
-    .replace(/\s+to\s+[A-Z]\.[A-Za-z'â€™-]+/g, "")
-    .replace(/[A-Z]\.[A-Za-z'â€™-]+\s*/g, "")
+    .replace(/\s+to\s+[A-Z]\.[A-Za-z'’-]+/g, "")
+    .replace(/[A-Z]\.[A-Za-z'’-]+\s*/g, "")
     .replace(/\s{2,}/g, " ")
     .trim()
     .replace(/^(\(?[a-z])/, (c) => c.toUpperCase())
@@ -3991,7 +3991,7 @@ function captionFor(m) {
   const how = m.measured
     ? `Positions are measured, not invented: tracking for all 22 players and the `
       + `ball, from ${m.sourceShort}.`
-    : "Reconstructed from footage â€” the order of events and the rhythm are "
+    : "Reconstructed from footage — the order of events and the rhythm are "
       + "faithful, the positions are authored, not tracked.";
   // A play may be measured and still have had something done to it. The kick
   // is the case in point: every player is real and so is the strike, but no
@@ -4002,7 +4002,7 @@ function captionFor(m) {
   const made = mod
     ? `The ${mod.distanceYd} yard distance and the ball's flight are modelled: `
       + `a measured ${mod.measuredDistanceYd} yard attempt moved ${mod.movedYd} yd `
-      + `downfield, struck at ${mod.launchMs} m/s and ${mod.launchDeg}Â°, `
+      + `downfield, struck at ${mod.launchMs} m/s and ${mod.launchDeg}°, `
       + `peaking at ${mod.apexM} m.`
     : "";
   // Nodes rather than a string of markup. Every value here comes out of a JSON
@@ -4566,7 +4566,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     // than the number being left to carry a minus nobody reads.
     const slowing = d.accel < -0.15;
     els.pcardAccelK.textContent = slowing ? "Slowing" : "Accelerating";
-    els.pcardAccel.textContent = `${Math.abs(d.accel).toFixed(1)} m/sÂ²`;
+    els.pcardAccel.textContent = `${Math.abs(d.accel).toFixed(1)} m/s²`;
     els.pcardAccel.classList.toggle("slowing", slowing);
     els.pcardBall.textContent = `${d.toBall.toFixed(1)} ${d.unit}`;
     els.pcardCovered.textContent = `${d.covered.toFixed(0)} ${d.unit}`;
@@ -4603,7 +4603,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       els.statCarrierSpeed.textContent = `${now.ballMph.toFixed(0)} mph`;
     }
 
-    els.statChaser.textContent = now.chaser ? now.chaser.label : "â€”";
+    els.statChaser.textContent = now.chaser ? now.chaser.label : "—";
     if (now.sep == null) {
       els.statSep.textContent = "";
     } else {
@@ -4613,7 +4613,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       const closing = now.closing < -0.15;
       const opening = now.closing > 0.15;
       els.statSep.textContent =
-        `${now.sep.toFixed(1)} ${st.unit}${closing ? " â–¼" : opening ? " â–²" : ""}`;
+        `${now.sep.toFixed(1)} ${st.unit}${closing ? " ▼" : opening ? " ▲" : ""}`;
       els.statSep.classList.toggle("closing", closing);
       els.statSep.classList.toggle("opening", opening);
     }
@@ -4633,7 +4633,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
     const spec = CONFIG.play.plays.find((x) => x.key === key);
     if (!spec) throw new Error("no play " + key);
     if (!pending) {
-      els.pcap.textContent = "Loadingâ€¦";
+      els.pcap.textContent = "Loading…";
       pending = surfacesReady
         .then((surfaces) => {
           if (!surfaces) throw new Error("no playing surface");
@@ -4658,7 +4658,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
           // rather than leaving a bare 404 for someone to interpret.
           els.pcap.textContent = /\b404\b/.test(err.message)
             ? "No replay data yet. It is built from the tracking sources rather "
-              + "than shipped with the code â€” see tools/README.md."
+              + "than shipped with the code — see tools/README.md."
             : `Unavailable: ${err.message}`;
           pending = null;
           throw err;
@@ -4736,7 +4736,7 @@ function buildLiveAction(view, surfacesReady, stage, slides = []) {
       b.type = "button";
       b.setAttribute("aria-pressed", String(spec.key === key));
       b.classList.toggle("on", spec.key === key);
-      if (spec.note) b.title = `${spec.label} â€” ${spec.note}`;
+      if (spec.note) b.title = `${spec.label} — ${spec.note}`;
       const label = document.createElement("span");
       label.className = "playseg__label";
       label.textContent = spec.label;
@@ -5642,7 +5642,7 @@ function buildPlacard(view) {
         const dd = document.createElement("dd");
         const v = a[f.name];
         const missing = v == null || v === "";
-        dd.textContent = missing ? "â€”" : String(v);
+        dd.textContent = missing ? "—" : String(v);
         // Marked rather than hidden. A reader that could not make out a line is
         // the honest half of this and the half worth seeing.
         dd.classList.toggle("illegible",
@@ -5669,7 +5669,7 @@ function buildPlacard(view) {
     const l = find();
     if (!l) return;
     els.placardCard.hidden = false;
-    els.placardName.textContent = "Readingâ€¦";
+    els.placardName.textContent = "Reading…";
     els.placardConf.hidden = true;
     els.placardRows.replaceChildren();
     els.placardNote.textContent = "";
