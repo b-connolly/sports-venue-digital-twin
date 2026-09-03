@@ -14,7 +14,9 @@ Exits non-zero if anything failed, so it can gate a deploy.
 
 Needs `websocket-client` and Chrome. Nothing is installed into the app: the
 browser is driven over the DevTools protocol, in a throwaway profile, and the
-page under test is whatever URL is given.
+page under test is whatever URL is given. The profile is thrown away for
+real - it is registered with `atexit` in `chrome()` - because it holds 150-200
+MB and a run happens every few minutes.
 
 Two things worth knowing before adding a check of your own:
 
@@ -25,7 +27,7 @@ Two things worth knowing before adding a check of your own:
     unchecked" is only true of the first play of a session. Set it with
     `chalk(True)`, which reads the state first, rather than clicking blind.
 """
-import json, os, subprocess, sys, time, urllib.request
+import atexit, json, os, shutil, subprocess, sys, tempfile, time, urllib.request
 
 import websocket
 
@@ -96,8 +98,30 @@ def chrome(signin=True):
             r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe")
     if not os.path.exists(exe):
         raise SystemExit("Chrome not found - set the path in chrome()")
-    # A fresh profile each run, or a warm cache decides what the test measures.
-    prof = os.path.join(os.environ.get("TEMP", "."), "smoke-%d" % int(time.time()))
+    # A fresh profile each run, or a warm cache decides what the test measures
+    # - and taken away again afterwards, which it was not for a long time.
+    #
+    # Chrome puts 150-200 MB into one of these. Ninety-eight of them had
+    # accumulated in TEMP before anybody looked: 17 GB, from a checks folder
+    # that describes itself as installing nothing.
+    #
+    # `mkdtemp` rather than the timestamp this used, which two runs starting
+    # inside the same second would share - and the suite runs them back to
+    # back. `atexit` rather than a `finally` in each caller, because otherwise
+    # all fourteen scripts have to remember, and the one that forgets is the
+    # one that leaks.
+    prof = tempfile.mkdtemp(prefix="smoke-")
+
+    def sweep():
+        # The browser has to be gone first or the profile is still locked;
+        # callers terminate it, and this is the backstop for the ones that
+        # raised on the way. Failure here is not worth a traceback over.
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            pass
+        shutil.rmtree(prof, ignore_errors=True)
     proc = subprocess.Popen(
         [exe, "--headless=new", "--remote-debugging-port=%d" % PORT,
          "--user-data-dir=" + prof, "--no-first-run", "--no-default-browser-check",
@@ -106,6 +130,7 @@ def chrome(signin=True):
          "--remote-allow-origins=*", "--window-size=1400,900",
          "--enable-unsafe-swiftshader", "about:blank"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    atexit.register(sweep)
     for _ in range(60):
         try:
             d = json.loads(urllib.request.urlopen(
@@ -126,7 +151,7 @@ def chrome(signin=True):
         except Exception:
             pass
         time.sleep(0.5)
-    proc.terminate()
+    sweep()
     raise SystemExit("Chrome never offered a page to drive")
 
 
