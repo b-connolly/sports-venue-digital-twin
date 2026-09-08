@@ -789,22 +789,15 @@ function ontoToday(when) {
 }
 
 /**
- * What Explore is waiting on.
- *
- * Two conditions that finish in either order and in no fixed time: the scene
- * has to be worth looking at, and the viewer has to have got past the gate.
- * Keeping them as separate flags rather than reading the button's own
- * `disabled` is what lets the warm-up go on reporting honestly - a scene that
- * is loaded but unopened should not say "Loading" merely because nobody has
- * signed in yet.
+ * What Explore is waiting on: the scene being worth looking at. A flag of its
+ * own rather than a read of the button's `disabled`, so the warm-up can go on
+ * reporting honestly about the scene whatever the button is doing.
  */
-const door = { ready: false, admitted: false };
+const door = { ready: false };
 
 const $ = (id) => document.getElementById(id);
 const els = {
   intro: $("intro"), fill: $("loadfill"), msg: $("loadmsg"), enter: $("enter"),
-  signin: $("signin"), gate: $("gate"), gateEmail: $("gateEmail"),
-  gatePass: $("gatePass"), gateMsg: $("gateMsg"),
   masthead: $("masthead"), captures: $("captures"),
   seatSheet: $("seatSheet"), seatSelect: $("seatSelect"), seatMap: $("seatMap"),
   playSeatLabel: $("playSeatLabel"), lightsBtn: $("lightsBtn"),
@@ -850,184 +843,16 @@ const els = {
 };
 
 /**
- * The gate on Explore.
- *
- * ## What this is, and what it is not
- *
- * It asks for an @esri.com address and a shared access code, and holds Explore
- * shut until it gets both. That is the whole of it, and it is worth being
- * plain about the limit: this app is static - Pages, S3, CloudFront, no server
- * of its own - so every line of this check runs in the visitor's browser, out
- * of a file they have already downloaded. Anyone who opens the developer tools
- * can read the rule or set the flag by hand. The scene's layers are public
- * services besides, reachable by URL without meeting this at all.
- *
- * So: a doormat, not a lock. It stops a demo link being wandered into, which
- * is what it was asked to do. Real restriction is ArcGIS OAuth or signed
- * CloudFront URLs, and either one needs the layers made private first.
- *
- * The code is stored as a SHA-256 digest rather than in full. That is not
- * cryptography either - a short known word falls to a dictionary in seconds -
- * it just keeps the code from sitting in the bundle as a string anybody can
- * find by searching it for the obvious.
- */
-const GATE = {
-  // Any address that looks like one. The password is the gate; the username is
-  // only so the person coming in has a name, and narrowing it to one domain
-  // turned a shared password into a rule about who somebody works for - which
-  // this cannot check anyway, since nothing here verifies that the address is
-  // real or belongs to whoever typed it.
-  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  hash: "db3020a8cfd9264876842c36806ba6b62ecca4d8567575905dcf36fd1a12031a",
-  /**
-   * Remembered for the session, so a reload part way through a demo does not
-   * ask again - and forgotten when the tab closes.
-   *
-   * `sessionStorage`, deliberately, where the obvious choice is localStorage.
-   * Remembering for good means the person who set this up stops being asked on
-   * their own machine, which is exactly the machine the demo is given from:
-   * the gate goes invisible to the one person who needs to know it is still
-   * there. It cost a bug report that way round - the login "not appearing" -
-   * against an app that was showing it to a clean browser in two seconds.
-   *
-   * Same standing as the rest of this: somebody who would edit storage to get
-   * in could have skipped the gate by an easier route.
-   */
-  store: "venue.gate"
-};
-
-async function sha256Hex(text) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)]
-    .map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/**
- * Ask, once, and call `then` when the answer is right.
- *
- * `ask(then)` is what Explore calls. If this browser has been signed in before
- * it runs `then` immediately and nothing is shown; otherwise the card comes up
- * over the curtain and `then` waits until the pair is accepted.
- */
-function buildGate() {
-  const form = els.gate;
-  const sheet = els.signin;
-  let go = null;                    // what to run once we are let through
-
-  const remembered = () => {
-    let seen = null;
-    try { seen = sessionStorage.getItem(GATE.store); } catch { /* blocked */ }
-    return !!seen && GATE.email.test(seen);
-  };
-
-  const pass = (who) => {
-    door.admitted = true;
-    if (sheet) sheet.hidden = true;
-    if (who) { try { sessionStorage.setItem(GATE.store, who); } catch { /* private */ } }
-    const next = go; go = null;
-    next?.();
-  };
-
-  // No card in the markup is a reason to let people through, not to shut
-  // everybody out: a missing form would otherwise make Explore useless.
-  if (!form || !sheet) {
-    return { ask: (then) => { door.admitted = true; then(); } };
-  }
-
-  const reject = (field, why) => {
-    field.classList.add("bad");
-    els.gateMsg.textContent = why;
-    field.focus();
-    if (field === els.gatePass) field.select();
-  };
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    els.gateEmail.classList.remove("bad");
-    els.gatePass.classList.remove("bad");
-
-    const user = els.gateEmail.value.trim();
-    if (!GATE.email.test(user)) {
-      reject(els.gateEmail, "Enter an email address as your username.");
-      return;
-    }
-    // crypto.subtle exists only in a secure context. Every published copy of
-    // this is https and localhost counts as secure, so this bites only when
-    // somebody serves the folder over plain http on a LAN address - and a
-    // silent "wrong password" would be a horrible way to find that out.
-    if (!globalThis.crypto?.subtle) {
-      els.gateMsg.textContent = "Signing in needs HTTPS. Open the https:// link.";
-      return;
-    }
-    let right = false;
-    try { right = (await sha256Hex(els.gatePass.value)) === GATE.hash; }
-    catch { right = false; }
-    if (!right) { reject(els.gatePass, "That password is not right."); return; }
-
-    pass(user.toLowerCase());
-  });
-
-  // Clearing the complaint as soon as somebody starts fixing it.
-  for (const f of [els.gateEmail, els.gatePass]) {
-    f.addEventListener("input", () => {
-      f.classList.remove("bad");
-      els.gateMsg.textContent = "";
-    });
-  }
-
-  return {
-    ask(then) {
-      if (door.admitted || remembered()) { pass(null); go = null; then(); return; }
-      go = then;
-      sheet.hidden = false;
-      els.gateMsg.textContent = "";
-      els.gateEmail.focus({ preventScroll: true });
-    }
-  };
-}
-
-/**
- * Offer Explore, once both of the things it waits on have happened.
- *
- * Called from either side - the scene getting ready, or the login being
- * answered - and does nothing until both are true. The focus is deliberate
- * but only on the transition: moving it every time either flag is touched
- * would take the caret off whichever field is being typed in.
+ * Offer Explore once the scene is ready. The focus is deliberate but only on
+ * the transition, so it lands exactly once as the button comes alive.
  */
 function admit() {
-  const open = door.ready && door.admitted;
+  const open = door.ready;
   if (open === !els.enter.disabled) return;
   els.enter.disabled = !open;
   els.enter.classList.toggle("ready", open);
   if (open) els.enter.focus({ preventScroll: true });
 }
-
-/**
- * Asked on arrival, not on the way in.
- *
- * The obvious order is to let people look at the curtain and ask when they
- * press Explore, and it was built that way first. It is the wrong order, for
- * a reason that is only obvious once you watch it: the scene takes about
- * twenty seconds to become worth looking at, and a login is the one part of
- * this that costs the viewer time rather than the network. Asking first
- * spends the two together - by the time a password is typed the stadium is
- * most of the way there - where asking second spends them one after the other
- * and then makes the viewer wait again.
- *
- * It also removes a race that was never going to be won. Asking on the click
- * put an unbounded pause between the click and the reveal, during which the
- * warm-up went on flying the camera to other views; putting it back for the
- * reveal meant writing a camera while `applyTo` had one in flight, and
- * whichever settled last won. Asked here, the click and the reveal are the
- * same moment again and there is nothing to put back.
- *
- * Wired at load rather than inside boot so the card is live whatever the
- * scene is doing - built after `scene.load()`, a slow or failed load left it
- * inert, which from the outside looks exactly like a rejected password.
- */
-const gate = buildGate();
-gate.ask(admit);
 
 /**
  * Who is offering "recenter on the ball".
@@ -1325,10 +1150,10 @@ async function main() {
     // the date and looked a moment later was reading the live clock again and
     // reporting the app broken when it was the test that was.
     window.__sky = sky;
-    // And the two things Explore waits on. `view.ready` is not the same
-    // question and answers far too early - it is true seconds in, while the
-    // app's own idea of ready is a warmed first view some twenty seconds
-    // later. A check that confuses them concludes the gate is broken.
+    // And what Explore waits on. `view.ready` is not the same question and
+    // answers far too early - it is true seconds in, while the app's own idea
+    // of ready is a warmed first view some twenty seconds later. A check that
+    // confuses them asserts against a still-arriving scene.
     window.__door = door;
     bar.over(56, 2000);
     // The web scene carries its own authored environment — a fixed
@@ -1527,20 +1352,11 @@ async function main() {
     if (CONFIG.preload.beforeUnlock <= 0) openTheDoor();
     await warmUp(view, slides, () => { openingState(); tickClock(view); }, {
       // Nobody can be inside before the door opens, so until then the warm-up
-      // runs to completion; after it, the first click ends it. The click and
-      // the reveal are the same moment again now that the login is asked for
-      // on arrival rather than on the way in.
+      // runs to completion; after it, the first click ends it.
       aborted: () => opened && entered(),
       onStart: (home) => { warmHome = home; },
       afterEach: (done) => { if (done >= CONFIG.preload.beforeUnlock) openTheDoor(); }
     });
-    // warmUp puts the camera back itself when it runs to the end. When it was
-    // cut short it does not, on the grounds that reveal() already has - which
-    // was true while the click revealed the scene outright, and is not now
-    // that a login sits in between. This is the authoritative restore: the
-    // loop has definitely let go of the camera by here, so nothing lands on
-    // top of it. Skipped once the viewer is actually inside, where the camera
-    // is theirs and yanking it home would be the app taking the controls.
     // warmUp puts the camera back itself now, in both the finished and the
     // cut-short cases - it is the only place sequenced after its own applyTo.
     // warmHome stays set so reveal() can assert it once more.
@@ -1555,8 +1371,6 @@ async function main() {
     // A warm-up may have the camera at another view with its layers switched
     // on. Put both back now, in the same frame the curtain starts lifting -
     // a frame later and the viewer sees somebody else's view slide away.
-    // Usually already done, on the click; this is the case where there was no
-    // login to sit behind because the browser was signed in already.
     restoreHome();
     els.intro.classList.add("gone");
     [els.masthead, els.tour, els.captures, els.tools, els.weather]
@@ -1570,9 +1384,8 @@ async function main() {
       requestAnimationFrame(() => { openingState(); tickClock(view); });
     }
   };
-  // The login is behind us by the time this can be pressed - see the call to
-  // gate.ask on arrival - so the click reveals the scene outright, and can be
-  // the one click the button gets.
+  // The click reveals the scene outright, and it is the one click the button
+  // gets.
   els.enter.addEventListener("click", reveal, { once: true });
 
   const tools = wireTools(view, surfaces,

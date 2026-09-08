@@ -463,78 +463,11 @@ lines carry the same weight. The obvious economy is to dim the name, or to drop
 it on a short screen — but the corner credit is already hidden on a phone, so
 the curtain is the only place a phone shows who made this.
 
-### Signing in
-
-Clicking Explore asks for a username — any email address — and a shared
-password, and does not lift the curtain until it gets both.
-
-**It is a doormat, not a lock, and nothing in the code pretends otherwise.**
-This app is static — Pages, S3, CloudFront, no server of its own — so every
-line of the check runs in the visitor's browser out of a file they have already
-downloaded. Anyone who opens the developer tools can read the rule or set the
-flag by hand. The scene's layers are public services besides, reachable by URL
-without meeting it at all. It stops a demo link being wandered into, which is
-the whole of what it was asked to do. Real restriction is ArcGIS OAuth or
-signed CloudFront URLs, and either one needs the layers made private first.
-
-**The password is the rule; the username is only a name.** It was briefly
-limited to `@esri.com`, which sounded like a restriction and was not one —
-nothing here verifies that an address is real or belongs to whoever typed it,
-so all the domain check did was turn a shared password into a claim about
-somebody's employer. Any address that looks like an address now passes.
-
-The password is held as a SHA-256 digest rather than in full. Not cryptography
-either — a short known word falls to a dictionary instantly — it just keeps it
-from sitting in the bundle as a string that turns up on the first search for
-the obvious.
-
-#### Why it comes first
-
-The obvious order is to let people look at the curtain and ask when they press
-Explore. It was built that way, and it is wrong — for a reason that is only
-obvious once you watch someone use it.
-
-The scene takes about twenty seconds to become worth looking at. A login is the
-one part of this that costs the *viewer* time rather than the network. Asked
-first, the two are spent together: by the time a password is typed the stadium
-is most of the way there, and Explore opens onto a scene that is ready.
-Measured at the point of signing in, the progress bar is already at 90%. Asked
-second, they queue — the viewer waits twenty seconds, then is asked to do
-something, then waits again.
-
-It also removes a race that was never going to be won. Asking on the click put
-an unbounded pause between the click and the reveal, and the warm-up went on
-flying the camera to other views for the length of it. Putting the camera back
-afterwards meant writing one while `applyTo` had another in flight, and
-whichever settled last won — four placements of that restore, none of which
-held. Asked on arrival, the click and the reveal are the same moment again and
-there is nothing to put back.
-
-Explore therefore waits on two flags, `door.ready` and `door.admitted`, which
-land in either order; `admit()` is called from both sides and does nothing
-until both are true. `door.ready` also drives the curtain's message rather than
-the button's own `disabled` state — those used to be the same question, and a
-signed-out viewer would otherwise sit in front of a finished scene being told
-to wait.
-
-**Remembered per session, not for good.** `sessionStorage` rather than
-`localStorage` — the obvious choice and the wrong one. Remembering forever
-means the person who set this up stops being asked on their own machine, and
-that is exactly the machine the demo is given from: the gate goes invisible to
-the one person who needs to know it is still there. It produced a bug report
-that way round — the login "not appearing" on Pages — against an app that was
-working correctly, and a clean browser was being shown the box 2.2 s after
-load. A reload part way through a demo still does not ask; closing the tab
-forgets.
-
-**The form is wired on load, not in `boot()`.** Built after `scene.load()`, a
-slow or failed scene left it inert — typing into it and pressing the button did
-nothing at all, which from the outside cannot be told apart from a rejected
-password.
+### Readiness
 
 **`view.ready` is not the app's readiness.** It is true within seconds of the
 view existing, while the app's own idea of ready is a warmed first view some
-twenty seconds later. `window.__door` exposes the real pair, because a check
+twenty seconds later. `window.__door` exposes the real flag, because a check
 resting on `view.ready` asserts against a still-arriving scene and reads the
 honest "Loading…" as a bug.
 

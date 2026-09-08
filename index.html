@@ -572,38 +572,6 @@
      rel="noopener">Powered by Esri</a>
 </div>
 
-<!-- Asked for after Explore rather than on the curtain.
-
-     On the curtain it had to share the space with the title, the lede, the
-     loading bar and the button, and a form squeezed in among those reads as
-     one more thing to get past before the thing you came for. Here it is the
-     only thing on screen, which is the whole of what makes it feel simple.
-
-     Not a security boundary and not presented as one: everything here runs in
-     the visitor's own browser, so the check can be read or skipped by anyone
-     who opens the developer tools, and the scene's layers are public services
-     that a URL reaches without passing this at all. It keeps a demo link from
-     being wandered into, which is what it is for. -->
-<div id="signin" class="signin" hidden>
-  <!-- Two fields and a button, and nothing else on it. Every extra line here -
-       a heading, a note about who it is for, a placeholder spelling out a
-       domain - was something the viewer had to read before they could do the
-       one obvious thing, on a box whose whole job is to be obvious. -->
-  <form id="gate" class="signin__card" novalidate role="dialog"
-        aria-modal="true" aria-label="Sign in">
-    <label class="signin__label" for="gateEmail">Username</label>
-    <input id="gateEmail" class="signin__field" type="email" required
-           autocomplete="username" spellcheck="false" autocapitalize="none" />
-
-    <label class="signin__label" for="gatePass">Password</label>
-    <input id="gatePass" class="signin__field" type="password" required
-           autocomplete="current-password" />
-
-    <p id="gateMsg" class="signin__msg" role="status" aria-live="polite"></p>
-    <button id="gateGo" class="signin__go" type="submit">Sign in</button>
-  </form>
-</div>
-
 <div class="rotate" aria-hidden="true"><p>Rotate your device</p></div>
 
 <noscript><p class="noscript">This experience requires JavaScript.</p></noscript>

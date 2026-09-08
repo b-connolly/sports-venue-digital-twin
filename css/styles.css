@@ -129,68 +129,6 @@ html, body {
   color: var(--paper-faint);
 }
 
-/* ------------------------------------------------------------------ sign in
-   Shown after Explore, over the curtain, and on its own. On the curtain the
-   form had to share the space with a title, a lede, a loading bar and a
-   button, and squeezed in among those it read as one more obstacle rather
-   than as one small question. Alone on screen it is just the question. */
-.signin {
-  position: fixed; inset: 0; z-index: 60;
-  display: grid; place-items: center;
-  padding: var(--pad);
-  background: rgba(8, 11, 18, 0.72);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
-  animation: signin-in 0.22s var(--ease);
-}
-.signin[hidden] { display: none; }
-@keyframes signin-in { from { opacity: 0; } to { opacity: 1; } }
-
-.signin__card {
-  display: flex; flex-direction: column;
-  width: min(272px, 88vw);
-  padding: 1.15rem 1.15rem 1rem;
-  background: var(--glass);
-  border: 1px solid var(--line); border-radius: 14px;
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  box-shadow: var(--shadow);
-  text-align: left;
-}
-.signin__label {
-  font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--paper-faint); margin-bottom: 0.3rem;
-}
-.signin__field {
-  font: inherit; font-size: 0.86rem;
-  padding: 0.6rem 0.75rem; margin-bottom: 0.9rem;
-  color: var(--paper); background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line); border-radius: 9px;
-  transition: border-color .2s, background .2s;
-}
-.signin__field::placeholder { color: rgba(244, 241, 234, 0.26); }
-.signin__field:focus {
-  outline: none; border-color: var(--accent-2);
-  background: rgba(255, 255, 255, 0.08);
-}
-/* Marked only after a real attempt, never while somebody is still typing -
-   :invalid on its own turns every empty field red before it has been used. */
-.signin__field.bad { border-color: var(--accent); }
-.signin__msg {
-  margin: 0 0 0.5rem; min-height: 1.1em;
-  font-size: 0.68rem; letter-spacing: 0.04em; color: var(--accent-2);
-}
-.signin__go {
-  padding: 0.7rem 1.4rem;
-  font: inherit; font-size: 0.72rem; letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--paper); background: transparent;
-  border: 1px solid var(--line); border-radius: 999px;
-  cursor: pointer; transition: background .25s, border-color .25s, color .25s;
-}
-.signin__go:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.signin__go:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
-
 .enter {
   margin-top: 2.2rem; padding: 0.85rem 2.6rem;
   font: inherit; font-size: 0.78rem; letter-spacing: 0.22em; text-transform: uppercase;
