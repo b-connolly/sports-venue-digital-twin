@@ -78,7 +78,7 @@ replays driven by actual sports tracking data.
 
 ## Built with
 
-[ArcGIS Maps SDK for JavaScript 5.x](https://developers.arcgis.com/javascript/latest/),
+[JavaScript Maps SDK 5.x](https://developers.arcgis.com/javascript/latest/),
 loaded as ES modules from the CDN. No build step and no dependencies to install.
 
 | | |

@@ -1,6 +1,6 @@
 /**
  * Sports Venue Digital Twin — reality mapping explorer
- * ArcGIS Maps SDK for JavaScript 5.x, loaded as ES modules from the CDN.
+ * JavaScript Maps SDK 5.x, loaded as ES modules from the CDN.
  * No build step: the scene is public, so there is nothing to authenticate.
  */
 
