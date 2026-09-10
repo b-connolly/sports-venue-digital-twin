@@ -26,19 +26,13 @@
 <link rel="stylesheet" href="https://js.arcgis.com/5.0/@arcgis/core/assets/esri/themes/dark/main.css" />
 <link rel="stylesheet" href="./css/styles.css" />
 
-<!-- GoatCounter. No cookies, no personal data and nothing stored on the
-     visitor's machine, so there is nothing here to ask consent for. async so
-     it never sits in front of the first paint, and count.js skips itself on
-     localhost, so serve.py runs stay out of the numbers. -->
-<script>
-  // Every app reports to the one GoatCounter site, so each has to say which
-  // app it is: without a prefix every app's front page is "/" and they all
-  // pile into a single row. Read before count.js loads, which is why this
-  // block comes first.
-  window.goatcounter = {
-    path: function (p) { return '/sports-venue-digital-twin' + p }
-  }
-</script>
+<!-- GoatCounter. No cookies and nothing stored on the visitor's machine, so
+     there is nothing here to ask consent for, and count.js skips localhost so
+     local runs stay out of the numbers.
+
+     No path prefix: GitHub project sites serve at /<repo>/, so the path this
+     records is already "/sports-venue-digital-twin/" and distinct from the other
+     apps reporting to the same site. Prefixing it recorded the name twice. -->
 <script data-goatcounter="https://bconnolly.goatcounter.com/count"
         async src="https://gc.zgo.at/count.js"></script>
 </head>
