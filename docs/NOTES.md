@@ -1,8 +1,7 @@
 # Sports Venue Digital Twin
 
 A custom single-page app around a reality-captured stadium web scene
-(`2ecd0214d1c940fca2789d0146069786`), built on the **ArcGIS Maps SDK for
-JavaScript 5.x**.
+(`2ecd0214d1c940fca2789d0146069786`), built on the **JavaScript Maps SDK 5.x**.
 
 Dark, cinematic, deliberately sparse — the scene is the content and the
 interface stays out of the way until you reach for it.
