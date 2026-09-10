@@ -25,6 +25,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://js.arcgis.com/5.0/@arcgis/core/assets/esri/themes/dark/main.css" />
 <link rel="stylesheet" href="./css/styles.css" />
+
+<!-- GoatCounter. No cookies, no personal data and nothing stored on the
+     visitor's machine, so there is nothing here to ask consent for. async so
+     it never sits in front of the first paint, and count.js skips itself on
+     localhost, so serve.py runs stay out of the numbers. -->
+<script>
+  // Every app reports to the one GoatCounter site, so each has to say which
+  // app it is: without a prefix every app's front page is "/" and they all
+  // pile into a single row. Read before count.js loads, which is why this
+  // block comes first.
+  window.goatcounter = {
+    path: function (p) { return '/sports-venue-digital-twin' + p }
+  }
+</script>
+<script data-goatcounter="https://bconnolly.goatcounter.com/count"
+        async src="https://gc.zgo.at/count.js"></script>
 </head>
 <body>
 
